@@ -5,8 +5,8 @@ A tool to SPLit, Align and ConcatenatE genes sequences for phylogenetic inferenc
 
 SPLACE will:
 
-1.Split the same genes from different organisms;
-2.Align each gene group separately;
+1.Split the same genes from different organisms;\
+2.Align each gene group separately;\
 3.Concatenate the aligned genes originated from the same organism.
 
 
@@ -16,8 +16,8 @@ Usage:
 ./splace.sh -l <Fasta files list>.txt -t <num_threads> -o <output_name> -g <genes_list>
 ~~~
 
-#-l <Fasta files list> = Text file with a list of all fasta files to be included in the result.
-#-t <num_threads> = Number or threads to use in the blast step. Default is 1.
+#-l <Fasta files list> = Text file with a list of all fasta files to be included in the result.\
+#-t <num_threads> = Number or threads to use in the blast step. Default is 1.\
 #-o <output_name> = Name of the result file to be generated.
 
 ~~~
