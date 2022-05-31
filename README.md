@@ -1,4 +1,4 @@
-# splace
+# SPLACE
 A tool to SPLit, Align and ConcatenatE genes sequences for phylogenetic inference
 
 ## How to run SPLACE
