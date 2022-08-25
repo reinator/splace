@@ -19,6 +19,8 @@ Usage:
 #-l <Fasta files list> = Text file with a list of all fasta files to be included in the result.\
 #-t <num_threads> = Number or threads to use in the blast step. Default is 1.\
 #-o <output_name> = Name of the result file to be generated.
+#-g <genes_list> = If specified, any organism that do not have such gene, will have "?" in the supermatrix. If no specified, analysis is carried out only with the shared genes.
+
 
 ~~~
 ./splace.sh -l filesList.txt -t 24 -o Glomeridesmus - g genes_list.txt
@@ -29,12 +31,21 @@ Example of a Fasta_files_list.txt:
 ~~~
 bases_genes_ITV1046I2.fasta 	
 bases_genes_ITV8918.fasta 	
-~~~  
-  
+~~~ 
+
+Example of a genes_list.txt:
+~~~
+nad1
+cox1
+nad2
+cox2
+atp6
+~~~
+
 ### Requisites:
 
  The gene names must be the same in the fasta file of the different organisms, being necessary the use of the "_" separator 
-between the gene name and any other gene specification or any specification at all.
+between the gene name and any other gene specification or none separator and specification at all.
 
 Ex: File bases_genes_ITV1046I2.fasta:
 
@@ -61,11 +72,11 @@ agagaaattaattaa
 Ex: File bases_genes_ITV8918.fasta
 
 ~~~
->atp8_ITV8918 atp8 atp8 7851:7991 forward
+>atp8
 attccacaaatatccccaataaattgagaaataatatttttaacttctattttaattctt
 ttaataacttcaattattatccatcaaaattctaattttcgattatctaaaaaacaaaaa
 attccttcaaaaatttattaa
->atp6_ITV8918 atp6 atp6 7999:8673 forward
+>atp6
 atgataacaaatttattctcaatttttgatccttcttctattacctcaatctcattaaat
 tgattaagtatacttttaattataatctttataaatttaactttttgattatttaaatca
 aaaaatcaaattcttattaataacctaaattctattattaataaagaattaaaaacaaca

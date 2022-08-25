@@ -9,8 +9,8 @@ Version: 1.2
 3.Concatena alinhamentos desde que os ids das sequencias tenham o mesmo nome
 
 
-Usage: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v1.2.py <Fasta files list>.txt <num_threads> <output_name>
-Ex: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v1.2.py filesList.txt 24 Glomeridesmus
+Usage: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py <Fasta files list>.txt <num_threads> <output_name>
+Ex: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py filesList.txt 24 Glomeridesmus
 
 Ex: Fasta_files_list.txt
 
@@ -240,7 +240,7 @@ def splitGenes(filesList, output_name, genes_list):
 	lines=[] #Linhas dos arquivos de genes de cada organismo
 	for n in range(num_org):
 		arq_genes = open(filesList[n],"r")
-		#print(filesList[n])
+		print("Organism "+filesList[n])
 		genes_and_org_text+=filesList[n]+"\t"
 		lines.append(arq_genes.readlines()) #linhas de cada arquivo de genes guardado em uma lista
 		num_lines=len(lines[n])
@@ -261,7 +261,7 @@ def splitGenes(filesList, output_name, genes_list):
 					gene_name = line.strip("\r").strip("\n")
 					#print(gene_name)
 				gene_index[gene_name]=i
-				#print(gene_name)
+				print("Gene "+gene_name)
 				
 			i+=1
 		gene_index_list.append(gene_index)
@@ -438,11 +438,12 @@ output_name = sys.argv[3]
 try:
     sys.argv[4]
 except IndexError:
-    genes_list_file = None
+    genes_list = None
 else:
     genes_list_file = open(sys.argv[4], "r")
+    genes_list = readGenesList(genes_list_file)
 
-genes_list = readGenesList(genes_list_file)
+
 filesList = readFilesList(arqList)
 
 gene_arq_name,gene_name_index,gene_order,num_org = splitGenes(filesList, output_name, genes_list)
