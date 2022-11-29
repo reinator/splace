@@ -95,9 +95,9 @@ Results will be saved at the created folder <output_name>_results.
 In the folder <output_name>_genes will be created fasta file for each gene and its alignment.
   
 ## Workflow:
-![](https://github.com/reinator/splace/blob/main/workflow.png?raw=true)
+![](https://github.com/reinator/splace/blob/main/workflow.tif?raw=true)
   
-A - To generate the supermatrix of n organisms, SPLACE will need n fasta files, each one containing all the g genes from a particular organism;
+A - To generate the supermatrix of n organisms, SPLACE will need n fasta files, each one containing all the g genes from a particular organism;\
 B - First, SPLACE splits the genes from an organism, gathering the genes that have the same name from the n organisms into a single fasta file, therefore generating g new fasta files, each one containing the same gene from different organisms (Figure 1B);\
 C - Then, SPLACE aligns each one of the g fasta files using the MAFFT aligner (with default parameter –auto), generating g’ new aligned fasta files;\
 D - Finally, the genes in the g’ aligned fasta files that came from the same organism are concatenated into a single sequence, generating a single fasta file with the supermatrix containing n sequences, each representing one of the n organisms;\
