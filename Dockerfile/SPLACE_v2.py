@@ -313,7 +313,8 @@ def splitGenes(filesList, output_name, genes_list):
 
 	all_genes_dict_keys = all_genes_dict.keys()
 	for gene in sorted(all_genes_dict_keys):
-		presence_absence_text+=gene+"\t"
+		if(gene in genes_list):
+			presence_absence_text+=gene+"\t"
 		genes_and_org_text+=gene+"\t"
 
 	presence_absence_text = presence_absence_text.strip("\t")
@@ -330,10 +331,12 @@ def splitGenes(filesList, output_name, genes_list):
 		
 		for gene in sorted(all_genes_dict_keys):
 			if(gene in genes_of_organism_keys):
-				presence_absence_text+="1\t"
+				if(gene in genes_list):
+					presence_absence_text+="1\t"
 				genes_and_org_text+=gene+"\t"
 			else:
-				presence_absence_text+="0\t"
+				if(gene in genes_list):
+					presence_absence_text+="0\t"
 				genes_and_org_text+="N/A\t"
 
 		presence_absence_text = presence_absence_text.strip("\t")
