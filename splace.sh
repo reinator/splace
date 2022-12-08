@@ -87,7 +87,7 @@ agagaaatcaattaa
 Results will be saved at the created folder <output_name>_results.
 In the folder <output_name>_genes will be created fasta file for each gene and its alignment.
 '''
-
+TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 THREADS=1
 OUTPUT="output"
 GENES_LIST="no"
@@ -119,19 +119,20 @@ COMMON_PATH=$({ echo $FULL_PATH_FILE; echo $CURRENT_PATH;} | sed -e 'N;s/^\(.*\)
 FILELIST=$(echo ${FULL_PATH_FILE#"$COMMON_PATH"})/$(basename $FILELIST)
 
 echo "Creating a SPLACE Container: "
-docker run -id -v $COMMON_PATH:/common/ -v $CURRENT_PATH:/output/ --name splace itvdsbioinfo/splace:latest
+docker pull itvdsbioinfo/splace:latest
+docker run -id -v $COMMON_PATH:/common/ -v $CURRENT_PATH:/output/ --name splace_$TIMESTAMP itvdsbioinfo/splace:latest
 
 if [ $GENES_LIST = "no" ];
 then
 
 	echo "Running the SPLACE Container: "
-	docker exec -i splace /bin/bash -c 'cd /output/; \
+	docker exec -i splace_$TIMESTAMP /bin/bash -c 'cd /output/; \
 		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT'; \
 		chmod -R 777 /output/'$OUTPUT'_*;'
 
 else
 	echo "Running the SPLACE Container: "
-	docker exec -i splace /bin/bash -c 'cd /output/; \
+	docker exec -i splace_$TIMESTAMP /bin/bash -c 'cd /output/; \
 		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT' '$GENES_LIST'; \
 		chmod -R 777 /output/'$OUTPUT'_*;'
 fi
@@ -139,7 +140,7 @@ fi
 #conda deactivate
 
 echo "Stopping Containeres: "
-docker stop splace
+docker stop splace_$TIMESTAMP
 
 echo "Removing Containeres: "
-docker rm splace
+docker rm splace_$TIMESTAMP
