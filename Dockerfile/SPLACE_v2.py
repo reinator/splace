@@ -75,14 +75,17 @@ Na pasta <output_name>_genes serao criados arquivos fasta para cada gene encontr
 import sys
 import os
 
+report = open("splace.log", "w")
 
 def readFilesList(arqList):
 	filesList = []
 	print("Organisms gene files:\n")
+	report.write("\nOrganisms gene files:\n")
 	for line in arqList:
 		line=line.split("\n")
 		line=line[0]
 		print(line)
+		report.write(line+"\n")
 		filesList.append(line)
 
 	return (filesList)
@@ -90,10 +93,13 @@ def readFilesList(arqList):
 def readGenesList(genes_list_file):
 	genes_list = []
 	print("Genes list:\n")
+	report.write("Genes list:\n")
+
 	for line in genes_list_file:
 		line=line.split("\n")
 		line=line[0]
 		print(line)
+		report.write(line+"\n")
 		genes_list.append(line)
 
 	return (genes_list)
@@ -228,8 +234,6 @@ def splitGenes(filesList, output_name, genes_list):
 	os.system("mkdir -p "+output_name+"_genes")
 	os.system("cd "+output_name+"_genes")
 
-	genes_and_org = open(output_name+"_genes_and_orgs.tsv", "w")
-	genes_and_org_text = ""
 
 	num_org = len(filesList)
 
@@ -238,10 +242,14 @@ def splitGenes(filesList, output_name, genes_list):
 	gene=""
 	gene_name=""
 	lines=[] #Linhas dos arquivos de genes de cada organismo
+	
+	all_genes_dict = dict()
+	org_dict = dict() #dicionario pra guardar os genes_dict de cada organismo
 	for n in range(num_org):
+		genes_dict = dict() #dicionario pra auxiliar na criacao da tabela de genes por organismo
 		arq_genes = open(filesList[n],"r")
 		print("Organism "+filesList[n])
-		genes_and_org_text+=filesList[n]+"\t"
+		#genes_and_org_text+=filesList[n]+"\t"
 		lines.append(arq_genes.readlines()) #linhas de cada arquivo de genes guardado em uma lista
 		num_lines=len(lines[n])
 		i=0
@@ -269,15 +277,16 @@ def splitGenes(filesList, output_name, genes_list):
 		#write the genes of an organism sorted alphabetically
 		genes_of_organism = gene_index.keys()
 		for gene_name in sorted(genes_of_organism):
-			genes_and_org_text+=gene_name[1:]+"\t"
+			#genes_and_org_text+=gene_name[1:]+"\t"
+			genes_dict[gene_name[1:]] = True
+			all_genes_dict[gene_name[1:]] = True
 
-		genes_and_org_text=genes_and_org_text.strip("\t")
-		genes_and_org_text+="\n"
+		
+		org_dict[filesList[n]] = genes_dict
 
-	genes_and_org.write(genes_and_org_text)
-	genes_and_org.close()
 
 	print(str(len(gene_index_list))+" organisms")
+	report.write("\n"+str(len(gene_index_list))+" organisms\n")
 	genes_keys = sorted(gene_index_list[0].keys())
 	genes_keys_union = sorted(gene_index_list[0].keys())
 	#shared_genes = gene_index_list[0].keys()
@@ -292,6 +301,52 @@ def splitGenes(filesList, output_name, genes_list):
 	print(str(num_genes)+" shared genes")
 	print(str(len(genes_keys_union))+" total genes")
 
+	report.write(str(num_genes)+" shared genes\n")
+	report.write(str(len(genes_keys_union))+" total genes")
+
+	presence_absence = open(output_name+"_presence_absence_genes.tsv", "w")
+	presence_absence_text = "Organism\t"
+
+	genes_and_org = open(output_name+"_genes_and_orgs.tsv", "w")
+	genes_and_org_text = "Organism\t"
+
+
+	all_genes_dict_keys = all_genes_dict.keys()
+	for gene in sorted(all_genes_dict_keys):
+		presence_absence_text+=gene+"\t"
+		genes_and_org_text+=gene+"\t"
+
+	presence_absence_text = presence_absence_text.strip("\t")
+	presence_absence_text+= "\n"
+
+	genes_and_org_text=genes_and_org_text.strip("\t")
+	genes_and_org_text+="\n"
+
+	org_names = org_dict.keys()
+	for organism in org_names:
+		presence_absence_text+=organism+"\t"
+		genes_and_org_text+=organism+"\t"
+		genes_of_organism_keys = org_dict[organism].keys()
+		
+		for gene in sorted(all_genes_dict_keys):
+			if(gene in genes_of_organism_keys):
+				presence_absence_text+="1\t"
+				genes_and_org_text+=gene+"\t"
+			else:
+				presence_absence_text+="0\t"
+				genes_and_org_text+="N/A\t"
+
+		presence_absence_text = presence_absence_text.strip("\t")
+		presence_absence_text+= "\n"
+
+		genes_and_org_text=genes_and_org_text.strip("\t")
+		genes_and_org_text+="\n"
+
+	presence_absence.write(presence_absence_text)
+	presence_absence.close()
+
+	genes_and_org.write(genes_and_org_text)
+	genes_and_org.close()
 
 	if(genes_list == None):
 		gene_arq_name, gene_name_index, gene_order = run_shared_genes(output_name, genes_keys, gene_index_list, lines)
@@ -314,10 +369,12 @@ def concatenateGenes(output_name,gene_name_index,gene_order, num_org, filesList)
 
 	gene_order_keys = gene_order.keys()
 	sorted(gene_order_keys)
-	print("Shared genes among organisms")
+	print("Analyzed genes among organisms")
+	report.write("\nAnalyzed genes among organisms:\n")
 	for o in gene_order_keys:
 		gene_name = gene_order[o]
 		print(gene_name)
+		report.write(gene_name+"\n")
 		gene_name_dir = gene_name_index[gene_name]
 		ponto = gene_name_dir.rfind(".")
 		gene_name_dir = gene_name_dir[:ponto]+"_mafft.fasta"
@@ -431,9 +488,12 @@ def runMafft(file, num_threads):
 	os.system(command)
 
 
+
 arqList = open(sys.argv[1], "r")
 num_threads = sys.argv[2]
 output_name = sys.argv[3]
+
+
 
 try:
     sys.argv[4]
@@ -453,5 +513,8 @@ for i in gene_arq_name:
 	runMafft(i, num_threads)
 
 concatenateGenes(output_name, gene_name_index, gene_order, num_org, filesList)
+
+#report.write(report_text)
+report.close()
 
 arqList.close()
