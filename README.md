@@ -1,5 +1,11 @@
 # SPLACE
-A tool to SPLit, Align and ConcatenatE genes sequences for phylogenetic inference
+A tool to SPLit, Align and ConcatenatE genes sequences for phylogenetic inference.\
+
+Cite:
+
+Oliveira, R. R., Vasconcelos, S., & Oliveira, G. (2022). SPLACE: A tool to automatically SPLit, Align, and ConcatenatE genes for phylogenomic inference of several organisms. Frontiers in Bioinformatics, 2.\
+https://doi.org/10.3389/fbinf.2022.1074802
+
 
 ## How to run SPLACE
 
