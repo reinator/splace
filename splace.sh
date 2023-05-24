@@ -118,6 +118,9 @@ cd $CURRENT_PATH
 COMMON_PATH=$({ echo $FULL_PATH_FILE; echo $CURRENT_PATH;} | sed -e 'N;s/^\(.*\).*\n\1.*$/\1\n\1/;D')
 FILELIST=$(echo ${FULL_PATH_FILE#"$COMMON_PATH"})/$(basename $FILELIST)
 
+echo Common Path: $COMMON_PATH
+echo Current Path: $CURRENT_PATH
+
 echo "Creating a SPLACE Container: "
 docker pull itvdsbioinfo/splace:latest
 docker run -id -v $COMMON_PATH:/common/ -v $CURRENT_PATH:/output/ --name splace_$TIMESTAMP itvdsbioinfo/splace:latest
