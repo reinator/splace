@@ -304,40 +304,22 @@ def splitGenes(filesList, output_name, genes_list):
 	report.write(str(num_genes)+" shared genes\n")
 	report.write(str(len(genes_keys_union))+" total genes")
 
-	presence_absence = open(output_name+"_presence_absence_genes.tsv", "w")
-	presence_absence_text = "Organism\t"
+	
+	if(genes_list == None):
+		gene_arq_name, gene_name_index, gene_order = run_shared_genes(output_name, genes_keys, gene_index_list, lines)
+	else:
+		presence_absence = open(output_name+"_presence_absence_genes.tsv", "w")
+		presence_absence_text = "Organism\t"
 
-	genes_and_org = open(output_name+"_genes_and_orgs.tsv", "w")
-	genes_and_org_text = "Organism\t"
+		genes_and_org = open(output_name+"_genes_and_orgs.tsv", "w")
+		genes_and_org_text = "Organism\t"
 
 
-	all_genes_dict_keys = all_genes_dict.keys()
-	for gene in sorted(all_genes_dict_keys):
-		if(gene in genes_list):
-			presence_absence_text+=gene+"\t"
-		genes_and_org_text+=gene+"\t"
-
-	presence_absence_text = presence_absence_text.strip("\t")
-	presence_absence_text+= "\n"
-
-	genes_and_org_text=genes_and_org_text.strip("\t")
-	genes_and_org_text+="\n"
-
-	org_names = org_dict.keys()
-	for organism in org_names:
-		presence_absence_text+=organism+"\t"
-		genes_and_org_text+=organism+"\t"
-		genes_of_organism_keys = org_dict[organism].keys()
-		
+		all_genes_dict_keys = all_genes_dict.keys()
 		for gene in sorted(all_genes_dict_keys):
-			if(gene in genes_of_organism_keys):
-				if(gene in genes_list):
-					presence_absence_text+="1\t"
-				genes_and_org_text+=gene+"\t"
-			else:
-				if(gene in genes_list):
-					presence_absence_text+="0\t"
-				genes_and_org_text+="N/A\t"
+			if(gene in genes_list):
+				presence_absence_text+=gene+"\t"
+			genes_and_org_text+=gene+"\t"
 
 		presence_absence_text = presence_absence_text.strip("\t")
 		presence_absence_text+= "\n"
@@ -345,15 +327,34 @@ def splitGenes(filesList, output_name, genes_list):
 		genes_and_org_text=genes_and_org_text.strip("\t")
 		genes_and_org_text+="\n"
 
-	presence_absence.write(presence_absence_text)
-	presence_absence.close()
+		org_names = org_dict.keys()
+		for organism in org_names:
+			presence_absence_text+=organism+"\t"
+			genes_and_org_text+=organism+"\t"
+			genes_of_organism_keys = org_dict[organism].keys()
+			
+			for gene in sorted(all_genes_dict_keys):
+				if(gene in genes_of_organism_keys):
+					if(gene in genes_list):
+						presence_absence_text+="1\t"
+					genes_and_org_text+=gene+"\t"
+				else:
+					if(gene in genes_list):
+						presence_absence_text+="0\t"
+					genes_and_org_text+="N/A\t"
 
-	genes_and_org.write(genes_and_org_text)
-	genes_and_org.close()
+			presence_absence_text = presence_absence_text.strip("\t")
+			presence_absence_text+= "\n"
 
-	if(genes_list == None):
-		gene_arq_name, gene_name_index, gene_order = run_shared_genes(output_name, genes_keys, gene_index_list, lines)
-	else:
+			genes_and_org_text=genes_and_org_text.strip("\t")
+			genes_and_org_text+="\n"
+
+		presence_absence.write(presence_absence_text)
+		presence_absence.close()
+
+		genes_and_org.write(genes_and_org_text)
+		genes_and_org.close()
+		
 		gene_arq_name, gene_name_index, gene_order = run_list_genes(output_name, genes_keys_union, gene_index_list, genes_list, lines)
 	
 	return (gene_arq_name, gene_name_index, gene_order, num_org)
