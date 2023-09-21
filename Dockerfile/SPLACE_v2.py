@@ -9,8 +9,8 @@ Version: 1.2
 3.Concatena alinhamentos desde que os ids das sequencias tenham o mesmo nome
 
 
-Usage: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py <Fasta files list>.txt <num_threads> <output_name>
-Ex: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py filesList.txt 24 Glomeridesmus
+Usage: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py <Fasta files list>.txt <num_threads> <output_name> <separator>
+Ex: python /bio_temp/share_bio/softwares/SPLACE/SPLACE_v2.py filesList.txt 24 Glomeridesmus _
 
 Ex: Fasta_files_list.txt
 
@@ -257,14 +257,13 @@ def splitGenes(filesList, output_name, genes_list):
 		while(i < num_lines):
 			line=lines[n][i]
 			if(line[0]==">"):
-				if(line.find("_") != -1):
-					gene_name=line[:line.find("_")].strip("\r").strip("\n")
-				elif(line.find(" ") != -1):
-					gene_name=line[:line.find(" ")].strip("\r").strip("\n")
-				elif(line.find("\t") != -1):
-					gene_name=line[:line.find("\t")].strip("\r").strip("\n")
-				elif(line.find("-") != -1):
-					gene_name=line[:line.find("-")].strip("\r").strip("\n")
+				if(separator != None):
+					if(line.find(separator) != -1):
+						gene_name=line[:line.find(separator)].strip("\r").strip("\n")
+					elif(line.find(" ") != -1):
+						gene_name=line[:line.find(" ")].strip("\r").strip("\n")
+					elif(line.find("\t") != -1):
+						gene_name=line[:line.find("\t")].strip("\r").strip("\n")
 				else:
 					gene_name = line.strip("\r").strip("\n")
 					#print(gene_name)
@@ -506,6 +505,14 @@ except IndexError:
 else:
     genes_list_file = open(sys.argv[4], "r")
     genes_list = readGenesList(genes_list_file)
+
+
+try:
+    sys.argv[5]
+except IndexError:
+    separator = None
+else:
+    separator = sys.argv[5]
 
 
 filesList = readFilesList(arqList)

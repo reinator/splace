@@ -19,17 +19,18 @@ SPLACE will:
 Usage:
 
 ~~~
-./splace.sh -l <Fasta files list>.txt -t <num_threads> -o <output_name> -g <genes_list>
+./splace.sh -l <Fasta files list>.txt -t <num_threads> -o <output_name> -g <genes_list> -s <separator>
 ~~~
 
 #-l <Fasta files list> = Text file with a list of all fasta files to be included in the result.\
 #-t <num_threads> = Number or threads to use in the blast step. Default is 1.\
 #-o <output_name> = Name of the result file to be generated.\
-#-g <genes_list> = If specified, any organism that do not have such gene, will have "?" in the supermatrix. If no specified, analysis is carried out only with the shared genes.
+#-g <genes_list> = If specified, any organism that do not have such gene, will have "?" in the supermatrix. If no specified, analysis is carried out only with the shared genes.\
+#-s <separator> = The separator character used to distinguish the gene name and any other information in the organisms fasta files.
 
 
 ~~~
-./splace.sh -l filesList.txt -t 24 -o Glomeridesmus - g genes_list.txt
+./splace.sh -l filesList.txt -t 24 -o Glomeridesmus -g genes_list.txt -s _
 ~~~~
   
 Example of a Fasta_files_list.txt:

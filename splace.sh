@@ -91,9 +91,10 @@ TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 THREADS=1
 OUTPUT="output"
 GENES_LIST="no"
+SEPARATOR=""
 #DB_FILE=/bio/pimba_metabarcoding/databases.txt
 
-while getopts "l:o:t:g:" opt; do
+while getopts "l:o:t:g:s:" opt; do
 	case $opt in
 		l) FILELIST="$OPTARG"
 		;;
@@ -103,6 +104,8 @@ while getopts "l:o:t:g:" opt; do
         ;;
         g) GENES_LIST="$OPTARG"
         ;;
+        s) SEPARATOR="$OPTARG"
+		;;
 		\?) echo "Invalid option -$OPTARG" >&2
     	;;
 	esac
@@ -122,28 +125,22 @@ echo Common Path: $COMMON_PATH
 echo Current Path: $CURRENT_PATH
 
 echo "Creating a SPLACE Container: "
-docker pull itvdsbioinfo/splace:latest
-docker run -id -v $COMMON_PATH:/common/ -v $CURRENT_PATH:/output/ --name splace_$TIMESTAMP itvdsbioinfo/splace:latest
+#docker pull itvdsbioinfo/splace:latest
+docker run -id --rm -v $COMMON_PATH:/common/ -v $CURRENT_PATH:/output/ --name splace_$TIMESTAMP itvdsbioinfo/splace:latest
 
 if [ $GENES_LIST = "no" ];
 then
 
 	echo "Running the SPLACE Container: "
 	docker exec -i splace_$TIMESTAMP /bin/bash -c 'cd /output/; \
-		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT'; \
+		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT' '$SEPARATOR'; \
 		chmod -R 777 /output/'$OUTPUT'_*;'
 
 else
 	echo "Running the SPLACE Container: "
 	docker exec -i splace_$TIMESTAMP /bin/bash -c 'cd /output/; \
-		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT' '$GENES_LIST'; \
+		python3 /splace/SPLACE_v2.py /common/'$FILELIST' '$THREADS' '$OUTPUT' '$GENES_LIST' '$SEPARATOR'; \
 		chmod -R 777 /output/'$OUTPUT'_*;'
 fi
 
-#conda deactivate
-
-echo "Stopping Containeres: "
 docker stop splace_$TIMESTAMP
-
-echo "Removing Containeres: "
-docker rm splace_$TIMESTAMP
