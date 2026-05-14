@@ -4,9 +4,10 @@ contextBridge.exposeInMainWorld("isElectron", true);
 
 contextBridge.exposeInMainWorld("electronAPI", {
     getCpuCount: () => ipcRenderer.invoke("get-cpu-count"),
+    selectGenbankInputs: () => ipcRenderer.invoke("select-genbank-inputs"),
 
     runAnalysis: (params) => ipcRenderer.send("run-analysis", params),
-    runTrimal:   (params) => ipcRenderer.send("run-trimal", params),
+    runTrimal: (params) => ipcRenderer.send("run-trimal", params),
 
     onAnalysisProgress: (callback) => {
         ipcRenderer.on("analysis-progress", (_event, data) => callback(data));

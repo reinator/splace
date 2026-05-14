@@ -1,0 +1,85 @@
+/* Step 3: styles reserved for feature-type stage */
+
+#featureTypesSection {
+    scroll-margin-top: 1rem;
+}
+
+.duplicate-choice-list {
+    display: grid;
+    gap: .45rem;
+}
+
+.duplicate-choice-item {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .45rem .55rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: .7rem;
+    cursor: pointer;
+    color: var(--text);
+}
+
+.duplicate-choice-item input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+}
+
+.duplicate-choice-hint {
+    margin-left: auto;
+    font-size: .72rem;
+    line-height: 1;
+    color: var(--accent-text);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+[data-theme="dark"] #featureTypesSection > .bg-splace-blue-50 {
+    background: var(--accent-soft) !important;
+    border-color: var(--accent-soft-border) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings > div,
+[data-theme="dark"] #geneDuplicateWarnings > div {
+    background: var(--surface-2) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings .bg-amber-50,
+[data-theme="dark"] #geneDuplicateWarnings .bg-orange-50,
+[data-theme="dark"] #geneMissingWarnings .bg-white,
+[data-theme="dark"] #geneDuplicateWarnings .bg-white {
+    background: var(--surface) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings .bg-amber-100,
+[data-theme="dark"] #geneDuplicateWarnings .bg-orange-100 {
+    background: rgba(123, 133, 215, 0.12) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings .text-amber-800,
+[data-theme="dark"] #geneMissingWarnings .text-amber-700,
+[data-theme="dark"] #geneMissingWarnings .text-amber-600,
+[data-theme="dark"] #geneDuplicateWarnings .text-orange-800,
+[data-theme="dark"] #geneDuplicateWarnings .text-orange-700,
+[data-theme="dark"] #geneDuplicateWarnings .text-orange-600 {
+    color: var(--accent-text) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings .border-amber-200,
+[data-theme="dark"] #geneDuplicateWarnings .border-orange-200 {
+    border-color: var(--accent-soft-border) !important;
+}
+
+[data-theme="dark"] #geneMissingWarnings td,
+[data-theme="dark"] #geneMissingWarnings th,
+[data-theme="dark"] #geneDuplicateWarnings td,
+[data-theme="dark"] #geneDuplicateWarnings th,
+[data-theme="dark"] #geneMissingWarnings .text-gray-500,
+[data-theme="dark"] #geneDuplicateWarnings .text-gray-500,
+[data-theme="dark"] #geneDuplicateWarnings .text-gray-400 {
+    color: var(--text) !important;
+}

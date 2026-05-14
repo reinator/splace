@@ -1,0 +1,113 @@
+/* Step 4: marker selection and heatmap */
+
+.gene-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: .875rem;
+    transition: all .15s;
+    user-select: none;
+    min-width: 0;
+    color: var(--text);
+}
+
+.gene-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .08);
+}
+
+.gene-chip.active {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft-border);
+    color: var(--accent-text);
+}
+
+.gene-name {
+    font-weight: 500;
+}
+
+.gene-count {
+    font-size: .75rem;
+    opacity: .6;
+}
+
+.gene-len {
+    font-size: .7rem;
+    opacity: .5;
+    font-style: italic;
+}
+
+.heatmap-cell {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.heatmap-cell.present {
+    background: #4676b4;
+}
+
+.heatmap-cell.absent {
+    background: #f26c41;
+}
+
+.heatmap-gene-label {
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    font-size: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 4px;
+    user-select: none;
+}
+
+.heatmap-sticky-col {
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+    z-index: 1;
+    transition: color .3s ease;
+}
+
+.heatmap-sticky-header td {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 2;
+}
+
+.heatmap-sticky-header .heatmap-sticky-col {
+    z-index: 3;
+}
+
+.heatmap-hover-label {
+    position: fixed;
+    pointer-events: none;
+    z-index: 100;
+    background: rgba(30, 41, 59, .92);
+    color: #fff;
+    font-size: .75rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+}
+
+.heatmap-cell,
+.heatmap-gene-label {
+    transition: opacity .3s ease;
+}

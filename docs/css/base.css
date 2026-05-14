@@ -1,0 +1,131 @@
+:root {
+    --splace-blue-50: #eef0fb;
+    --splace-blue-100: #d5d9f3;
+    --splace-blue-700: #2a2e7d;
+    --splace-blue-600: #323795;
+    --surface: #ffffff;
+    --surface-2: #f3f4f6;
+    --border: #e5e7eb;
+    --border-soft: #f1f2f6;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --accent: var(--splace-blue-600);
+    --accent-soft: var(--splace-blue-50);
+    --accent-soft-border: var(--splace-blue-100);
+    --accent-text: var(--splace-blue-700);
+    --danger: #dc2626;
+}
+
+[data-theme="dark"] {
+    --surface: #181b24;
+    --surface-2: #1f2230;
+    --border: #2a2e3e;
+    --border-soft: #232734;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+    --accent: #7b85d7;
+    --accent-soft: rgba(123, 133, 215, 0.12);
+    --accent-soft-border: rgba(123, 133, 215, 0.28);
+    --accent-text: #c7ccef;
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+}
+
+.switch-track {
+    display: inline-flex;
+    align-items: center;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: #d1d5db;
+    cursor: pointer;
+    transition: background .2s;
+    padding: 2px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+.switch-track.active {
+    background: #323795;
+}
+
+.switch-knob {
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform .2s;
+}
+
+.switch-track.active .switch-knob {
+    transform: translateX(16px);
+}
+
+.switch-track-sm {
+    display: inline-flex;
+    align-items: center;
+    width: 28px;
+    height: 16px;
+    border-radius: 8px;
+    background: #d1d5db;
+    cursor: pointer;
+    transition: background .2s;
+    padding: 2px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+.switch-track-sm.active {
+    background: #323795;
+}
+
+.switch-knob-sm {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform .2s;
+}
+
+.switch-track-sm.active .switch-knob-sm {
+    transform: translateX(12px);
+}
+
+.icon-btn-wrap {
+    position: relative;
+}
+
+.icon-btn-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    background: var(--danger);
+    color: white;
+    font-size: .65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0 4px;
+    border: 2px solid var(--surface);
+}
+
+main.app-main > section {
+    background: var(--surface);
+}
+
+/* Modal title alignment with icons */
+#iqtreeModalTitle,
+#analysisModalTitle,
+#progressTitle {
+    line-height: 1.2;
+}

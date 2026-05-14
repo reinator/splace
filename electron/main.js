@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -9,17 +9,69 @@ const { spawn, spawnSync } = require("child_process");
 // -----------------------------------------------------------------------
 
 const IS_WIN = process.platform === "win32";
+const GENBANK_FILE_RE = /\.(gb|gbk|genbank)$/i;
 
 // Resolve a bundled binary or fall back to system PATH
 function resolveBin(name) {
-    const platform = process.platform === "win32" ? "win"
-        : process.platform === "darwin" ? "mac" : "linux";
-    const local = path.join(__dirname, "bin", platform, name);
-    if (fs.existsSync(local)) {
-        try { fs.chmodSync(local, 0o755); } catch { }
-        return local;
+    const platform = IS_WIN ? "win" : process.platform === "darwin" ? "mac" : "linux";
+    const binDir = app.isPackaged
+        ? path.join(process.resourcesPath, "bin", platform)
+        : path.join(__dirname, "bin", platform);
+
+    if (IS_WIN) {
+        // Try .bat first (e.g. mafft.bat), then .exe
+        for (const ext of [".bat", ".exe"]) {
+            const local = path.join(binDir, name + ext);
+            if (fs.existsSync(local)) return local;
+        }
+    } else {
+        const local = path.join(binDir, name);
+        if (fs.existsSync(local)) {
+            try { fs.chmodSync(local, 0o755); } catch { }
+            return local;
+        }
     }
     return name;
+}
+
+function collectGenbankFilesFromPath(targetPath, files = []) {
+    let stat;
+    try {
+        stat = fs.statSync(targetPath);
+    } catch {
+        return files;
+    }
+
+    if (stat.isDirectory()) {
+        let entries = [];
+        try {
+            entries = fs.readdirSync(targetPath);
+        } catch {
+            return files;
+        }
+        for (const entry of entries) {
+            collectGenbankFilesFromPath(path.join(targetPath, entry), files);
+        }
+        return files;
+    }
+
+    if (!stat.isFile() || !GENBANK_FILE_RE.test(targetPath)) {
+        return files;
+    }
+
+    try {
+        files.push({
+            name: path.basename(targetPath),
+            path: targetPath,
+            text: fs.readFileSync(targetPath, "utf8"),
+            size: stat.size,
+            lastModified: stat.mtimeMs,
+        });
+    } catch {
+        return files;
+    }
+
+    return files;
 }
 
 // -----------------------------------------------------------------------
@@ -29,8 +81,8 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1280,
         height: 900,
-        minWidth: 800,
-        minHeight: 600,
+        minWidth: 1280,
+        minHeight: 720,
         title: "SPLACE",
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
@@ -38,7 +90,29 @@ function createWindow() {
             nodeIntegration: false,
         },
     });
-    win.loadFile(path.join(__dirname, "..", "docs", "index.html"));
+    const indexHtml = app.isPackaged
+        ? path.join(process.resourcesPath, "docs", "index.html")
+        : path.join(__dirname, "..", "docs", "index.html");
+
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        if (/^https?:\/\//i.test(url)) {
+            shell.openExternal(url);
+            return { action: "deny" };
+        }
+        return { action: "allow" };
+    });
+
+    win.webContents.on("will-navigate", (event, url) => {
+        const currentUrl = win.webContents.getURL();
+        if (url === currentUrl) return;
+
+        event.preventDefault();
+        if (/^https?:\/\//i.test(url)) {
+            shell.openExternal(url);
+        }
+    });
+
+    win.loadFile(indexHtml);
 }
 
 app.whenReady().then(() => {
@@ -57,6 +131,29 @@ app.on("window-all-closed", () => {
 // -----------------------------------------------------------------------
 ipcMain.handle("get-cpu-count", () => os.cpus().length);
 
+ipcMain.handle("select-genbank-inputs", async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(focusedWindow, {
+        title: "Select GenBank files or folders",
+        properties: ["openFile", "openDirectory", "multiSelections"],
+        filters: [
+            { name: "GenBank files", extensions: ["gb", "gbk", "genbank"] },
+            { name: "All files", extensions: ["*"] },
+        ],
+    });
+
+    if (result.canceled || !result.filePaths?.length) {
+        return [];
+    }
+
+    const collected = [];
+    for (const selectedPath of result.filePaths) {
+        collectGenbankFilesFromPath(selectedPath, collected);
+    }
+
+    return collected;
+});
+
 // -----------------------------------------------------------------------
 // IPC: run MAFFT alignment
 // { files: {geneName: fastaContent}, params: string[], threads: number }
@@ -66,7 +163,7 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
     const outputDir = path.join(os.homedir(), "Documents", "SPLACE", "sequences");
-    try { fs.rmSync(outputDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(outputDir, { recursive: true, force: true }); } catch { }
     fs.mkdirSync(outputDir, { recursive: true });
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "splace-"));
@@ -124,7 +221,7 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
     }
 
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
 
     const finalResults = markerResults.filter(Boolean);
     send("analysis-done", {
@@ -165,7 +262,7 @@ ipcMain.on("run-trimal", async (event, { markers, params }) => {
                 continue;
             }
 
-            const inputFile  = mr.outputFile;
+            const inputFile = mr.outputFile;
             const trimmedFile = inputFile.replace(/_aligned\.fasta$/, "_trimmed.fasta");
 
             send("analysis-progress", {
@@ -208,42 +305,25 @@ ipcMain.on("run-trimal", async (event, { markers, params }) => {
 
 // -----------------------------------------------------------------------
 // Helper: run a single MAFFT alignment
-// On Windows: pipe FASTA via stdin to `wsl bash -c "mafft ... - 2>/dev/null"`
-//   • avoids Windows paths entirely inside WSL
-//   • avoids /dev/stderr WSL interop crash (exec 3>/dev/stderr in mafft script)
-// On Linux/Mac: spawn mafft directly with a file path
 // -----------------------------------------------------------------------
 function runMafft(inputFile, outputFile, params, threads, onLog) {
     return new Promise((resolve) => {
-        const args = [...params, "--thread", String(threads), "--quiet"];
-        let stdout = "", proc;
+        const bin = resolveBin("mafft");
+        const args = [...params, "--thread", String(threads), "--quiet", inputFile];
 
-        if (IS_WIN) {
-            const rawContent = fs.readFileSync(inputFile, "utf8");
-            const tmpId = Date.now();
-            const wslIn = `/tmp/splace_in_${tmpId}.fasta`;
-            // Write FASTA to WSL /tmp via stdin, then run MAFFT on the native WSL path.
-            // stdio 'ignore' for stderr → fd 2 becomes /dev/null inside WSL,
-            // so MAFFT's  exec 3>/dev/stderr  succeeds and the script runs normally.
-            const shellCmd =
-                `cat > '${wslIn}' && ` +
-                `mafft ${args.map(a => `'${a}'`).join(" ")} '${wslIn}'; ` +
-                `rm -f '${wslIn}'`;
-            proc = spawn("wsl", ["bash", "-c", shellCmd], {
-                shell: false,
-                stdio: ["pipe", "pipe", "ignore"],
-            });
-            proc.stdin.write(rawContent, "utf8");
-            proc.stdin.end();
-        } else {
-            proc = spawn(resolveBin("mafft"), [...args, inputFile], { shell: true });
-            proc.stderr.on("data", (d) => {
-                const msg = d.toString().trim();
-                if (msg) onLog(msg);
-            });
-        }
+        // .bat files on Windows must be invoked via cmd /c
+        const [cmd, cmdArgs] = (bin.toLowerCase().endsWith(".bat"))
+            ? ["cmd", ["/c", bin, ...args]]
+            : [bin, args];
+
+        const proc = spawn(cmd, cmdArgs, { shell: false });
+        let stdout = "";
 
         proc.stdout.on("data", (d) => { stdout += d.toString(); });
+        proc.stderr.on("data", (d) => {
+            const msg = d.toString().trim();
+            if (msg) onLog(msg);
+        });
 
         proc.on("close", (code) => {
             if (code === 0 && stdout.trim()) {
@@ -265,61 +345,167 @@ function runMafft(inputFile, outputFile, params, threads, onLog) {
 }
 
 // -----------------------------------------------------------------------
-// Helper: run a single trimAl trimming
-// On Windows: write aligned FASTA via stdin to WSL /tmp, run trimal there,
-//   read output back via cat — avoids /dev/stderr interop crash
+// Helper: trim a multiple alignment (pure JS — no external binary required)
+//
+// Supported params (mirrors trimAl flags):
+//   --automated1        heuristic: gap threshold derived from gap distribution
+//   -gt <0..1>          max gap fraction per column (default 0.6)
+//   -st <0..1>          min similarity score per column (default 0, off)
+//   -cons <0..100>      min % sequences that must be kept (default 0, off)
+//
+// Algorithm:
+//   1. Compute gap fraction for each alignment column.
+//   2. Compute similarity (conservation) for each column using Shannon entropy
+//      normalised to [0,1] so that a perfectly conserved column = 1.
+//   3. Drop columns whose gap fraction > gapThreshold OR similarity < simThreshold.
+//   4. --automated1: if gap distribution is bimodal (many near-0 and near-1
+//      columns) use Jenks-style midpoint split; otherwise use gt=0.6.
+// -----------------------------------------------------------------------
+function trimAlignmentJS(alignedContent, params) {
+    // ── Parse params ───────────────────────────────────────────────────────
+    let gapThreshold = 0.6;
+    let simThreshold = 0.0;
+    let consThreshold = 0;
+    let automated1 = false;
+
+    for (let i = 0; i < params.length; i++) {
+        const p = params[i];
+        if (p === "--automated1" || p === "-automated1") { automated1 = true; }
+        else if ((p === "-gt") && params[i + 1]) { gapThreshold = parseFloat(params[++i]); }
+        else if ((p === "-st") && params[i + 1]) { simThreshold = parseFloat(params[++i]); }
+        else if ((p === "-cons") && params[i + 1]) { consThreshold = parseFloat(params[++i]); }
+    }
+
+    // ── Parse FASTA ────────────────────────────────────────────────────────
+    const seqs = [];
+    let cur = null;
+    for (const line of alignedContent.split(/\r?\n/)) {
+        if (line.startsWith(">")) {
+            if (cur) seqs.push(cur);
+            cur = { name: line.slice(1).trim(), seq: "" };
+        } else if (cur) {
+            cur.seq += line.trim();
+        }
+    }
+    if (cur) seqs.push(cur);
+    if (!seqs.length) return { success: false, error: "Empty alignment" };
+
+    const nSeqs = seqs.length;
+    const seqLen = seqs[0].seq.length;
+
+    // ── Per-column stats ────────────────────────────────────────────────────
+    const gapFrac = new Float32Array(seqLen);
+    const simScore = new Float32Array(seqLen);
+    const log2 = Math.log(2);
+
+    for (let col = 0; col < seqLen; col++) {
+        let gaps = 0;
+        const freq = {};
+        for (const s of seqs) {
+            const c = s.seq[col].toUpperCase();
+            if (c === "-" || c === "?" || c === "N") { gaps++; }
+            else { freq[c] = (freq[c] || 0) + 1; }
+        }
+        gapFrac[col] = gaps / nSeqs;
+
+        // Shannon entropy → normalised similarity
+        const nonGap = nSeqs - gaps;
+        if (nonGap <= 1) {
+            simScore[col] = nonGap === 1 ? 1.0 : 0.0;
+        } else {
+            let H = 0;
+            for (const n of Object.values(freq)) {
+                const p = n / nonGap;
+                H -= p * Math.log(p) / log2;
+            }
+            const maxH = Math.log(Math.min(nonGap, 4)) / log2; // max 2 bits for DNA
+            simScore[col] = maxH > 0 ? Math.max(0, 1 - H / maxH) : 1.0;
+        }
+    }
+
+    // ── Automated1: derive gap threshold from distribution ──────────────────
+    if (automated1) {
+        // Sort gap fractions; use the midpoint of the largest gap between
+        // the two clusters (low-gap "good" columns vs high-gap "bad" columns)
+        const sorted = Array.from(gapFrac).sort((a, b) => a - b);
+        let maxGap = 0, splitAt = gapThreshold;
+        for (let i = 1; i < sorted.length; i++) {
+            const d = sorted[i] - sorted[i - 1];
+            if (d > maxGap) { maxGap = d; splitAt = (sorted[i] + sorted[i - 1]) / 2; }
+        }
+        // Only adopt the split threshold if there is a clear bimodal gap
+        // (jump > 0.05) and it falls in [0.1, 0.9]
+        if (maxGap > 0.05 && splitAt >= 0.1 && splitAt <= 0.9) {
+            gapThreshold = splitAt;
+        }
+    }
+
+    // ── Select columns to keep ──────────────────────────────────────────────
+    let keepCols = [];
+    for (let col = 0; col < seqLen; col++) {
+        if (gapFrac[col] <= gapThreshold && simScore[col] >= simThreshold) {
+            keepCols.push(col);
+        }
+    }
+
+    // ── Enforce -cons: ensure at least consThreshold % of sequences are
+    //    represented in the kept columns (relax gap threshold if needed) ─────
+    if (consThreshold > 0 && keepCols.length === 0) {
+        // Fallback: keep columns sorted by ascending gap fraction until
+        // the minimum representation is satisfied
+        const byGap = Array.from({ length: seqLen }, (_, i) => i)
+            .sort((a, b) => gapFrac[a] - gapFrac[b]);
+        keepCols = byGap.slice(0, Math.max(1, Math.ceil(seqLen * consThreshold / 100)));
+    }
+
+    if (!keepCols.length) {
+        return { success: false, error: "All columns removed by trimming thresholds" };
+    }
+
+    // ── Build trimmed sequences ─────────────────────────────────────────────
+    const trimmedFasta = seqs
+        .map(s => `>${s.name}\n${keepCols.map(i => s.seq[i]).join("")}`)
+        .join("\n") + "\n";
+
+    return { success: true, trimmedContent: trimmedFasta, keptCols: keepCols.length, totalCols: seqLen };
+}
+
+// -----------------------------------------------------------------------
+// Helper: run trimAl — native binary on Linux/macOS, JS fallback on Windows
 // -----------------------------------------------------------------------
 function runTrimal(inputFile, outputFile, params, onLog) {
-    return new Promise((resolve) => {
-        let stdout = "", proc;
-
-        if (IS_WIN) {
-            const rawContent = fs.readFileSync(inputFile, "utf8");
-            const tmpId = Date.now();
-            const wslIn = `/tmp/splace_in_${tmpId}.fasta`;
-            const wslOut = `/tmp/splace_out_${tmpId}.fasta`;
-            const paramsStr = params.map(a => `'${a}'`).join(" ");
-            const shellCmd =
-                `cat > '${wslIn}' && ` +
-                `trimal -in '${wslIn}' -out '${wslOut}' ${paramsStr} && ` +
-                `cat '${wslOut}'; rm -f '${wslIn}' '${wslOut}'`;
-            proc = spawn("wsl", ["bash", "-c", shellCmd], {
-                shell: false,
-                stdio: ["pipe", "pipe", "ignore"],
-            });
-            proc.stdin.write(rawContent, "utf8");
-            proc.stdin.end();
-            proc.stdout.on("data", (d) => { stdout += d.toString(); });
-            proc.on("close", (code) => {
-                if (code === 0 && stdout.trim()) {
-                    fs.writeFileSync(outputFile, stdout, "utf8");
-                    resolve({ success: true, trimmedContent: stdout });
-                } else {
-                    resolve({ success: false, error: `Exit code ${code}` });
-                }
-            });
-        } else {
-            const args = ["-in", inputFile, "-out", outputFile, ...params];
-            proc = spawn(resolveBin("trimal"), args, { shell: false });
-            proc.stderr.on("data", (d) => {
-                const msg = d.toString().trim();
-                if (msg) onLog(msg);
-            });
+    // Use the bundled native binary when available (Linux/macOS)
+    const bin = resolveBin("trimal");
+    if (bin !== "trimal") {
+        return new Promise((resolve) => {
+            const proc = spawn(bin, ["-in", inputFile, "-out", outputFile, ...params], { shell: false });
+            proc.stderr.on("data", (d) => { const m = d.toString().trim(); if (m) onLog(m); });
             proc.on("close", (code) => {
                 if (code === 0 && fs.existsSync(outputFile)) {
-                    const trimmedContent = fs.readFileSync(outputFile, "utf8");
-                    resolve({ success: true, trimmedContent });
+                    resolve({ success: true, trimmedContent: fs.readFileSync(outputFile, "utf8") });
                 } else {
                     resolve({ success: false, error: `Exit code ${code}` });
                 }
             });
-        }
-
-        proc.on("error", (err) => {
-            resolve({ success: false, error: err.message });
+            proc.on("error", (err) => resolve({ success: false, error: err.message }));
         });
+    }
+
+    // JS fallback — used on Windows where no native trimAl binary is available
+    return new Promise((resolve) => {
+        try {
+            const alignedContent = fs.readFileSync(inputFile, "utf8");
+            const result = trimAlignmentJS(alignedContent, params);
+            if (!result.success) { resolve({ success: false, error: result.error }); return; }
+            fs.writeFileSync(outputFile, result.trimmedContent, "utf8");
+            onLog(`Kept ${result.keptCols}/${result.totalCols} columns`);
+            resolve({ success: true, trimmedContent: result.trimmedContent });
+        } catch (e) {
+            resolve({ success: false, error: e.message });
+        }
     });
 }
+
 
 
 // -----------------------------------------------------------------------
@@ -359,7 +545,7 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
     const outputDir = path.join(os.homedir(), "Documents", "SPLACE", "iqtree");
-    try { fs.rmSync(outputDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(outputDir, { recursive: true, force: true }); } catch { }
     fs.mkdirSync(outputDir, { recursive: true });
 
     const nexusFile = path.join(outputDir, "concatenated.nex");
@@ -369,18 +555,11 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
     fs.writeFileSync(nexusFile, nexus, "utf8");
     fs.writeFileSync(partitionFile, partition, "utf8");
 
-    // Resolve IQ-TREE binary: bundled first, then system PATH in order iqtree3 > iqtree2 > iqtree
+    // Resolve IQ-TREE binary: bundled first, then iqtree3 > iqtree2 > iqtree
     function findIqtree() {
-        const names = ["iqtree3", "iqtree2", "iqtree"];
-        for (const name of names) {
-            const local = resolveBin(name);
-            if (local !== name) return local;
-        }
-        for (const name of names) {
-            try {
-                const r = spawnSync("which", [name], { encoding: "utf8", shell: false });
-                if (r.status === 0 && r.stdout.trim()) return name;
-            } catch { }
+        for (const name of ["iqtree3", "iqtree2", "iqtree"]) {
+            const resolved = resolveBin(name);
+            if (resolved !== name) return resolved;
         }
         return "iqtree3";
     }
@@ -466,56 +645,113 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
 });
 
 // -----------------------------------------------------------------------
-// IPC: save ZIP of one or more directories
-// { sourceDirs: string[], suggestedName }
+// IPC: save ZIP with organised folder structure
+// { alignmentDir, iqtreeDir, rawFastas, suggestedName }
+//   raw/          — raw per-gene FASTAs (from memory, not disk)
+//   aligned/      — *_aligned.fasta files from alignmentDir
+//   trimmed/      — *_aligned_trimmed.fasta files from alignmentDir (if any)
+//   concatenated/ — concatenated.nex + partitions.txt from iqtreeDir
+//   trees/        — all other iqtree output files (treefile, log, etc.)
 // -----------------------------------------------------------------------
-ipcMain.handle("save-zip", async (event, { sourceDirs, suggestedName }) => {
+ipcMain.handle("save-zip", async (event, { alignmentDir, iqtreeDir, rawFastas, suggestedName }) => {
     const { filePath, canceled } = await dialog.showSaveDialog({
         defaultPath: path.join(os.homedir(), "Documents", suggestedName || "splace_results.zip"),
         filters: [{ name: "ZIP archive", extensions: ["zip"] }],
     });
     if (canceled || !filePath) return { cancelled: true };
 
-    // Build a staging dir, copy each source into named subfolder, zip it
     const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "splace-zip-"));
     try {
-        for (const srcDir of sourceDirs) {
-            if (!srcDir || !fs.existsSync(srcDir)) continue;
-            const folderName = path.basename(srcDir);
-            const dest = path.join(stagingDir, folderName);
-            fs.mkdirSync(dest, { recursive: true });
-            // copy recursively using cp
-            const cpResult = spawnSync("cp", ["-r", srcDir + "/.", dest], { shell: false });
-            if (cpResult.status !== 0) {
-                // fallback: copy files one by one
-                for (const f of fs.readdirSync(srcDir, { recursive: true })) {
-                    try {
-                        const full = path.join(srcDir, f);
-                        if (fs.statSync(full).isFile()) {
-                            const rel = path.relative(srcDir, full);
-                            const target = path.join(dest, rel);
-                            fs.mkdirSync(path.dirname(target), { recursive: true });
-                            fs.copyFileSync(full, target);
-                        }
-                    } catch {}
+        // raw/ — write raw FASTA content passed from renderer
+        if (rawFastas && Object.keys(rawFastas).length) {
+            const rawDir = path.join(stagingDir, "raw");
+            fs.mkdirSync(rawDir, { recursive: true });
+            for (const [gene, content] of Object.entries(rawFastas)) {
+                fs.writeFileSync(path.join(rawDir, `${gene}.fasta`), content, "utf8");
+            }
+        }
+
+        // aligned/ and trimmed/ — sort files from alignmentDir by suffix
+        if (alignmentDir && fs.existsSync(alignmentDir)) {
+            const alignedDir = path.join(stagingDir, "aligned");
+            fs.mkdirSync(alignedDir, { recursive: true });
+            let trimmedDir = null;
+
+            for (const f of fs.readdirSync(alignmentDir)) {
+                const src = path.join(alignmentDir, f);
+                try { if (!fs.statSync(src).isFile()) continue; } catch { continue; }
+
+                if (f.endsWith("_trimmed.fasta") || f.includes("_aligned_trimmed")) {
+                    if (!trimmedDir) {
+                        trimmedDir = path.join(stagingDir, "trimmed");
+                        fs.mkdirSync(trimmedDir, { recursive: true });
+                    }
+                    fs.copyFileSync(src, path.join(trimmedDir, f));
+                } else if (f.endsWith(".fasta") || f.endsWith(".fa")) {
+                    fs.copyFileSync(src, path.join(alignedDir, f));
                 }
             }
         }
+
+        // concatenated/ and trees/ — split iqtreeDir contents
+        if (iqtreeDir && fs.existsSync(iqtreeDir)) {
+            const concatDir = path.join(stagingDir, "concatenated");
+            const treesDir = path.join(stagingDir, "trees");
+            fs.mkdirSync(concatDir, { recursive: true });
+            fs.mkdirSync(treesDir, { recursive: true });
+
+            const CONCAT_FILES = new Set(["concatenated.nex", "partitions.txt"]);
+
+            for (const f of fs.readdirSync(iqtreeDir)) {
+                const src = path.join(iqtreeDir, f);
+                try {
+                    const stat = fs.statSync(src);
+                    if (stat.isDirectory()) {
+                        // gene_trees/ subdirectory → trees/gene_trees/
+                        if (f === "gene_trees") {
+                            const dest = path.join(treesDir, "gene_trees");
+                            fs.mkdirSync(dest, { recursive: true });
+                            for (const gf of fs.readdirSync(src)) {
+                                const gsrc = path.join(src, gf);
+                                if (fs.statSync(gsrc).isFile())
+                                    fs.copyFileSync(gsrc, path.join(dest, gf));
+                            }
+                        }
+                        continue;
+                    }
+                    if (CONCAT_FILES.has(f)) {
+                        fs.copyFileSync(src, path.join(concatDir, f));
+                    } else {
+                        fs.copyFileSync(src, path.join(treesDir, f));
+                    }
+                } catch { }
+            }
+        }
     } catch (e) {
+        try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { }
         return { success: false, error: e.message };
     }
 
     return new Promise((resolve) => {
-        const proc = spawn("zip", ["-r", filePath, "."], {
-            cwd: stagingDir, shell: true, stdio: ["ignore", "pipe", "pipe"],
-        });
+        let proc;
+        if (IS_WIN) {
+            // PowerShell Compress-Archive — available on all modern Windows
+            proc = spawn("powershell", [
+                "-NoProfile", "-NonInteractive", "-Command",
+                `Compress-Archive -Path "${stagingDir}\\*" -DestinationPath "${filePath}" -Force`,
+            ], { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+        } else {
+            proc = spawn("zip", ["-r", filePath, "."], {
+                cwd: stagingDir, shell: true, stdio: ["ignore", "pipe", "pipe"],
+            });
+        }
         proc.on("close", (code) => {
-            try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch {}
+            try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { }
             if (code === 0) resolve({ success: true, filePath });
             else resolve({ success: false, error: `zip exit code ${code}` });
         });
         proc.on("error", (err) => {
-            try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch {}
+            try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { }
             resolve({ success: false, error: err.message });
         });
     });

@@ -26,4 +26,9 @@ jobs:
           pip install -e .
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        run: |
+          if (Test-Path tests) {
+            pytest tests/ -v --tb=short
+          } else {
+            Write-Host "No tests/ directory found — skipping"
+          }

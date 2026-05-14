@@ -101,3 +101,7 @@ coverage/
 *~
 splace_app/
 electron/node_modules/
+datasets/
+Dockerfile/
+test_singularity.sh
+*.fasta

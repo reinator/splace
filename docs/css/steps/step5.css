@@ -1,0 +1,72 @@
+/* Step 5: FASTA export and alignment preparation */
+
+.drop-active {
+    border-color: #323795 !important;
+    background: #eef0fb !important;
+}
+
+[data-theme="dark"] .drop-active {
+    background: var(--accent-soft) !important;
+}
+
+.header-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+}
+
+.header-chip.available {
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.header-chip.available:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft-border);
+    color: var(--accent-text);
+}
+
+.header-chip.selected {
+    background: var(--accent);
+    color: white;
+    border: 1px solid var(--accent);
+}
+
+.header-chip.selected:hover {
+    background: var(--splace-blue-700);
+}
+
+.header-chip.dragging {
+    opacity: .5;
+}
+
+[data-theme="dark"] #headerModal .bg-white,
+[data-theme="dark"] #headerModal {
+    color: var(--text);
+}
+
+[data-theme="dark"] #headerModal .border-gray-200,
+[data-theme="dark"] #headerModal .border-gray-300 {
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] #headerModal .bg-gray-50,
+[data-theme="dark"] #headerModal .bg-gray-100 {
+    background: var(--surface-2) !important;
+}
+
+[data-theme="dark"] #headerPreview,
+[data-theme="dark"] #headerPreviewInline,
+[data-theme="dark"] #headerSelectedFields,
+[data-theme="dark"] #headerAvailableFields,
+[data-theme="dark"] #headerDuplicateWarning {
+    color: var(--text) !important;
+}

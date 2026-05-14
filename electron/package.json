@@ -1,20 +1,22 @@
 {
   "name": "splace-desktop",
   "version": "4.0.0",
-  "description": "SPLACE Desktop — SPlit, Align and ConcatenatE",
+  "description": "SPLACE Desktop — SPlit, Align and ConcatenatE | developed by Luan Rabelo and Renato Moreira-Oliveira",
   "main": "main.js",
   "author": "Luan Rabelo and Renato Moreira-Oliveira",
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux"
+    "build:win": "node scripts/run-build.js --win",
+    "build:mac": "node scripts/run-build.js --mac",
+    "build:linux": "node scripts/run-build.js --linux",
+    "build:wsl:win": "bash build-wsl.sh --win",
+    "build:wsl:mac": "bash build-wsl.sh --mac",
+    "build:wsl:linux": "bash build-wsl.sh --linux"
   },
-  "dependencies": {},
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.0.0"
+    "electron-builder": "^24.13.3"
   },
   "build": {
     "appId": "io.github.luanrabelo.splace",
@@ -24,26 +26,55 @@
     },
     "files": [
       "main.js",
-      "preload.js",
-      "../docs/**/*"
+      "preload.js"
     ],
     "extraResources": [
       {
+        "from": "../docs",
+        "to": "docs",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
         "from": "bin/",
         "to": "bin/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "../docs/assets/SPLACE.png"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
       "icon": "../docs/assets/SPLACE.png"
     },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "../docs/assets/SPLACE.png"
     }
   }

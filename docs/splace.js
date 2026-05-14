@@ -10,6 +10,20 @@ const state = {
     pendingEditIndex: null,
     headerTemplate: ["accession", "family", "genus", "species"],
     hiddenColumns: new Set(["source", "accession", "kingdom", "phylum"]),
+    taxonomyImportCandidates: [],
+    taxonomyImportResolver: null,
+    duplicateGeneChoices: new Map(),
+    progressUi: {
+        mode: "generic",
+        showMeta: false,
+        showCurrent: true,
+        currentLabel: "",
+        footerText: "",
+        idleText: "",
+        successText: "",
+        counterFormatter: null,
+    },
+    alignmentResultsData: null,
 };
 
 const MT_DEFAULT_GENES = ["COI", "COII", "COIII", "CYTB", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "ATP6", "ATP8"];
@@ -28,6 +42,15 @@ const FEATURE_TYPE_LABELS = {
     rRNA: "rRNAs",
     tRNA: "tRNAs",
 };
+
+function i18nText(key, fallback, params = {}) {
+    const source = window.SPLACE_I18N;
+    const raw = source && typeof source.t === "function" ? source.t(key) : null;
+    const template = typeof raw === "string" && raw !== key ? raw : fallback;
+    return Object.entries(params).reduce((text, [paramKey, value]) => {
+        return text.replaceAll(`{${paramKey}}`, String(value));
+    }, template);
+}
 
 // ========================================================================
 // Gene Name Standardization Dictionaries
@@ -519,7 +542,168 @@ function reverseComplement(seq) {
 // NCBI Fetcher
 // ========================================================================
 const NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
-const FETCH_DELAY = 350;
+const NCBI_SEARCH_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
+const NCBI_SUMMARY_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
+const NCBI_API_KEY_STORAGE = "splace.ncbi.apiKey";
+const FETCH_DELAY_DEFAULT = 334;
+const FETCH_DELAY_WITH_KEY = 100;
+
+function getSavedNcbiApiKey() {
+    try {
+        return (localStorage.getItem(NCBI_API_KEY_STORAGE) || "").trim();
+    } catch {
+        return "";
+    }
+}
+
+function looksLikeValidNcbiApiKey(value) {
+    return /^[A-Za-z0-9_-]{20,}$/.test((value || "").trim());
+}
+
+function hasUsableNcbiApiKey() {
+    return looksLikeValidNcbiApiKey(getSavedNcbiApiKey());
+}
+
+function getNcbiFetchDelay() {
+    return hasUsableNcbiApiKey() ? FETCH_DELAY_WITH_KEY : FETCH_DELAY_DEFAULT;
+}
+
+function formatProgressCounter(current, total) {
+    return i18nText("step1.progress.counter", { current, total });
+}
+
+function appendNcbiApiKey(params) {
+    const apiKey = getSavedNcbiApiKey();
+    if (looksLikeValidNcbiApiKey(apiKey)) {
+        params.set("api_key", apiKey);
+    }
+    return params;
+}
+
+function renderTaxonomySearchButton(stateKey = "step1.action.search", spinning = false) {
+    const btn = document.getElementById("taxonomySearchBtn");
+    if (!btn) return;
+    btn.innerHTML = `${spinning ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>' : '<i class="fa-solid fa-magnifying-glass mr-1"></i>'}<span data-i18n="${stateKey}">${i18nText(stateKey)}</span>`;
+}
+
+function renderFetchButton(stateKey = "step1.action.fetch", spinning = false) {
+    const btn = document.getElementById("fetchBtn");
+    if (!btn) return;
+    btn.innerHTML = `${spinning ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>' : '<i class="fa-solid fa-magnifying-glass mr-1"></i>'}<span data-i18n="${stateKey}">${i18nText(stateKey)}</span>`;
+}
+
+function syncNcbiApiUi(messageKey) {
+    const input = document.getElementById("ncbiApiKeyInput");
+    const status = document.getElementById("ncbiApiKeyStatus");
+    if (!input || !status) return;
+    input.value = getSavedNcbiApiKey();
+    const key = messageKey || (hasUsableNcbiApiKey() ? "step1.api.saved" : "step1.api.none");
+    status.classList.toggle("saved", key === "step1.api.saved");
+    status.classList.toggle("invalid", key === "step1.api.invalid");
+    status.textContent = i18nText(key);
+}
+
+function openNcbiApiKeyModal() {
+    syncNcbiApiUi();
+    document.getElementById("ncbiApiKeyModal")?.classList.remove("hidden");
+}
+
+function closeNcbiApiKeyModal() {
+    document.getElementById("ncbiApiKeyModal")?.classList.add("hidden");
+}
+
+function openClearNcbiApiKeyModal() {
+    document.getElementById("clearNcbiApiKeyModal")?.classList.remove("hidden");
+}
+
+function closeClearNcbiApiKeyModal() {
+    document.getElementById("clearNcbiApiKeyModal")?.classList.add("hidden");
+}
+
+function resetStep1Inputs() {
+    const taxonomyInput = document.getElementById("taxonomySearchInput");
+    const organelleSelect = document.getElementById("taxonomyOrganelleSelect");
+    const completeCheckbox = document.getElementById("taxonomyCompleteCheckbox");
+    const partialCheckbox = document.getElementById("taxonomyPartialCheckbox");
+    const refseqOnly = document.getElementById("taxonomyRefseqOnly");
+    const accessionInput = document.getElementById("accessionInput");
+    const fetchStatus = document.getElementById("fetchStatus");
+    const taxonomyFetchStatus = document.getElementById("taxonomyFetchStatus");
+    const queryPreview = document.getElementById("taxonomyQueryPreview");
+
+    if (taxonomyInput) taxonomyInput.value = "";
+    if (organelleSelect) organelleSelect.value = "mitochondrion";
+    if (completeCheckbox) completeCheckbox.checked = false;
+    if (partialCheckbox) partialCheckbox.checked = false;
+    if (refseqOnly) refseqOnly.checked = false;
+    if (accessionInput) accessionInput.value = "";
+    if (fetchStatus) {
+        fetchStatus.textContent = "";
+        fetchStatus.classList.add("hidden");
+    }
+    if (taxonomyFetchStatus) {
+        taxonomyFetchStatus.textContent = "";
+        taxonomyFetchStatus.classList.add("hidden");
+    }
+    if (queryPreview) queryPreview.textContent = "";
+}
+
+function clearNcbiApiKey() {
+    const input = document.getElementById("ncbiApiKeyInput");
+    if (input) input.value = "";
+    try {
+        localStorage.removeItem(NCBI_API_KEY_STORAGE);
+    } catch {
+        // Storage unavailable, ignored
+    }
+    syncNcbiApiUi("step1.api.none");
+    closeClearNcbiApiKeyModal();
+}
+
+function getDuplicateChoiceKey(recordKey, geneName) {
+    return `${recordKey}::${geneName}`;
+}
+
+window.setDuplicateGeneChoice = function (recordKey, geneName, selectedIndex) {
+    state.duplicateGeneChoices.set(getDuplicateChoiceKey(recordKey, geneName), Number(selectedIndex));
+    renderGeneSelection();
+};
+
+window.toggleDuplicateGeneChoice = function (recordKey, geneName, selectedIndex) {
+    const choiceKey = getDuplicateChoiceKey(recordKey, geneName);
+    state.duplicateGeneChoices.set(choiceKey, Number(selectedIndex));
+    renderGeneSelection();
+};
+
+function saveNcbiApiKeyFromInput() {
+    const input = document.getElementById("ncbiApiKeyInput");
+    if (!input) return;
+    const value = input.value.trim();
+    if (value && !looksLikeValidNcbiApiKey(value)) {
+        syncNcbiApiUi("step1.api.invalid");
+        return;
+    }
+    try {
+        if (value) localStorage.setItem(NCBI_API_KEY_STORAGE, value);
+        else localStorage.removeItem(NCBI_API_KEY_STORAGE);
+    } catch {
+        // Storage unavailable, ignored
+    }
+    syncNcbiApiUi(value ? "step1.api.saved" : "step1.api.none");
+}
+
+window.refreshStep1UiTranslations = function () {
+    renderTaxonomySearchButton();
+    renderFetchButton();
+    syncNcbiApiUi();
+    updateProgressMeta();
+};
+
+window.refreshRecordsUiTranslations = function () {
+    if (state.records.length > 0) {
+        renderRecords();
+    }
+};
 
 async function fetchAccession(accession) {
     const cached = await cacheGet(accession);
@@ -528,8 +712,14 @@ async function fetchAccession(accession) {
     }
 
     const url = `${NCBI_BASE}?db=nucleotide&id=${encodeURIComponent(accession)}&rettype=gb&retmode=text`;
+    const params = appendNcbiApiKey(new URLSearchParams({
+        db: "nucleotide",
+        id: accession,
+        rettype: "gb",
+        retmode: "text",
+    }));
 
-    const resp = await fetch(url);
+    const resp = await fetch(`${NCBI_BASE}?${params.toString()}`);
     if (!resp.ok) throw new Error(`NCBI returned ${resp.status} for ${accession}`);
 
     const text = await resp.text();
@@ -542,32 +732,374 @@ async function fetchAccession(accession) {
     return parsed;
 }
 
-async function fetchMultiple(accessions) {
+async function fetchMultiple(accessions, options = {}) {
     const results = [];
     const statusEl = document.getElementById("fetchStatus");
-    statusEl.classList.remove("hidden");
+    const localStatusEl = options.statusElementId ? document.getElementById(options.statusElementId) : statusEl;
+    localStatusEl.classList.remove("hidden");
 
-    showProgress("Fetching data from NCBI", `0 of ${accessions.length}`);
+    showProgress(
+        options.progressTitle || i18nText("step1.progress.fetchGenericTitle"),
+        formatProgressCounter(0, accessions.length),
+        options.progressDetail || "",
+        {
+            mode: "ncbi",
+            showMeta: true,
+            currentLabel: i18nText("step1.progress.currentLabel"),
+            footerText: i18nText("step1.progress.footer"),
+            idleText: i18nText("step1.progress.statusIdle"),
+            successText: i18nText("step1.progress.complete"),
+            counterFormatter: formatProgressCounter,
+        }
+    );
 
     for (let i = 0; i < accessions.length; i++) {
         const acc = accessions[i].trim();
         if (!acc) continue;
-        statusEl.textContent = `Fetching ${i + 1}/${accessions.length}: ${acc}...`;
-        updateProgress(i + 1, accessions.length, acc);
+        const currentLabel = options.progressItems?.[acc] || acc;
+        localStatusEl.textContent = `Fetching ${i + 1}/${accessions.length}: ${acc}...`;
+        updateProgress(i + 1, accessions.length, currentLabel);
         try {
             const record = await fetchAccession(acc);
             results.push(record);
-            await new Promise(r => setTimeout(r, FETCH_DELAY));
+            await new Promise(r => setTimeout(r, getNcbiFetchDelay()));
         } catch (e) {
             // Error fetching record, skipped
         }
     }
-    statusEl.textContent = `Fetched ${results.length}/${accessions.length} records`;
-    setTimeout(() => statusEl.classList.add("hidden"), 3000);
+    localStatusEl.textContent = `Fetched ${results.length}/${accessions.length} records`;
+    setTimeout(() => localStatusEl.classList.add("hidden"), 3000);
 
     hideProgress(`Loaded ${results.length} record${results.length !== 1 ? 's' : ''}`);
 
     return results;
+}
+
+async function searchNcbiGenomeIds(options) {
+    const config = buildNcbiGenomeSearchConfig(options);
+    if (!config) return [];
+
+    const params = appendNcbiApiKey(new URLSearchParams({
+        db: config.db,
+        retmode: "json",
+        retmax: "200",
+        term: config.term,
+    }));
+
+    const resp = await fetch(`${NCBI_SEARCH_BASE}?${params.toString()}`);
+    if (!resp.ok) throw new Error(`NCBI search returned ${resp.status}`);
+
+    const data = await resp.json();
+    return data?.esearchresult?.idlist || [];
+}
+
+function getSelectedGenomeScopes() {
+    const scopes = [];
+    if (document.getElementById("taxonomyCompleteCheckbox")?.checked) scopes.push("complete genome");
+    if (document.getElementById("taxonomyPartialCheckbox")?.checked) scopes.push("partial genome");
+    return scopes;
+}
+
+function buildTaxonomyReviewDetails(options) {
+    const organelleKey = options?.organelle === "chloroplast"
+        ? "step1.taxonomy.organelle.chloro"
+        : "step1.taxonomy.organelle.mito";
+
+    const scopeLabels = (Array.isArray(options?.completeness) ? options.completeness : []).map((scope) => {
+        if (scope === "complete genome") return i18nText("step1.taxonomy.completeness.complete");
+        if (scope === "partial genome") return i18nText("step1.taxonomy.completeness.partial");
+        return scope;
+    });
+
+    return [
+        {
+            label: i18nText("step1.review.detailTaxon"),
+            value: options?.taxon || "-",
+        },
+        {
+            label: i18nText("step1.review.detailGenomeType"),
+            value: i18nText(organelleKey),
+        },
+        {
+            label: i18nText("step1.review.detailSearchTypes"),
+            value: scopeLabels.join(" + "),
+        },
+        {
+            label: i18nText("step1.review.detailRefseq"),
+            value: i18nText(options?.refseqOnly ? "step1.review.refseq.on" : "step1.review.refseq.off"),
+        },
+    ];
+}
+
+function buildNcbiGenomeSearchConfig(options) {
+    const taxon = (options.taxon || "").trim();
+    if (!taxon) return null;
+
+    const organelle = options.organelle === "chloroplast" ? "chloroplast" : "mitochondrion";
+    const completeness = Array.isArray(options.completeness) ? options.completeness : [];
+    if (completeness.length === 0) return null;
+
+    const parts = [
+        `\"${taxon}\"[Organism]`,
+        completeness.length === 1
+            ? `\"${completeness[0]}\"[Title]`
+            : `(${completeness.map((entry) => `\"${entry}\"[Title]`).join(" OR ")})`,
+        organelle === "chloroplast"
+            ? `(chloroplast[Title] OR plastid[Title] OR chloroplast[Filter])`
+            : `(mitochondrion[Title] OR mitochondrial[Title] OR mitochondrion[Filter])`,
+        "biomol_genomic[PROP]",
+    ];
+
+    if (options.refseqOnly) {
+        parts.push("srcdb_refseq[PROP]");
+    }
+
+    return {
+        db: "nucleotide",
+        term: parts.join(" AND "),
+    };
+}
+
+async function fetchNcbiSummaries(ids) {
+    if (!ids.length) return [];
+    const params = appendNcbiApiKey(new URLSearchParams({
+        db: "nucleotide",
+        retmode: "json",
+        id: ids.join(","),
+    }));
+    const resp = await fetch(`${NCBI_SUMMARY_BASE}?${params.toString()}`);
+    if (!resp.ok) throw new Error(`NCBI summary returned ${resp.status}`);
+    const data = await resp.json();
+    const result = data?.result || {};
+    return ids.map((id) => result[id]).filter(Boolean);
+}
+
+function classifyGenomeTitle(title) {
+    const normalized = (title || "").toLowerCase();
+    const isComplete = normalized.includes("complete");
+    const isPartial = normalized.includes("partial") || normalized.includes("incomplete");
+    return { isComplete, isPartial };
+}
+
+function summarizeGenomeTitles(records) {
+    return records.reduce((summary, record) => {
+        const title = record?.title || "";
+        const { isComplete, isPartial } = classifyGenomeTitle(title);
+        summary.total += 1;
+        if (isComplete) summary.complete += 1;
+        if (isPartial) summary.partial += 1;
+        return summary;
+    }, { total: 0, complete: 0, partial: 0 });
+}
+
+function getGenomeClassificationKey(title) {
+    const { isComplete, isPartial } = classifyGenomeTitle(title);
+    if (isComplete && isPartial) return "mixed";
+    if (isComplete) return "complete";
+    if (isPartial) return "partial";
+    return "unknown";
+}
+
+function isUnverifiedGenome(title) {
+    return /\bunverified\b/i.test(title || "");
+}
+
+function buildTaxonomyImportCandidates(ids, summaries) {
+    return ids.map((id, index) => {
+        const summary = summaries[index] || {};
+        const title = summary.title || "";
+        return {
+            id,
+            accession: summary.caption || summary.accessionversion || summary.uid || id,
+            title,
+            classification: getGenomeClassificationKey(title),
+            unverified: isUnverifiedGenome(title),
+            selected: true,
+        };
+    });
+}
+
+function summarizeUnverifiedCandidates(candidates) {
+    return candidates.reduce((count, candidate) => count + (candidate.unverified ? 1 : 0), 0);
+}
+
+function renderTaxonomyImportCandidates() {
+    const tbody = document.getElementById("taxonomyImportTableBody");
+    const countEl = document.getElementById("taxonomyImportSelectionCount");
+    const confirmBtn = document.getElementById("taxonomyImportConfirm");
+    if (!tbody || !countEl || !confirmBtn) return;
+
+    const total = state.taxonomyImportCandidates.length;
+    const selectedCandidates = state.taxonomyImportCandidates.filter((candidate) => candidate.selected);
+    const selected = selectedCandidates.length;
+
+    // Calculate proportions for all genomes
+    const completeCount = state.taxonomyImportCandidates.filter((c) => c.classification === "complete").length;
+    const partialCount = state.taxonomyImportCandidates.filter((c) => c.classification === "partial").length;
+    const unverifiedCount = state.taxonomyImportCandidates.filter((c) => c.unverified).length;
+
+    const completePercent = total > 0 ? (completeCount / total) * 100 : 0;
+    const partialPercent = total > 0 ? (partialCount / total) * 100 : 0;
+    const unverifiedPercent = total > 0 ? (unverifiedCount / total) * 100 : 0;
+
+    // Calculate proportions for selected genomes
+    const selectedCompleteCount = selectedCandidates.filter((c) => c.classification === "complete").length;
+    const selectedPartialCount = selectedCandidates.filter((c) => c.classification === "partial").length;
+    const selectedUnverifiedCount = selectedCandidates.filter((c) => c.unverified).length;
+
+    const selectedCompletePercent = selected > 0 ? (selectedCompleteCount / selected) * 100 : 0;
+    const selectedPartialPercent = selected > 0 ? (selectedPartialCount / selected) * 100 : 0;
+    const selectedUnverifiedPercent = selected > 0 ? (selectedUnverifiedCount / selected) * 100 : 0;
+
+    const stackedBarHtml = `
+        <div class="taxonomy-stacked-bar-container">
+            <div class="taxonomy-stacked-bar-group">
+                <div class="taxonomy-stacked-bar-label">${i18nText("step1.review.total")} (${total})</div>
+                <div class="taxonomy-stacked-bar">
+                    <div class="taxonomy-stacked-bar-segment complete" style="width: ${completePercent}%" title="${completeCount} complete">${completePercent > 8 ? Math.round(completePercent) + '%' : ''}</div>
+                    <div class="taxonomy-stacked-bar-segment partial" style="width: ${partialPercent}%" title="${partialCount} partial">${partialPercent > 8 ? Math.round(partialPercent) + '%' : ''}</div>
+                    <div class="taxonomy-stacked-bar-segment unverified" style="width: ${unverifiedPercent}%" title="${unverifiedCount} unverified">${unverifiedPercent > 0 ? Math.round(unverifiedPercent) + '%' : ''}</div>
+                </div>
+            </div>
+            <div class="taxonomy-stacked-bar-group">
+                <div class="taxonomy-stacked-bar-label">${i18nText("step1.review.selected")} (${selected})</div>
+                <div class="taxonomy-stacked-bar">
+                    <div class="taxonomy-stacked-bar-segment complete" style="width: ${selectedCompletePercent}%" title="${selectedCompleteCount} complete">${selectedCompletePercent > 8 ? Math.round(selectedCompletePercent) + '%' : ''}</div>
+                    <div class="taxonomy-stacked-bar-segment partial" style="width: ${selectedPartialPercent}%" title="${selectedPartialCount} partial">${selectedPartialPercent > 8 ? Math.round(selectedPartialPercent) + '%' : ''}</div>
+                    <div class="taxonomy-stacked-bar-segment unverified" style="width: ${selectedUnverifiedPercent}%" title="${selectedUnverifiedCount} unverified">${selectedUnverifiedPercent > 0 ? Math.round(selectedUnverifiedPercent) + '%' : ''}</div>
+                </div>
+            </div>
+            <div class="taxonomy-stacked-bar-legend">
+                <span class="taxonomy-stacked-bar-legend-item"><span class="taxonomy-stacked-bar-legend-dot complete"></span> ${i18nText("step1.review.class.complete")}</span>
+                <span class="taxonomy-stacked-bar-legend-item"><span class="taxonomy-stacked-bar-legend-dot partial"></span> ${i18nText("step1.review.class.partial")}</span>
+                ${unverifiedCount > 0 ? `<span class="taxonomy-stacked-bar-legend-item"><span class="taxonomy-stacked-bar-legend-dot unverified"></span> ${i18nText("step1.review.class.unverified")}</span>` : ""}
+            </div>
+        </div>
+    `;
+
+    countEl.innerHTML = stackedBarHtml;
+    confirmBtn.disabled = selected === 0;
+
+    tbody.innerHTML = state.taxonomyImportCandidates.map((candidate) => {
+        const isActive = candidate.selected;
+        const label = i18nText(`step1.review.class.${candidate.classification}`);
+        const unverifiedLabel = i18nText("step1.review.class.unverified");
+        const classificationHtml = candidate.unverified
+            ? `<span class="taxonomy-review-badge unverified">${escHtml(unverifiedLabel)}</span>`
+            : `<span class="taxonomy-review-badge ${candidate.classification}">${escHtml(label)}</span>`;
+        return `
+            <tr class="${candidate.unverified ? "unverified" : ""}">
+                <td class="px-4 py-3 text-center">
+                    <button
+                        type="button"
+                        class="taxonomy-review-switch ${isActive ? "active" : "inactive"}"
+                        onclick="toggleTaxonomyImportCandidate('${escHtml(String(candidate.id))}', ${!isActive}); event.preventDefault();"
+                        aria-pressed="${isActive ? "true" : "false"}"
+                    >
+                        <span class="switch-track ${isActive ? "active" : "inactive"}"><span class="switch-knob"></span></span>
+                        <span class="taxonomy-review-switch-label ${isActive ? "active" : "inactive"}">${escHtml(i18nText(isActive ? "step1.review.switch.on" : "step1.review.switch.off"))}</span>
+                    </button>
+                </td>
+                <td class="px-4 py-3 text-gray-700 text-center">${escHtml(String(candidate.accession))}</td>
+                <td class="px-4 py-3 taxonomy-review-description">
+                    <strong>${escHtml(String(candidate.accession))}</strong>
+                    <p class="${candidate.unverified ? "unverified" : ""}">${escHtml(candidate.title || "-")}</p>
+                </td>
+                <td class="px-4 py-3 text-center">${classificationHtml}</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function toggleTaxonomyImportCandidate(id, checked) {
+    state.taxonomyImportCandidates = state.taxonomyImportCandidates.map((candidate) => (
+        String(candidate.id) === String(id)
+            ? { ...candidate, selected: checked }
+            : candidate
+    ));
+    renderTaxonomyImportCandidates();
+}
+
+function setTaxonomyImportSelection(mode) {
+    state.taxonomyImportCandidates = state.taxonomyImportCandidates.map((candidate) => {
+        if (mode === "all") return { ...candidate, selected: true };
+        if (mode === "none") return { ...candidate, selected: false };
+        if (mode === "disable-unverified") return { ...candidate, selected: candidate.unverified ? false : candidate.selected };
+        if (mode === "complete") return { ...candidate, selected: candidate.classification === "complete" && !candidate.unverified };
+        if (mode === "partial") return { ...candidate, selected: candidate.classification === "partial" && !candidate.unverified };
+        return candidate;
+    });
+    renderTaxonomyImportCandidates();
+}
+
+function closeTaxonomyImportModal(selectedIds = null) {
+    document.getElementById("taxonomyImportModal").classList.add("hidden");
+    const resolver = state.taxonomyImportResolver;
+    state.taxonomyImportResolver = null;
+    if (typeof resolver === "function") {
+        resolver(selectedIds);
+    }
+}
+
+function openTaxonomyImportModal({ taxon, summaryHtml, candidates, searchDetails = [] }) {
+    document.getElementById("taxonomyImportTitle").textContent = i18nText("step1.review.title");
+    const searchDetailsHtml = searchDetails.length > 0
+        ? `<div class="taxonomy-review-meta">${searchDetails.map((detail) => `<span class="step1-filter-chip"><strong>${escHtml(detail.label)}:</strong> ${escHtml(detail.value)}</span>`).join("")}</div>`
+        : "";
+    document.getElementById("taxonomyImportSubtitle").innerHTML = `${i18nText("step1.review.subtitle")}${searchDetailsHtml}`;
+    const unverifiedCount = summarizeUnverifiedCandidates(candidates);
+    const unverifiedHtml = unverifiedCount > 0
+        ? `<div class="mt-2"><span class="taxonomy-review-badge unverified">${i18nText("step1.review.class.unverified")}</span> ${i18nText("step1.review.unverifiedCount", { count: unverifiedCount })}<div class="mt-1 text-sm text-splace-red-700">${i18nText("step1.review.unverifiedAdvice")}</div></div>`
+        : "";
+    document.getElementById("taxonomyImportSummary").innerHTML = `${summaryHtml}${unverifiedHtml}`;
+    state.taxonomyImportCandidates = candidates;
+    renderTaxonomyImportCandidates();
+    document.getElementById("taxonomyImportModal").classList.remove("hidden");
+    return new Promise((resolve) => {
+        state.taxonomyImportResolver = resolve;
+    });
+}
+
+function updateProgressMeta() {
+    const rateLabel = document.getElementById("progressRateLabel");
+    const rateValue = document.getElementById("progressRateValue");
+    const apiLabel = document.getElementById("progressApiLabel");
+    const apiValue = document.getElementById("progressApiValue");
+    const currentLabel = document.getElementById("progressCurrentLabel");
+    const currentItem = document.getElementById("progressCurrentItem");
+    const footerNote = document.getElementById("progressFooterNote");
+    const metaGrid = document.getElementById("progressMetaGrid");
+    const currentPanel = document.getElementById("progressCurrentPanel");
+    if (!rateLabel || !rateValue || !apiLabel || !apiValue || !currentLabel || !currentItem || !metaGrid || !currentPanel) return;
+
+    metaGrid.classList.toggle("hidden", !state.progressUi.showMeta);
+    currentPanel.classList.toggle("hidden", state.progressUi.showCurrent === false);
+
+    if (!state.progressUi.showMeta) {
+        currentLabel.textContent = state.progressUi.currentLabel || "";
+        if (!currentItem.textContent.trim() && state.progressUi.idleText) {
+            currentItem.textContent = state.progressUi.idleText;
+        }
+        if (footerNote) footerNote.textContent = state.progressUi.footerText || "";
+        return;
+    }
+
+    rateLabel.textContent = i18nText("step1.progress.rateLabel");
+    rateValue.textContent = i18nText(hasUsableNcbiApiKey() ? "step1.progress.rateWithKey" : "step1.progress.rateDefault");
+    apiLabel.textContent = i18nText("step1.progress.apiLabel");
+    apiValue.textContent = i18nText(hasUsableNcbiApiKey() ? "step1.progress.apiEnabled" : "step1.progress.apiDisabled");
+    currentLabel.textContent = i18nText("step1.progress.currentLabel");
+    if (!currentItem.textContent.trim()) {
+        currentItem.textContent = i18nText("step1.progress.statusIdle");
+    }
+    if (footerNote) footerNote.textContent = i18nText("step1.progress.footer");
+}
+
+function setProgressCurrentItem(text, options = {}) {
+    const currentItem = document.getElementById("progressCurrentItem");
+    if (!currentItem) return;
+    currentItem.textContent = text || "";
+    currentItem.classList.toggle("species-italic", !!options.italic);
 }
 
 // ========================================================================
@@ -700,9 +1232,10 @@ function renderRecords() {
         const tax = extractTaxonomy(r);
         const counts = countFeatureTypes(r);
         const sourceClass = r.source === 'ncbi' ? 'bg-splace-blue-50 text-splace-blue-600' : 'bg-gray-100 text-gray-600';
-        const sourceLabel = r.source === 'ncbi' ? 'NCBI' : 'File';
+        const sourceLabel = r.source === 'ncbi' ? i18nText('step2.record.source.ncbi') : i18nText('step2.record.source.file');
         const abbrevSpecies = tax.genus ? `${tax.genus.charAt(0)}.${tax.species ? ' ' + tax.species : ''}` : '';
         const fullSpecies = `${tax.genus}${tax.species ? ' ' + tax.species : ''}`;
+        const displayName = fullSpecies || (r.editedOrganism || r.organism || r.accession || "Unknown");
 
         return `
             <tr class="group">
@@ -712,20 +1245,31 @@ function renderRecords() {
                 <td class="px-3 py-2 text-gray-500" data-col="class">${tax.class || "—"}</td>
                 <td class="px-3 py-2 text-gray-500" data-col="order">${tax.order || "—"}</td>
                 <td class="px-3 py-2 text-gray-500" data-col="family">${tax.family || "—"}</td>
-                <td class="px-3 py-2 text-gray-500" data-col="genus"><em>${tax.genus}</em></td>
-                <td class="px-3 py-2 text-gray-500" data-col="species"><em>${abbrevSpecies}</em></td>
+                <td class="px-3 py-2 text-gray-500" data-col="genus"><span class="genus-italic">${tax.genus}</span></td>
+                <td class="px-3 py-2 text-gray-500" data-col="species"><span class="species-italic">${abbrevSpecies}</span></td>
                 <td class="px-3 py-2 text-gray-500" data-col="authorship">${tax.authorship || "—"}</td>
                 <td class="px-3 py-2 text-center text-gray-600" data-col="pcgs">${counts.pcgs}</td>
                 <td class="px-3 py-2 text-center text-gray-600" data-col="rrnas">${counts.rrnas}</td>
                 <td class="px-3 py-2 text-center text-gray-600" data-col="trnas">${counts.trnas}</td>
                 <td class="px-3 py-2 text-center" data-col="source"><span class="text-xs px-1.5 py-0.5 rounded ${sourceClass}">${sourceLabel}</span></td>
                 <td class="px-3 py-2 text-right whitespace-nowrap">
-                    <button onclick="editRecord(${i})" class="text-gray-400 hover:text-splace-blue-600 transition-colors text-sm leading-none mr-2" data-tippy-content="Edit <em>${fullSpecies}</em> (${r.accession})"><i class="fa-solid fa-pen-to-square"></i></button>
-                    <button onclick="removeRecord(${i})" class="text-gray-400 hover:text-red-500 transition-colors text-lg leading-none" data-tippy-content="Remove <em>${fullSpecies}</em> (${r.accession})"><i class="fa-solid fa-xmark"></i></button>
+                    <button onclick="editRecord(${i})" class="record-action-edit transition-colors text-sm leading-none mr-2" data-tippy-content="${i18nText('step2.record.tooltip.edit', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <button onclick="removeRecord(${i})" class="record-action-remove transition-colors text-lg leading-none" data-tippy-content="${i18nText('step2.record.tooltip.remove', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-xmark"></i></button>
                 </td>
             </tr>
         `;
     }).join("");
+
+    tbody.querySelectorAll("[data-tippy-content]").forEach((el) => {
+        const htmlContent = el.getAttribute("data-tippy-content") || "";
+        const titleText = htmlContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (titleText) {
+            el.setAttribute("title", titleText);
+            el.setAttribute("aria-label", titleText);
+        }
+        window.createTippy && window.createTippy(el, el.getAttribute("data-tippy-content"));
+    });
+    window.initTooltips && window.initTooltips();
 
     // Only update gene selection if steps 3/4 are already visible (user already proceeded)
     if (!document.getElementById("featureTypesSection").classList.contains("hidden")) {
@@ -784,6 +1328,16 @@ function filterRecords() {
         }
         noRow.querySelector("span").textContent = input.value;
     }
+
+    tbody.querySelectorAll("[data-tippy-content]").forEach((el) => {
+        const htmlContent = el.getAttribute("data-tippy-content") || "";
+        const titleText = htmlContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (titleText) {
+            el.setAttribute("title", titleText);
+            el.setAttribute("aria-label", titleText);
+        }
+        window.createTippy && window.createTippy(el, htmlContent);
+    });
 }
 
 // Walk text nodes inside el and wrap occurrences of query with a <mark>
@@ -1083,6 +1637,11 @@ function renderGenes(genesByType) {
     if (warningsDiv) {
         const selectedVisible = sortedGenes.filter(([name]) => state.selectedGenes.has(name));
         const warningItems = [];
+        const missingSummaryTemplate = i18nText("step4.warning.missing.summary", "missing in {count} genome{suffix}");
+        const missingTitle = i18nText("step4.warning.missing.title", "Missing Genes");
+        const speciesLabel = i18nText("step4.warning.species", "Species");
+        const accessionLabel = i18nText("step4.warning.accession", "Accession");
+        const fileLabel = i18nText("step4.warning.file", "File");
 
         for (const [geneName, info] of selectedVisible) {
             const presentIndices = info.recordIndices || new Set();
@@ -1114,10 +1673,10 @@ function renderGenes(genesByType) {
                     `<div class="flex items-center gap-2 mb-1">` +
                     `<i class="fa-solid fa-triangle-exclamation text-amber-500 flex-shrink-0"></i>` +
                     `<span class="text-sm font-semibold text-amber-800">${geneName}</span>` +
-                    `<span class="text-xs text-amber-600">— missing in ${missingRecords.length} genome${missingRecords.length > 1 ? 's' : ''}</span>` +
+                    `<span class="text-xs text-amber-600">— ${i18nText("step4.warning.missing.summary", missingSummaryTemplate, { count: missingRecords.length, suffix: missingRecords.length > 1 ? "s" : "" })}</span>` +
                     `</div>` +
                     `<table class="w-full border border-amber-200 rounded-md overflow-hidden text-left">` +
-                    `<thead><tr class="bg-amber-100"><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">Species</th><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">Accession</th><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">File</th></tr></thead>` +
+                    `<thead><tr class="bg-amber-100"><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">${speciesLabel}</th><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">${accessionLabel}</th><th class="px-3 py-1 text-xs font-semibold text-amber-800 uppercase">${fileLabel}</th></tr></thead>` +
                     `<tbody>${tableRows}</tbody></table>` +
                     `</div>`
                 );
@@ -1127,7 +1686,7 @@ function renderGenes(genesByType) {
         if (warningItems.length > 0) {
             warningsDiv.innerHTML =
                 `<div class="bg-amber-50 border border-amber-200 rounded-lg p-4">` +
-                `<div class="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-3"><i class="fa-solid fa-circle-exclamation mr-1"></i>Missing Genes</div>` +
+                `<div class="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-3"><i class="fa-solid fa-circle-exclamation mr-1"></i>${missingTitle}</div>` +
                 warningItems.join("") +
                 `</div>`;
             warningsDiv.classList.remove("hidden");
@@ -1143,6 +1702,14 @@ function renderGenes(genesByType) {
         const dupItems = [];
         const dupFeatureTypes = ["CDS", "rRNA"];
         const typeLabels = { CDS: "PCG", rRNA: "rRNA" };
+        const duplicateTitle = i18nText("step4.warning.duplicate.title", "Duplicate Genes");
+        const duplicateSummaryTemplate = i18nText("step4.warning.duplicate.summary", "duplicated in {count} genome{suffix}");
+        const speciesLabel = i18nText("step4.warning.species", "Species");
+        const accessionLabel = i18nText("step4.warning.accession", "Accession");
+        const copiesLabel = i18nText("step4.warning.copies", "Copies (sizes)");
+        const usedLabel = i18nText("step4.warning.used", "Used");
+        const choiceHelp = i18nText("step4.warning.choiceHelp", "One copy is used per genome. The longest starts selected.");
+        const defaultLabel = i18nText("step4.warning.default", "default");
 
         for (const ftype of dupFeatureTypes) {
             const fMap = genesByType.get(ftype);
@@ -1162,9 +1729,26 @@ function renderGenes(genesByType) {
                     const accHtml = ncbiUrl
                         ? `<a href="${ncbiUrl}" target="_blank" rel="noopener" class="text-splace-blue-600 hover:underline">${r.accession}</a>`
                         : `<span class="text-gray-400">${r.accession || 'N/A'}</span>`;
+                    const recordKey = r.accession || String(ri);
                     const maxLen = Math.max(...lengths);
                     const lensList = lengths.map(l => `${l.toLocaleString()} bp`).join(", ");
-                    dupRecords.push({ speciesName, accHtml, maxLen, lensList });
+                    const otherLengths = [];
+                    for (const [otherRi, otherGeneLengths] of info.recordLengths) {
+                        if (otherRi === ri) continue;
+                        otherLengths.push(...otherGeneLengths);
+                    }
+                    const otherMean = otherLengths.length > 0
+                        ? Math.round(otherLengths.reduce((sum, value) => sum + value, 0) / otherLengths.length)
+                        : null;
+                    const defaultChoiceIndex = lengths.findIndex((value) => value === maxLen);
+                    const choiceKey = getDuplicateChoiceKey(recordKey, geneName);
+                    const selectedIndex = state.duplicateGeneChoices.has(choiceKey)
+                        ? state.duplicateGeneChoices.get(choiceKey)
+                        : defaultChoiceIndex;
+                    if (!state.duplicateGeneChoices.has(choiceKey)) {
+                        state.duplicateGeneChoices.set(choiceKey, defaultChoiceIndex);
+                    }
+                    dupRecords.push({ speciesName, accHtml, maxLen, lensList, otherMean, lengths, selectedIndex, recordKey, geneName });
                 }
 
                 if (dupRecords.length === 0) continue;
@@ -1172,12 +1756,22 @@ function renderGenes(genesByType) {
                 const typeLabel = typeLabels[ftype] || ftype;
                 const tableRows = dupRecords.map((rec, idx) => {
                     const bg = idx % 2 === 0 ? "bg-orange-50" : "bg-white";
+                    const choiceOptions = rec.lengths.map((value, optionIndex) => {
+                        const checked = optionIndex === rec.selectedIndex ? " checked" : "";
+                        const hint = optionIndex === rec.lengths.findIndex((len) => len === rec.maxLen) ? ` <span class="duplicate-choice-hint">${defaultLabel}</span>` : "";
+                        return `<label class="duplicate-choice-item">` +
+                            `<input type="checkbox"${checked} onchange="toggleDuplicateGeneChoice('${escHtml(String(rec.recordKey))}', '${escHtml(String(rec.geneName))}', ${optionIndex})">` +
+                            `<span>${value.toLocaleString()} bp</span>${hint}` +
+                            `</label>`;
+                    }).join("");
                     return `<tr class="${bg}">` +
                         `<td class="px-3 py-1.5 text-sm italic">${rec.speciesName}</td>` +
                         `<td class="px-3 py-1.5 text-sm">${rec.accHtml}</td>` +
                         `<td class="px-3 py-1.5 text-sm text-gray-600">${rec.lensList}</td>` +
-                        `<td class="px-3 py-1.5 text-sm"><span class="font-semibold text-splace-blue-700">${rec.maxLen.toLocaleString()} bp</span>` +
-                        ` <span class="text-gray-400">(longest — will be used)</span></td>` +
+                        `<td class="px-3 py-1.5 text-sm">` +
+                        `<div class="duplicate-choice-list">${choiceOptions}</div>` +
+                        ` <div class="text-xs text-gray-400 mt-1">${choiceHelp}</div>` +
+                        `${rec.otherMean ? ` <div class="text-xs text-gray-500 mt-0.5">${i18nText("step4.warning.meanOther", "Mean in other species: {value} bp", { value: rec.otherMean.toLocaleString() })}</div>` : ""}</td>` +
                         `</tr>`;
                 }).join("");
 
@@ -1187,14 +1781,14 @@ function renderGenes(genesByType) {
                     `<i class="fa-solid fa-copy text-orange-500 flex-shrink-0"></i>` +
                     `<span class="font-semibold text-orange-800">${geneName}</span>` +
                     `<span class="text-xs font-semibold text-orange-500 uppercase tracking-wide">${typeLabel}</span>` +
-                    `<span class="text-sm text-orange-600">— duplicated in ${dupRecords.length} genome${dupRecords.length > 1 ? "s" : ""}</span>` +
+                    `<span class="text-sm text-orange-600">— ${i18nText("step4.warning.duplicate.summary", duplicateSummaryTemplate, { count: dupRecords.length, suffix: dupRecords.length > 1 ? "s" : "" })}</span>` +
                     `</div>` +
                     `<table class="w-full border border-orange-200 rounded-md overflow-hidden text-left">` +
                     `<thead><tr class="bg-orange-100">` +
-                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">Species</th>` +
-                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">Accession</th>` +
-                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">Copies (sizes)</th>` +
-                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">Used</th>` +
+                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">${speciesLabel}</th>` +
+                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">${accessionLabel}</th>` +
+                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">${copiesLabel}</th>` +
+                    `<th class="px-3 py-1 text-xs font-semibold text-orange-800 uppercase tracking-wide">${usedLabel}</th>` +
                     `</tr></thead>` +
                     `<tbody>${tableRows}</tbody></table>` +
                     `</div>`
@@ -1206,7 +1800,7 @@ function renderGenes(genesByType) {
             dupWarningsDiv.innerHTML =
                 `<div class="bg-orange-50 border border-orange-200 rounded-lg p-4">` +
                 `<div class="font-semibold text-orange-700 uppercase tracking-wider mb-3 text-sm">` +
-                `<i class="fa-solid fa-copy mr-1"></i>Duplicate Genes</div>` +
+                `<i class="fa-solid fa-copy mr-1"></i>${duplicateTitle}</div>` +
                 dupItems.join("") +
                 `</div>`;
             dupWarningsDiv.classList.remove("hidden");
@@ -1526,6 +2120,15 @@ function fillExampleAccessions() {
     validateAccessionInput();
 }
 
+function fillTaxonomySearchExample() {
+    document.getElementById("taxonomySearchInput").value = "Bufonidae";
+    document.getElementById("taxonomyOrganelleSelect").value = "mitochondrion";
+    document.getElementById("taxonomyRefseqOnly").checked = true;
+    document.getElementById("taxonomyCompleteCheckbox").checked = true;
+    document.getElementById("taxonomyPartialCheckbox").checked = false;
+    validateTaxonomySearchInput();
+}
+
 // NCBI accession numbers: 1-6 letters (optional underscore) then 5+ digits, optionally .version
 const ACCESSION_RE = /\b[A-Za-z]{1,6}_?\d{4,}(?:\.\d+)?\b/;
 
@@ -1535,33 +2138,174 @@ function validateAccessionInput() {
     btn.disabled = !ACCESSION_RE.test(raw);
 }
 
+function validateTaxonomySearchInput() {
+    const raw = document.getElementById("taxonomySearchInput")?.value || "";
+    const btn = document.getElementById("taxonomySearchBtn");
+    const scopes = getSelectedGenomeScopes();
+    if (btn) btn.disabled = raw.trim().length < 3 || scopes.length === 0;
+
+    const previewEl = document.getElementById("taxonomyQueryPreview");
+    if (!previewEl) return;
+
+    const config = buildNcbiGenomeSearchConfig({
+        taxon: raw,
+        organelle: document.getElementById("taxonomyOrganelleSelect")?.value,
+        completeness: scopes,
+        refseqOnly: document.getElementById("taxonomyRefseqOnly")?.checked,
+    });
+    previewEl.textContent = config ? config.term : "";
+}
+
+function mergeRecords(records) {
+    const seen = new Set(state.records.map((record) => (record.accession || "").trim()).filter(Boolean));
+    for (const record of records) {
+        const accession = (record.accession || "").trim();
+        if (accession && seen.has(accession)) continue;
+        state.records.push(record);
+        if (accession) seen.add(accession);
+    }
+}
+
+function i18nText(key, fallbackOrParams, maybeParams) {
+    const translate = window.SPLACE_I18N?.t;
+    const hasFallback = typeof fallbackOrParams === "string";
+    const params = hasFallback ? maybeParams : fallbackOrParams;
+    let value = typeof translate === "function" ? translate(key, params) : key;
+
+    if (value === key && hasFallback) {
+        value = fallbackOrParams;
+    }
+
+    if (params && typeof params === "object") {
+        value = value.replace(/\{(\w+)\}/g, (_, name) => {
+            return params[name] == null ? `{${name}}` : String(params[name]);
+        });
+    }
+
+    return value;
+}
+
 // ========================================================================
 // Progress Modal
 // ========================================================================
-function showProgress(title, subtitle) {
+// ========================================================================
+// Progress Modal Aprimorado
+// ========================================================================
+function showProgress(title, subtitle, sourceDetail = "", options = {}) {
+    state.progressUi = {
+        mode: options.mode || "generic",
+        showMeta: !!options.showMeta,
+        showCurrent: options.showCurrent !== false,
+        currentLabel: options.currentLabel || "",
+        footerText: options.footerText || "",
+        idleText: options.idleText || "",
+        successText: options.successText || "",
+        counterFormatter: options.counterFormatter || null,
+    };
+    const progressCard = document.querySelector(".progress-modal-card");
+    if (progressCard) {
+        progressCard.classList.toggle("progress-modal-gbif", state.progressUi.mode === "gbif");
+        progressCard.classList.toggle("progress-modal-ncbi", state.progressUi.mode === "ncbi");
+    }
     document.getElementById("progressTitle").innerHTML = title;
     document.getElementById("progressSubtitle").textContent = subtitle || "";
     document.getElementById("progressBar").style.width = "0%";
-    document.getElementById("progressDetail").textContent = "";
-    document.getElementById("progressIcon").className = "fa-solid fa-spinner fa-spin text-splace-blue-600 text-xl";
+    document.getElementById("progressPercentage").textContent = "0%";
+    document.getElementById("progressDetail").innerHTML = sourceDetail;
+    document.getElementById("progressStatusText").textContent = subtitle || "";
+    setProgressCurrentItem(state.progressUi.idleText || "");
+    document.getElementById("progressIcon").className = "fa-solid fa-spinner fa-spin text-splace-blue-600 text-2xl";
+    updateProgressMeta();
+    syncProgressPanels();
     document.getElementById("progressModal").classList.remove("hidden");
 }
 
-function updateProgress(current, total, detail) {
-    const pct = Math.round((current / total) * 100);
+function updateProgress(current, total, detail, options = {}) {
+    const pct = total > 0 ? Math.round((current / total) * 100) : 100;
+    const counterText = typeof state.progressUi.counterFormatter === "function"
+        ? state.progressUi.counterFormatter(current, total)
+        : `${current} / ${total}`;
     document.getElementById("progressBar").style.width = pct + "%";
-    document.getElementById("progressSubtitle").textContent = `${current} of ${total}`;
-    if (detail) document.getElementById("progressDetail").innerHTML = detail;
+    document.getElementById("progressPercentage").textContent = pct + "%";
+    document.getElementById("progressSubtitle").textContent = counterText;
+    document.getElementById("progressStatusText").textContent = counterText;
+
+    if (detail) {
+        setProgressCurrentItem(detail, { italic: !!options.italicCurrentItem });
+    }
+    syncProgressPanels();
 }
 
 function hideProgress(successMsg) {
+    const progressCard = document.querySelector(".progress-modal-card");
+    if (progressCard) {
+        progressCard.classList.remove("progress-modal-gbif", "progress-modal-ncbi");
+    }
     document.getElementById("progressBar").style.width = "100%";
-    document.getElementById("progressIcon").className = "fa-solid fa-circle-check text-green-600 text-xl";
-    if (successMsg) document.getElementById("progressTitle").textContent = successMsg;
-    document.getElementById("progressSubtitle").textContent = "";
+    document.getElementById("progressPercentage").textContent = "100%";
+    document.getElementById("progressIcon").className = "fa-solid fa-circle-check text-green-500 text-2xl";
+    if (successMsg) document.getElementById("progressTitle").innerHTML = successMsg;
+    document.getElementById("progressStatusText").textContent = state.progressUi.successText || i18nText("step1.progress.complete");
+    if (state.progressUi.mode !== "ncbi" || !document.getElementById("progressCurrentItem")?.textContent.trim()) {
+        setProgressCurrentItem(successMsg || state.progressUi.successText || i18nText("step1.progress.complete"));
+    }
+    updateProgressMeta();
+    syncProgressPanels();
+
     setTimeout(() => {
         document.getElementById("progressModal").classList.add("hidden");
-    }, 1200);
+    }, 2000); // Aumentei um pouco o tempo para o usuário conseguir ler o final
+}
+
+function syncProgressPanels() {
+    const detailEl = document.getElementById("progressDetail");
+    const metaGrid = document.getElementById("progressMetaGrid");
+    const currentPanel = document.getElementById("progressCurrentPanel");
+    const currentItem = document.getElementById("progressCurrentItem");
+    const currentLabel = document.getElementById("progressCurrentLabel");
+    if (!detailEl || !metaGrid || !currentPanel || !currentItem || !currentLabel) return;
+
+    const detailText = detailEl.textContent.replace(/\s+/g, " ").trim();
+    detailEl.classList.toggle("hidden", !detailText);
+
+    const hasCurrentText = currentItem.textContent.replace(/\s+/g, " ").trim();
+    const hasCurrentLabel = currentLabel.textContent.replace(/\s+/g, " ").trim();
+    const showCurrent = state.progressUi.showCurrent !== false && !!(hasCurrentText || hasCurrentLabel);
+    currentPanel.classList.toggle("hidden", !showCurrent);
+
+    const metaVisible = !metaGrid.classList.contains("hidden");
+    metaGrid.classList.toggle("progress-modal-meta-grid--standalone", metaVisible && !showCurrent && !detailText);
+}
+
+// ========================================================================
+// Toggle Visual de Colunas (Chips)
+// ========================================================================
+function applyColumnVisibility() {
+    const table = document.querySelector(".records-table");
+    if (!table) return;
+    const cells = table.querySelectorAll("[data-col]");
+    cells.forEach(cell => {
+        const col = cell.dataset.col;
+        cell.style.display = state.hiddenColumns.has(col) ? "none" : "";
+    });
+
+    // Sincronizar ícones e cores dos chips
+    document.querySelectorAll(".col-eye-toggle[data-col-toggle]").forEach(btn => {
+        const col = btn.dataset.colToggle;
+        const icon = btn.querySelector("i");
+
+        if (state.hiddenColumns.has(col)) {
+            icon.className = "fa-solid fa-eye-slash text-gray-400";
+            btn.classList.replace("bg-splace-blue-50", "bg-white");
+            btn.classList.replace("border-splace-blue-200", "border-gray-200");
+            btn.classList.replace("text-splace-blue-700", "text-gray-600");
+        } else {
+            icon.className = "fa-solid fa-eye text-splace-blue-600";
+            btn.classList.replace("bg-white", "bg-splace-blue-50");
+            btn.classList.replace("border-gray-200", "border-splace-blue-200");
+            btn.classList.replace("text-gray-600", "text-splace-blue-700");
+        }
+    });
 }
 
 // ========================================================================
@@ -1608,8 +2352,20 @@ async function fetchAllTaxonomy() {
     const totalUnique = uniqueSpecies.length;
     const totalRecords = state.records.length;
 
-    showProgress("Fetching Taxonomy from GBIF with<br><b>dataFishing (Rabelo et al. 2025)</b>", `0 of ${totalUnique} species`);
-    document.getElementById("progressDetail").textContent = "dataFishing (Rabelo et al. 2025)";
+    showProgress(
+        i18nText("step2.progress.title"),
+        i18nText("step2.progress.subtitle", { current: 0, total: totalUnique }),
+        i18nText("step2.progress.detail"),
+        {
+            mode: "gbif",
+            showMeta: false,
+            currentLabel: i18nText("step2.progress.currentLabel"),
+            footerText: i18nText("step2.progress.footer"),
+            idleText: i18nText("step2.progress.subtitle", { current: 0, total: totalUnique }),
+            successText: i18nText("step2.action.fetchTaxonomy"),
+            counterFormatter: (current, total) => i18nText("step2.progress.subtitle", { current, total }),
+        }
+    );
 
     let successCount = 0;
     let errorCount = 0;
@@ -1646,7 +2402,7 @@ async function fetchAllTaxonomy() {
             }
 
             completed++;
-            updateProgress(completed, totalUnique, `<em>${organism}</em>`);
+            updateProgress(completed, totalUnique, organism, { italicCurrentItem: true });
         });
 
         await Promise.all(promises);
@@ -1655,10 +2411,9 @@ async function fetchAllTaxonomy() {
         }
     }
 
-    // Count records without organism name
-    const skippedCount = totalRecords - [...speciesMap.values()].reduce((a, b) => a + b.length, 0);
-
-    hideProgress(`Taxonomy fetched: ${successCount} species OK${errorCount > 0 ? `, ${errorCount} failed` : ""}${totalUnique < totalRecords ? ` (${totalUnique} unique queries for ${totalRecords} records)` : ""}`);
+    const errorSuffix = errorCount > 0 ? i18nText("step2.progress.doneErrors", { count: errorCount }) : "";
+    const uniqueSuffix = totalUnique < totalRecords ? i18nText("step2.progress.doneUnique", { unique: totalUnique, records: totalRecords }) : "";
+    hideProgress(i18nText("step2.progress.done", { success: successCount, errors: errorSuffix, unique: uniqueSuffix }));
     btn.disabled = false;
     renderRecords();
     renderGeneSelection(); // reveal steps 3 & 4 now that taxonomy is done
@@ -1805,7 +2560,7 @@ function renderHeaderBuilder() {
         const tax = extractTaxonomy(r);
         previewEl.textContent = ">" + buildHeader(r, tax);
     } else if (state.headerTemplate.length === 0) {
-        previewEl.textContent = "(no fields selected)";
+        previewEl.textContent = i18nText("modal.header.empty", "(no fields selected)");
     } else {
         previewEl.innerHTML = "&gt;Species" + sep + "Accession";
     }
@@ -1814,7 +2569,10 @@ function renderHeaderBuilder() {
     const duplicates = checkHeaderDuplicates();
     if (duplicates.length > 0 && state.headerTemplate.length > 0) {
         const totalDupes = duplicates.reduce((sum, d) => sum + d.accessions.length, 0);
-        warningTextEl.textContent = `${totalDupes} records produce ${duplicates.length} duplicated header(s). Add more fields (e.g., Accession) to make headers unique.`;
+        warningTextEl.textContent = i18nText("modal.header.duplicate.body", "{records} records produce {headers} duplicated header(s). Add more fields (e.g., Accession) to make headers unique.", {
+            records: totalDupes,
+            headers: duplicates.length,
+        });
         warningEl.classList.remove("hidden");
         confirmBtn.disabled = true;
     } else if (state.headerTemplate.length === 0) {
@@ -1909,10 +2667,11 @@ function generateFastaFiles() {
     const dataType = state.detectedDataType;
 
     for (const record of state.records) {
-        const bestPerGene = new Map();
+        const candidatesPerGene = new Map();
         const assignedTrnas = new Set();
         const tax = extractTaxonomy(record);
         const header = ">" + buildHeader(record, tax);
+        const recordKey = record.accession || buildHeader(record, tax);
 
         for (const feat of record.features) {
             if (!state.selectedFeatureTypes.has(feat.type)) continue;
@@ -1936,19 +2695,23 @@ function generateFastaFiles() {
             const seq = extractSequence(record.sequence, feat.locationStr);
             if (!seq) continue;
 
-            const existing = bestPerGene.get(geneName);
-            if (!existing || seq.length > existing.len) {
-                bestPerGene.set(geneName, {
-                    header: header,
-                    seq: seq,
-                    len: seq.length,
-                });
-            }
+            const existing = candidatesPerGene.get(geneName) || [];
+            existing.push({ header, seq, len: seq.length });
+            candidatesPerGene.set(geneName, existing);
         }
 
-        for (const [geneName, { header, seq }] of bestPerGene) {
+        for (const [geneName, candidates] of candidatesPerGene) {
+            const choiceKey = getDuplicateChoiceKey(recordKey, geneName);
+            const longestIndex = candidates.reduce((bestIndex, candidate, index, all) => (
+                candidate.len > all[bestIndex].len ? index : bestIndex
+            ), 0);
+            const selectedIndex = state.duplicateGeneChoices.has(choiceKey)
+                ? state.duplicateGeneChoices.get(choiceKey)
+                : longestIndex;
+            const chosen = candidates[selectedIndex] || candidates[longestIndex];
+            if (!chosen) continue;
             const existing = fastaMap.get(geneName) || "";
-            fastaMap.set(geneName, existing + header + "\n" + seq + "\n");
+            fastaMap.set(geneName, existing + chosen.header + "\n" + chosen.seq + "\n");
         }
     }
 
@@ -2011,7 +2774,7 @@ function handleFiles(fileList) {
                 record.fileSize = file.size;
                 record.fileDate = new Date(file.lastModified);
                 if (!record.accession) record.accession = file.name.replace(GENBANK_EXTENSIONS, "");
-                state.records.push(record);
+                mergeRecords([record]);
             } catch {
                 // Error parsing file, skipped
             }
@@ -2026,6 +2789,28 @@ function handleFiles(fileList) {
         };
         reader.readAsText(file);
     }
+}
+
+function handleElectronSelectedFiles(fileEntries) {
+    const preparedFiles = (fileEntries || []).map((entry) => {
+        if (entry instanceof File) {
+            return entry;
+        }
+        if (!entry?.name || typeof entry.text !== "string") {
+            return null;
+        }
+        return new File(
+            [entry.text],
+            entry.name,
+            { type: "text/plain", lastModified: entry.lastModified || Date.now() }
+        );
+    }).filter(Boolean);
+
+    if (!preparedFiles.length) {
+        return;
+    }
+
+    handleFiles(preparedFiles);
 }
 
 function readEntryAsFile(fileEntry) {
@@ -2105,7 +2890,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const dropZone = document.getElementById("dropZone");
     const fileInput = document.getElementById("fileInput");
 
-    dropZone.addEventListener("click", () => fileInput.click());
+    window.addEventListener("dragover", (e) => {
+        e.preventDefault();
+    });
+    window.addEventListener("drop", (e) => {
+        e.preventDefault();
+    });
+
+    dropZone.addEventListener("click", async () => {
+        if (window.electronAPI?.selectGenbankInputs) {
+            try {
+                const selectedEntries = await window.electronAPI.selectGenbankInputs();
+                if (Array.isArray(selectedEntries) && selectedEntries.length > 0) {
+                    handleElectronSelectedFiles(selectedEntries);
+                    return;
+                }
+            } catch (error) {
+                console.error("Failed to open native GenBank picker", error);
+            }
+        }
+        fileInput.value = "";
+        fileInput.click();
+    });
     dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drop-active"); });
     dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drop-active"));
     dropZone.addEventListener("drop", (e) => {
@@ -2113,11 +2919,43 @@ document.addEventListener("DOMContentLoaded", () => {
         dropZone.classList.remove("drop-active");
         handleDroppedItems(e.dataTransfer);
     });
-    fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
+    fileInput.addEventListener("change", (e) => {
+        handleFiles(e.target.files);
+        e.target.value = "";
+    });
+
+    resetStep1Inputs();
 
     document.getElementById("exampleBtn").addEventListener("click", fillExampleAccessions);
+    document.getElementById("taxonomySearchExampleBtn").addEventListener("click", fillTaxonomySearchExample);
+    document.getElementById("ncbiApiKeyBtn").addEventListener("click", openNcbiApiKeyModal);
+    document.getElementById("ncbiApiKeyModalOverlay").addEventListener("click", closeNcbiApiKeyModal);
+    document.getElementById("ncbiApiKeyModalClose").addEventListener("click", closeNcbiApiKeyModal);
+    document.getElementById("saveNcbiApiKeyBtn").addEventListener("click", saveNcbiApiKeyFromInput);
+    document.getElementById("clearNcbiApiKeyBtn").addEventListener("click", openClearNcbiApiKeyModal);
+    document.getElementById("clearNcbiApiKeyModalOverlay").addEventListener("click", closeClearNcbiApiKeyModal);
+    document.getElementById("clearNcbiApiKeyModalCancel").addEventListener("click", closeClearNcbiApiKeyModal);
+    document.getElementById("clearNcbiApiKeyModalConfirm").addEventListener("click", clearNcbiApiKey);
+    document.getElementById("taxonomyImportOverlay").addEventListener("click", () => closeTaxonomyImportModal(null));
+    document.getElementById("taxonomyImportCancel").addEventListener("click", () => closeTaxonomyImportModal(null));
+    document.getElementById("taxonomyImportSelectAll").addEventListener("click", () => setTaxonomyImportSelection("all"));
+    document.getElementById("taxonomyImportSelectNone").addEventListener("click", () => setTaxonomyImportSelection("none"));
+    document.getElementById("taxonomyImportDisableUnverified").addEventListener("click", () => setTaxonomyImportSelection("disable-unverified"));
+    document.getElementById("taxonomyImportSelectComplete").addEventListener("click", () => setTaxonomyImportSelection("complete"));
+    document.getElementById("taxonomyImportSelectPartial").addEventListener("click", () => setTaxonomyImportSelection("partial"));
+    document.getElementById("taxonomyImportConfirm").addEventListener("click", () => {
+        const selectedIds = state.taxonomyImportCandidates
+            .filter((candidate) => candidate.selected)
+            .map((candidate) => candidate.id);
+        closeTaxonomyImportModal(selectedIds);
+    });
 
     document.getElementById("accessionInput").addEventListener("input", validateAccessionInput);
+    document.getElementById("taxonomySearchInput").addEventListener("input", validateTaxonomySearchInput);
+    document.getElementById("taxonomyOrganelleSelect").addEventListener("change", validateTaxonomySearchInput);
+    document.getElementById("taxonomyRefseqOnly").addEventListener("change", validateTaxonomySearchInput);
+    document.getElementById("taxonomyCompleteCheckbox").addEventListener("change", validateTaxonomySearchInput);
+    document.getElementById("taxonomyPartialCheckbox").addEventListener("change", validateTaxonomySearchInput);
 
     document.getElementById("fetchBtn").addEventListener("click", async () => {
         const raw = document.getElementById("accessionInput").value;
@@ -2126,18 +2964,105 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const btn = document.getElementById("fetchBtn");
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching...';
+        renderFetchButton("step1.action.fetching", true);
         try {
             const records = await fetchMultiple(accessions);
-            state.records.push(...records);
+            mergeRecords(records);
             renderRecords();
         } catch {
             // Fetch error, handled by progress UI
         }
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Fetch';
+        renderFetchButton();
         validateAccessionInput();
     });
+
+    document.getElementById("taxonomySearchBtn").addEventListener("click", async () => {
+        const taxon = document.getElementById("taxonomySearchInput").value.trim();
+        if (!taxon) return;
+
+        const btn = document.getElementById("taxonomySearchBtn");
+        const statusEl = document.getElementById("taxonomyFetchStatus");
+        const options = {
+            taxon,
+            organelle: document.getElementById("taxonomyOrganelleSelect").value,
+            refseqOnly: document.getElementById("taxonomyRefseqOnly").checked,
+            completeness: getSelectedGenomeScopes(),
+        };
+
+        btn.disabled = true;
+        renderTaxonomySearchButton("step1.action.searching", true);
+        statusEl.classList.remove("hidden");
+        statusEl.textContent = `Searching NCBI for ${taxon}...`;
+        const t = window.SPLACE_I18N?.t || ((key) => key);
+        showProgress(
+            t("step1.progress.searchTitle"),
+            t("step1.progress.searchSubtitle"),
+            t("step1.progress.searchingFor", { name: taxon })
+        );
+
+        try {
+            const ids = await searchNcbiGenomeIds(options);
+            if (ids.length === 0) {
+                statusEl.textContent = t("step1.status.noRecords", { name: taxon });
+                hideProgress(t("step1.status.noRecords", { name: taxon }));
+                return;
+            }
+
+            const summaries = await fetchNcbiSummaries(ids);
+            const titleSummary = summarizeGenomeTitles(summaries);
+            const reviewSummaryHtml = [
+                t("step1.progress.foundSummary", titleSummary),
+                `<div class="mt-1 text-xs text-gray-500">${t("step1.progress.fetchDetail")}</div>`
+            ].join("");
+            document.getElementById("progressDetail").innerHTML = reviewSummaryHtml;
+
+            statusEl.textContent = t("step1.status.reviewing", { count: ids.length });
+            document.getElementById("progressModal").classList.add("hidden");
+
+            const candidates = buildTaxonomyImportCandidates(ids, summaries);
+            const selectedIds = await openTaxonomyImportModal({
+                taxon,
+                summaryHtml: reviewSummaryHtml,
+                candidates,
+                searchDetails: buildTaxonomyReviewDetails(options),
+            });
+
+            if (!selectedIds || selectedIds.length === 0) {
+                statusEl.textContent = t("step1.status.reviewCancelled");
+                return;
+            }
+
+            statusEl.textContent = selectedIds.length === 1
+                ? t("step1.status.foundImporting.one")
+                : t("step1.status.foundImporting", { count: selectedIds.length });
+            const progressItems = Object.fromEntries(candidates.map((candidate) => [String(candidate.id), candidate.title || candidate.accession || candidate.id]));
+            const records = await fetchMultiple(selectedIds, {
+                statusElementId: "taxonomyFetchStatus",
+                progressTitle: t("step1.progress.fetchTitle"),
+                progressDetail: reviewSummaryHtml,
+                progressItems,
+            });
+            mergeRecords(records);
+            renderRecords();
+            statusEl.textContent = records.length === 1
+                ? t("step1.status.imported.one", { name: taxon })
+                : t("step1.status.imported", { count: records.length, name: taxon });
+        } catch {
+            statusEl.textContent = t("step1.status.searchFailed", { name: taxon });
+        } finally {
+            renderTaxonomySearchButton();
+            validateTaxonomySearchInput();
+            setTimeout(() => statusEl.classList.add("hidden"), 5000);
+        }
+    });
+
+    renderTaxonomySearchButton();
+    renderFetchButton();
+    syncNcbiApiUi();
+    validateAccessionInput();
+    validateTaxonomySearchInput();
+    updateProgressMeta();
 
     document.getElementById("clearRecords").addEventListener("click", () => {
         document.getElementById("clearModal").classList.remove("hidden");
@@ -2155,6 +3080,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("clearModal").classList.add("hidden");
         state.records = [];
         state.selectedGenes.clear();
+        state.duplicateGeneChoices.clear();
         renderRecords();
     });
 
@@ -2210,7 +3136,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("editFamilyInput").value = taxonomy.family || "";
                 // Store authorship for saving later
                 this.dataset.fetchedAuthorship = taxonomy.authorship || "";
-                statusEl.innerHTML = `Found via <em>dataFishing</em> (Rabelo et al. 2025)`;
+                statusEl.innerHTML = `Found via <span class="citation-ref" data-citation-key="datafishing"><em>dataFishing</em> (Rabelo et al. 2025)</span>`;
+                window.initTooltips && window.initTooltips();
                 statusEl.className = "text-xs text-green-600 mt-1";
                 document.getElementById("editFamilyError").classList.add("hidden");
             } else {
@@ -2498,6 +3425,8 @@ function openAnalysisModal(phase, markers) {
     modal.classList.remove("hidden");
 }
 
+window.toggleTaxonomyImportCandidate = toggleTaxonomyImportCandidate;
+
 function updateAnalysisModal(data) {
     const log = document.getElementById("analysisModalLog");
     const bar = document.getElementById("analysisModalProgressBar");
@@ -2608,6 +3537,29 @@ function parseFasta(text) {
 }
 
 const NT_COLORS = { A: "#1AC253", T: "#E11218", U: "#E11218", G: "#ECA918", C: "#4272EE", "-": "#d1d5db" };
+const AA_COLORS = {
+    A: "#8dd3c7", C: "#ffffb3", D: "#fb8072", E: "#fb8072", F: "#80b1d3",
+    G: "#b3de69", H: "#bebada", I: "#80b1d3", K: "#fdb462", L: "#80b1d3",
+    M: "#8dd3c7", N: "#fccde5", P: "#d9d9d9", Q: "#fccde5", R: "#fdb462",
+    S: "#b3de69", T: "#b3de69", V: "#80b1d3", W: "#bc80bd", Y: "#bc80bd",
+    X: "#cbd5e1", "*": "#dc2626", "-": "#e2e8f0", "?": "#cbd5e1"
+};
+const CODON_TABLE = {
+    TTT: "F", TTC: "F", TTA: "L", TTG: "L", TCT: "S", TCC: "S", TCA: "S", TCG: "S",
+    TAT: "Y", TAC: "Y", TAA: "*", TAG: "*", TGT: "C", TGC: "C", TGA: "*", TGG: "W",
+    CTT: "L", CTC: "L", CTA: "L", CTG: "L", CCT: "P", CCC: "P", CCA: "P", CCG: "P",
+    CAT: "H", CAC: "H", CAA: "Q", CAG: "Q", CGT: "R", CGC: "R", CGA: "R", CGG: "R",
+    ATT: "I", ATC: "I", ATA: "I", ATG: "M", ACT: "T", ACC: "T", ACA: "T", ACG: "T",
+    AAT: "N", AAC: "N", AAA: "K", AAG: "K", AGT: "S", AGC: "S", AGA: "R", AGG: "R",
+    GTT: "V", GTC: "V", GTA: "V", GTG: "V", GCT: "A", GCC: "A", GCA: "A", GCG: "A",
+    GAT: "D", GAC: "D", GAA: "E", GAG: "E", GGT: "G", GGC: "G", GGA: "G", GGG: "G"
+};
+const GENETIC_CODE_TABLES = {
+    "1": CODON_TABLE,
+    "2": { ...CODON_TABLE, ATA: "M", TGA: "W", AGA: "*", AGG: "*" },
+    "5": { ...CODON_TABLE, ATA: "M", TGA: "W", AGA: "S", AGG: "S" },
+    "11": CODON_TABLE,
+};
 
 function hexToRgb(hex) {
     return {
@@ -2615,6 +3567,145 @@ function hexToRgb(hex) {
         g: parseInt(hex.slice(3, 5), 16),
         b: parseInt(hex.slice(5, 7), 16)
     };
+}
+
+function translateAlignedCodons(sequence, geneticCode = "1") {
+    const normalized = (sequence || "").toUpperCase().replace(/U/g, "T");
+    const padded = normalized + "-".repeat((3 - (normalized.length % 3 || 3)) % 3);
+    const codonTable = GENETIC_CODE_TABLES[geneticCode] || CODON_TABLE;
+    let protein = "";
+    let stopCount = 0;
+    for (let idx = 0; idx < padded.length; idx += 3) {
+        const codon = padded.slice(idx, idx + 3);
+        if (codon === "---") {
+            protein += "-";
+            continue;
+        }
+        if (/[^ACGT?\-]/.test(codon) || codon.includes("-") || codon.includes("?")) {
+            protein += "X";
+            continue;
+        }
+        const aa = codonTable[codon] || "X";
+        if (aa === "*") stopCount++;
+        protein += aa;
+    }
+    return { protein, stopCount };
+}
+
+function translateAlignmentSequences(sequences, geneticCode = "1") {
+    return (sequences || []).map((seq) => {
+        const translated = translateAlignedCodons(seq.seq, geneticCode);
+        return {
+            name: seq.name,
+            seq: translated.protein,
+            stopCount: translated.stopCount,
+        };
+    });
+}
+
+function buildSequenceSnippet(sequence, palette, maxChars = 72) {
+    const slice = (sequence || "").slice(0, maxChars);
+    const html = [];
+    for (const residue of slice) {
+        const color = palette[residue] || "#cbd5e1";
+        const fg = residue === "*" ? "#fff" : "rgba(15,23,42,0.78)";
+        html.push(`<span class="alignment-residue" style="background:${color};color:${fg};">${residue}</span>`);
+    }
+    if ((sequence || "").length > maxChars) html.push('<span class="text-gray-400">...</span>');
+    return html.join("");
+}
+
+function renderAlignmentPreview(container, sequences, mode) {
+    if (!container) return;
+    const rows = sequences || [];
+    if (!rows.length) {
+        container.innerHTML = `<div class="alignment-preview"><div class="alignment-preview-empty">${i18nText("step5.results.preview.empty", "No sequences available for this view.")}</div></div>`;
+        return;
+    }
+
+    const palette = mode === "aa" ? AA_COLORS : NT_COLORS;
+    const totalStops = mode === "aa" ? rows.reduce((acc, seq) => acc + (seq.stopCount || 0), 0) : 0;
+    const summaryKey = mode === "aa" ? "step5.results.preview.summaryStops" : "step5.results.preview.summary";
+    const summaryFallback = mode === "aa"
+        ? "{seqs} sequences rendered; {stops} possible stop codon(s)"
+        : "{seqs} sequences rendered";
+    const summary = i18nText(summaryKey, summaryFallback, { seqs: rows.length, stops: totalStops });
+    const previewRows = rows.slice(0, 12).map((seq) => {
+        const length = seq.seq.length;
+        const stopDisplay = mode === "aa"
+            ? String(seq.stopCount || 0)
+            : i18nText("step5.results.preview.none", "none");
+        return `
+            <div class="alignment-preview-row">
+                <div class="alignment-preview-name" title="${seq.name}">${seq.name}</div>
+                <div class="alignment-preview-metric">${length}</div>
+                <div class="alignment-preview-metric">${stopDisplay}</div>
+                <div class="alignment-preview-seq">${buildSequenceSnippet(seq.seq, palette)}</div>
+            </div>`;
+    }).join("");
+
+    container.innerHTML = `
+        <div class="alignment-preview">
+            <div class="alignment-preview-summary">
+                <strong>${summary}</strong>
+            </div>
+            <div class="alignment-preview-table">
+                <div class="alignment-preview-row alignment-preview-head">
+                    <div>${i18nText("step5.results.preview.name", "Sequence")}</div>
+                    <div>${i18nText("step5.results.preview.length", "Length")}</div>
+                    <div>${i18nText("step5.results.preview.stops", "Stops")}</div>
+                    <div>${i18nText("step5.results.preview.snippet", "Preview")}</div>
+                </div>
+                ${previewRows}
+            </div>
+        </div>`;
+}
+
+function getAlignmentViewOptions(mode) {
+    if (mode === "aa") {
+        return {
+            colors: AA_COLORS,
+            labels: {
+                zoom: i18nText("step5.results.zoom", "ZOOM"),
+                consensus: i18nText("step5.results.consensus", "CONSENSUS"),
+                conservation: i18nText("step5.results.conservation", "CONSERVATION"),
+            },
+            legend: [
+                [i18nText("step5.results.aaLegend", "AA"), "#80b1d3"],
+                [i18nText("step5.results.stopLegend", "Stop"), "#dc2626"],
+                [i18nText("step5.results.gapLegend", "Gap"), "#e2e8f0"],
+                [i18nText("step5.results.unknownLegend", "Unknown"), "#cbd5e1"],
+            ],
+        };
+    }
+    return {
+        colors: NT_COLORS,
+        labels: {
+            zoom: i18nText("step5.results.zoom", "ZOOM"),
+            consensus: i18nText("step5.results.consensus", "CONSENSUS"),
+            conservation: i18nText("step5.results.conservation", "CONSERVATION"),
+        },
+        legend: [["A", "#22c55e"], ["T/U", "#ef4444"], ["G", "#f59e0b"], ["C", "#3b82f6"], [i18nText("step5.results.gapLegend", "Gap"), "#e2e8f0"]],
+    };
+}
+
+function renderAlignmentTab(markerData, tab, mode) {
+    const contentMap = {
+        raw: markerData.rawContent,
+        aligned: markerData.alignedContent,
+        trimmed: markerData.trimmedContent,
+    };
+    const content = contentMap[tab];
+    const wrap = document.getElementById(`vizwrap-${markerData.id}-${tab}`);
+    const preview = document.getElementById(`preview-${markerData.id}-${tab}`);
+    if (!wrap || !preview || !content) return;
+    const sequences = parseFasta(content);
+    const geneticCode = document.getElementById(`genetic-code-${markerData.id}-${tab}`)?.value || "1";
+    const displaySequences = mode === "aa" ? translateAlignmentSequences(sequences, geneticCode) : sequences;
+    renderAlignmentPlotly(wrap, displaySequences, getAlignmentViewOptions(mode));
+    renderAlignmentPreview(preview, displaySequences, mode);
+    wrap.dataset.rendered = "1";
+    wrap.dataset.view = mode;
 }
 
 function renderAlignmentCanvas(canvas, sequences) {
@@ -2661,7 +3752,358 @@ function renderAlignmentCanvas(canvas, sequences) {
     ctx.putImageData(img, 0, 0);
 }
 
-// Enhanced alignment viewer: ruler + colored sequences + conservation graph
+// MSA alignment viewer — interactive, Dash Bio-style with zoom/pan/consensus
+function renderAlignmentPlotly(wrapper, sequences, options = {}) {
+    if (!sequences || sequences.length === 0) return;
+    wrapper.innerHTML = "";
+
+    const nSeq = sequences.length;
+    const seqLen = sequences[0].seq.length || 1;
+
+    // ── constants ──────────────────────────────────────────────────────────
+    const RULER_H = 24;
+    const CONS_SEQ_H = Math.max(14, Math.min(22, Math.floor(480 / nSeq)));
+    const CONS_BAR_H = 52;
+    const NAME_W = 190;
+    const cellH = Math.max(14, Math.min(22, Math.floor(480 / nSeq)));
+
+    const palette = options.colors || {
+        A: "#22c55e", T: "#ef4444", U: "#ef4444",
+        G: "#f59e0b", C: "#3b82f6",
+        "-": "#e2e8f0", "?": "#e2e8f0", N: "#cbd5e1",
+    };
+    const legendItems = options.legend || [["A", "#22c55e"], ["T/U", "#ef4444"], ["G", "#f59e0b"], ["C", "#3b82f6"], ["Gap", "#e2e8f0"]];
+    const labels = options.labels || { zoom: "ZOOM", consensus: "CONSENSUS", conservation: "CONSERVATION" };
+    const DEFAULT_COLOR = "#cbd5e1";
+
+    // ── precompute consensus + conservation (independent of zoom) ──────────
+    const consensusSeq = [];
+    const consScores = [];
+    for (let pi = 0; pi < seqLen; pi++) {
+        const counts = {};
+        let total = 0;
+        for (let si = 0; si < nSeq; si++) {
+            const ch = (sequences[si].seq[pi] || "-").toUpperCase();
+            if (ch !== "-" && ch !== "?") { counts[ch] = (counts[ch] || 0) + 1; total++; }
+        }
+        const entries = Object.entries(counts);
+        consensusSeq.push(entries.length ? entries.sort((a, b) => b[1] - a[1])[0][0] : "-");
+        consScores.push(total > 0 ? Math.max(...Object.values(counts)) / nSeq : 0);
+    }
+
+    // ── mutable zoom state ─────────────────────────────────────────────────
+    let cellW = seqLen <= 100 ? 14 : seqLen <= 400 ? 10 : seqLen <= 1000 ? 6 : seqLen <= 3000 ? 3 : 2;
+
+    // ── outer container ────────────────────────────────────────────────────
+    const container = document.createElement("div");
+    container.style.cssText = "background:#f9fafb;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;max-height:660px;user-select:none;font-family:system-ui,sans-serif;";
+    wrapper.appendChild(container);
+
+    // ── toolbar ────────────────────────────────────────────────────────────
+    const toolbar = document.createElement("div");
+    toolbar.style.cssText = "display:flex;align-items:center;gap:6px;padding:5px 10px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;flex-shrink:0;";
+    container.appendChild(toolbar);
+
+    const zoomLabel = document.createElement("span");
+    zoomLabel.style.cssText = "font-size:10px;color:#6b7280;font-weight:700;letter-spacing:.05em;";
+    zoomLabel.textContent = labels.zoom;
+    toolbar.appendChild(zoomLabel);
+
+    function makeBtn(html, title, onClick) {
+        const btn = document.createElement("button");
+        btn.innerHTML = html; btn.title = title;
+        btn.style.cssText = "padding:1px 8px;border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#374151;font-size:14px;cursor:pointer;font-weight:700;line-height:1.5;transition:background .1s;";
+        btn.onmouseenter = () => { btn.style.background = "#f9fafb"; };
+        btn.onmouseleave = () => { btn.style.background = "#fff"; };
+        btn.onclick = onClick;
+        return btn;
+    }
+
+    const zoomInfo = document.createElement("span");
+    zoomInfo.style.cssText = "font-size:11px;color:#9ca3af;min-width:52px;";
+
+    const zoomOutBtn = makeBtn("−", "Zoom out (or Ctrl+scroll)", () => { if (cellW > 1) { cellW = Math.max(1, Math.floor(cellW * 0.65)); redraw(); } });
+    const zoomInBtn = makeBtn("+", "Zoom in (or Ctrl+scroll)", () => { cellW = Math.min(28, Math.ceil(cellW * 1.55)); redraw(); });
+    const zoomFitBtn = makeBtn("Fit", "Fit to view", () => {
+        const avail = seqOuter.clientWidth || container.clientWidth - NAME_W;
+        cellW = Math.max(1, Math.floor(avail / seqLen));
+        redraw();
+    });
+
+    toolbar.appendChild(zoomOutBtn);
+    toolbar.appendChild(zoomInBtn);
+    toolbar.appendChild(zoomFitBtn);
+    toolbar.appendChild(zoomInfo);
+
+    // Legend
+    const legend = document.createElement("div");
+    legend.style.cssText = "display:flex;align-items:center;gap:10px;margin-left:auto;";
+    legendItems.forEach(([lbl, col]) => {
+        const chip = document.createElement("span");
+        chip.style.cssText = "display:flex;align-items:center;gap:3px;font-size:11px;color:#4b5563;";
+        chip.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col};border:1px solid rgba(0,0,0,.12);"></span>${lbl}`;
+        legend.appendChild(chip);
+    });
+    toolbar.appendChild(legend);
+
+    // ── ruler row ──────────────────────────────────────────────────────────
+    const rulerRow = document.createElement("div");
+    rulerRow.style.cssText = "display:flex;flex-shrink:0;";
+    container.appendChild(rulerRow);
+
+    const rulerSpacer = document.createElement("div");
+    rulerSpacer.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${RULER_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;`;
+    rulerRow.appendChild(rulerSpacer);
+
+    const rulerOuter = document.createElement("div");
+    rulerOuter.style.cssText = "overflow:hidden;flex:1;";
+    rulerRow.appendChild(rulerOuter);
+
+    const rulerCanvas = document.createElement("canvas");
+    rulerCanvas.height = RULER_H;
+    rulerCanvas.style.cssText = "display:block;";
+    rulerOuter.appendChild(rulerCanvas);
+
+    // ── body row ───────────────────────────────────────────────────────────
+    const bodyRow = document.createElement("div");
+    bodyRow.style.cssText = "display:flex;flex:1;overflow-y:auto;min-height:0;";
+    container.appendChild(bodyRow);
+
+    const nameDiv = document.createElement("div");
+    nameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;overflow:hidden;background:#f3f4f6;border-right:2px solid #d1d5db;`;
+    bodyRow.appendChild(nameDiv);
+
+    const nameCanvas = document.createElement("canvas");
+    nameCanvas.width = NAME_W;
+    nameCanvas.style.cssText = "display:block;";
+    nameDiv.appendChild(nameCanvas);
+
+    const seqOuter = document.createElement("div");
+    seqOuter.style.cssText = "overflow-x:auto;overflow-y:hidden;flex:1;cursor:grab;";
+    bodyRow.appendChild(seqOuter);
+
+    const mainCanvas = document.createElement("canvas");
+    mainCanvas.style.cssText = "display:block;";
+    seqOuter.appendChild(mainCanvas);
+
+    // ── consensus row ──────────────────────────────────────────────────────
+    const consSeqRow = document.createElement("div");
+    consSeqRow.style.cssText = "display:flex;flex-shrink:0;border-top:2px solid #cbd5e1;";
+    container.appendChild(consSeqRow);
+
+    const consSeqNameDiv = document.createElement("div");
+    consSeqNameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${CONS_SEQ_H}px;background:#dbeafe;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
+    consSeqNameDiv.innerHTML = `<span style="font-size:10px;color:#1e40af;font-weight:700;letter-spacing:.05em;">${labels.consensus}</span>`;
+    consSeqRow.appendChild(consSeqNameDiv);
+
+    const consSeqOuter = document.createElement("div");
+    consSeqOuter.style.cssText = "overflow:hidden;flex:1;";
+    consSeqRow.appendChild(consSeqOuter);
+
+    const consSeqCanvas = document.createElement("canvas");
+    consSeqCanvas.height = CONS_SEQ_H;
+    consSeqCanvas.style.cssText = "display:block;";
+    consSeqOuter.appendChild(consSeqCanvas);
+
+    // ── conservation bar row ───────────────────────────────────────────────
+    const consBarRow = document.createElement("div");
+    consBarRow.style.cssText = "display:flex;flex-shrink:0;border-top:1px solid #e5e7eb;";
+    container.appendChild(consBarRow);
+
+    const consBarNameDiv = document.createElement("div");
+    consBarNameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${CONS_BAR_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
+    consBarNameDiv.innerHTML = `<span style="font-size:10px;color:#6b7280;font-weight:600;letter-spacing:.04em;">${labels.conservation}</span>`;
+    consBarRow.appendChild(consBarNameDiv);
+
+    const consBarOuter = document.createElement("div");
+    consBarOuter.style.cssText = "overflow:hidden;flex:1;";
+    consBarRow.appendChild(consBarOuter);
+
+    const consBarCanvas = document.createElement("canvas");
+    consBarCanvas.height = CONS_BAR_H;
+    consBarCanvas.style.cssText = "display:block;";
+    consBarOuter.appendChild(consBarCanvas);
+
+    // ── redraw function ────────────────────────────────────────────────────
+    function redraw() {
+        const W = seqLen * cellW;
+        const H = nSeq * cellH;
+        const gapX = cellW > 3 ? 1 : 0;
+        const gapY = 1;
+        const showLetter = cellW >= 6;
+        const fontSize = showLetter ? Math.min(cellW - 1, cellH - 2, 12) : 0;
+
+        zoomInfo.textContent = `${cellW}px/nt`;
+
+        // --- Ruler ---
+        rulerCanvas.width = W;
+        const rCtx = rulerCanvas.getContext("2d");
+        rCtx.fillStyle = "#f3f4f6";
+        rCtx.fillRect(0, 0, W, RULER_H);
+        rCtx.font = "10px monospace";
+        // choose tick interval so labels don't overlap (each label ~30px)
+        const minTickPx = 35;
+        const rawStep = Math.ceil(minTickPx / cellW);
+        const niceSteps = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
+        const tickStep = niceSteps.find(s => s >= rawStep) || rawStep;
+        for (let p = 0; p < seqLen; p++) {
+            if (p === 0 || (p + 1) % tickStep === 0) {
+                const x = p * cellW;
+                rCtx.fillStyle = "#9ca3af";
+                rCtx.fillRect(x, RULER_H - 6, 1, 6);
+                rCtx.fillStyle = "#374151";
+                rCtx.fillText(p + 1, x + 2, RULER_H - 9);
+            }
+        }
+
+        // --- Names ---
+        nameCanvas.height = H;
+        const nCtx = nameCanvas.getContext("2d");
+        nCtx.fillStyle = "#f3f4f6";
+        nCtx.fillRect(0, 0, NAME_W, H);
+        const nameFontSize = Math.min(12, cellH - 2);
+        nCtx.font = `${nameFontSize}px system-ui,sans-serif`;
+        nCtx.textBaseline = "middle";
+        nCtx.textAlign = "right";
+        for (let si = 0; si < nSeq; si++) {
+            const y = si * cellH;
+            if (si % 2 === 0) { nCtx.fillStyle = "#eef0f5"; nCtx.fillRect(0, y, NAME_W, cellH); }
+            nCtx.fillStyle = "#374151";
+            const name = sequences[si].name;
+            const maxChars = Math.floor((NAME_W - 10) / (nameFontSize * 0.58));
+            nCtx.fillText(name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name, NAME_W - 6, y + cellH / 2);
+        }
+
+        // --- Sequences ---
+        mainCanvas.width = W;
+        mainCanvas.height = H;
+        const mCtx = mainCanvas.getContext("2d");
+        if (showLetter) {
+            mCtx.font = `bold ${fontSize}px monospace`;
+            mCtx.textAlign = "center";
+            mCtx.textBaseline = "middle";
+        }
+        for (let si = 0; si < nSeq; si++) {
+            const y = si * cellH;
+            if (si % 2 === 0) {
+                mCtx.fillStyle = "rgba(0,0,0,0.025)";
+                mCtx.fillRect(0, y, W, cellH);
+            }
+            for (let pi = 0; pi < seqLen; pi++) {
+                const ch = (sequences[si].seq[pi] || "-").toUpperCase();
+                mCtx.fillStyle = palette[ch] || DEFAULT_COLOR;
+                mCtx.fillRect(pi * cellW, y + gapY, cellW - gapX, cellH - gapY * 2);
+                if (showLetter) {
+                    mCtx.fillStyle = (ch === "-" || ch === "?") ? "#94a3b8" : "rgba(0,0,0,0.65)";
+                    mCtx.fillText(ch, pi * cellW + cellW / 2, y + cellH / 2);
+                }
+            }
+        }
+
+        // --- Consensus ---
+        consSeqCanvas.width = W;
+        const csCtx = consSeqCanvas.getContext("2d");
+        csCtx.fillStyle = "#dbeafe";
+        csCtx.fillRect(0, 0, W, CONS_SEQ_H);
+        if (showLetter) {
+            csCtx.font = `bold ${fontSize}px monospace`;
+            csCtx.textAlign = "center";
+            csCtx.textBaseline = "middle";
+        }
+        for (let pi = 0; pi < seqLen; pi++) {
+            const ch = consensusSeq[pi];
+            csCtx.fillStyle = palette[ch] || DEFAULT_COLOR;
+            csCtx.fillRect(pi * cellW, gapY, cellW - gapX, CONS_SEQ_H - gapY * 2);
+            if (showLetter) {
+                csCtx.fillStyle = (ch === "-" || ch === "?") ? "#94a3b8" : "rgba(0,0,0,0.65)";
+                csCtx.fillText(ch, pi * cellW + cellW / 2, CONS_SEQ_H / 2);
+            }
+        }
+
+        // --- Conservation bar ---
+        consBarCanvas.width = W;
+        const cbCtx = consBarCanvas.getContext("2d");
+        cbCtx.fillStyle = "#f9fafb";
+        cbCtx.fillRect(0, 0, W, CONS_BAR_H);
+        for (let pi = 0; pi < seqLen; pi++) {
+            const score = consScores[pi];
+            const barH = Math.round(score * (CONS_BAR_H - 6));
+            cbCtx.fillStyle = score >= 0.8 ? "#16a34a" : score >= 0.5 ? "#d97706" : "#dc2626";
+            cbCtx.fillRect(pi * cellW, CONS_BAR_H - barH - 2, Math.max(1, cellW - gapX), barH);
+        }
+    }
+
+    // Initial draw
+    redraw();
+
+    // ── scroll sync ────────────────────────────────────────────────────────
+    seqOuter.addEventListener("scroll", () => {
+        rulerOuter.scrollLeft = seqOuter.scrollLeft;
+        consSeqOuter.scrollLeft = seqOuter.scrollLeft;
+        consBarOuter.scrollLeft = seqOuter.scrollLeft;
+    });
+    bodyRow.addEventListener("scroll", () => {
+        nameDiv.scrollTop = bodyRow.scrollTop;
+    });
+
+    // ── Ctrl+wheel zoom ────────────────────────────────────────────────────
+    seqOuter.addEventListener("wheel", (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const prevW = cellW;
+        if (e.deltaY < 0) cellW = Math.min(28, Math.ceil(cellW * 1.4));
+        else cellW = Math.max(1, Math.floor(cellW * 0.72));
+        if (cellW !== prevW) {
+            const mouseRatio = (seqOuter.scrollLeft + e.offsetX) / (seqLen * prevW);
+            redraw();
+            seqOuter.scrollLeft = mouseRatio * seqLen * cellW - e.offsetX;
+        }
+    }, { passive: false });
+
+    // ── click-drag pan ─────────────────────────────────────────────────────
+    let dragging = false, dragX = 0, dragScroll = 0;
+    mainCanvas.addEventListener("mousedown", (e) => {
+        dragging = true; dragX = e.clientX; dragScroll = seqOuter.scrollLeft;
+        mainCanvas.style.cursor = "grabbing";
+        e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        seqOuter.scrollLeft = dragScroll - (e.clientX - dragX);
+    });
+    document.addEventListener("mouseup", () => {
+        if (!dragging) return;
+        dragging = false;
+        mainCanvas.style.cursor = "grab";
+    });
+
+    // ── tooltip on hover ───────────────────────────────────────────────────
+    const tip = document.createElement("div");
+    tip.style.cssText = "position:fixed;background:#1e293b;color:#f1f5f9;font:11px monospace;padding:4px 8px;border-radius:5px;pointer-events:none;z-index:9999;white-space:nowrap;display:none;box-shadow:0 2px 8px rgba(0,0,0,.4);";
+    document.body.appendChild(tip);
+    mainCanvas.addEventListener("mousemove", (e) => {
+        if (dragging) { tip.style.display = "none"; return; }
+        const rect = mainCanvas.getBoundingClientRect();
+        const pi = Math.floor((e.clientX - rect.left + seqOuter.scrollLeft) / cellW);
+        const si = Math.floor((e.clientY - rect.top + bodyRow.scrollTop) / cellH);
+        if (pi >= 0 && pi < seqLen && si >= 0 && si < nSeq) {
+            const ch = (sequences[si].seq[pi] || "-").toUpperCase();
+            tip.textContent = `${sequences[si].name} | pos ${pi + 1} | ${ch}`;
+            tip.style.display = "block";
+            tip.style.left = (e.clientX + 14) + "px";
+            tip.style.top = (e.clientY - 22) + "px";
+        } else {
+            tip.style.display = "none";
+        }
+    });
+    mainCanvas.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+    wrapper.addEventListener("remove", () => tip.remove()); // cleanup
+    // cleanup tip when tab changes / re-renders
+    const obs = new MutationObserver(() => { if (!document.body.contains(wrapper)) tip.remove(); });
+    obs.observe(document.body, { childList: true, subtree: true });
+}
+
+// Canvas-based alignment viewer (kept as fallback)
 function renderAlignmentCanvasEnhanced(wrapper, sequences) {
     if (!sequences || sequences.length === 0) return;
     wrapper.innerHTML = "";
@@ -2807,7 +4249,24 @@ function renderAlignmentCanvasEnhanced(wrapper, sequences) {
 
     // === INTERACTIVE TOOLTIP on main canvas ===
     const tooltip = document.createElement("div");
-    tooltip.style.cssText = "position:absolute;pointer-events:none;background:rgba(30,30,30,0.85);color:#fff;font-size:11px;padding:3px 8px;border-radius:5px;white-space:nowrap;display:none;z-index:10;max-width:320px;overflow:hidden;text-overflow:ellipsis;";
+    const tooltipTheme = document.documentElement.getAttribute("data-theme") === "dark"
+        ? {
+            background: "rgba(248, 250, 252, 0.98)",
+            color: "#0f172a",
+            border: "1px solid rgba(99, 102, 241, 0.24)",
+            boxShadow: "0 8px 18px rgba(2, 6, 23, 0.28)",
+        }
+        : {
+            background: "rgba(50, 55, 149, 0.96)",
+            color: "#ffffff",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
+            boxShadow: "0 6px 14px rgba(50, 55, 149, 0.24)",
+        };
+    tooltip.style.cssText = "position:absolute;pointer-events:none;font-size:11px;padding:3px 8px;border-radius:5px;white-space:nowrap;display:none;z-index:10;max-width:320px;overflow:hidden;text-overflow:ellipsis;";
+    tooltip.style.background = tooltipTheme.background;
+    tooltip.style.color = tooltipTheme.color;
+    tooltip.style.border = tooltipTheme.border;
+    tooltip.style.boxShadow = tooltipTheme.boxShadow;
     inner.style.position = "relative";
     inner.appendChild(tooltip);
 
@@ -2833,6 +4292,7 @@ function renderAlignmentCanvasEnhanced(wrapper, sequences) {
 }
 
 function renderAlignmentResults(markerResults, hasTrimal) {
+    state.alignmentResultsData = { markerResults, hasTrimal };
     const accordion = document.getElementById("alignmentResultsAccordion");
     if (!accordion) return;
     accordion.innerHTML = "";
@@ -2841,13 +4301,13 @@ function renderAlignmentResults(markerResults, hasTrimal) {
     for (const r of markerResults) {
         const id = "marker-result-" + r.marker.replace(/[^a-zA-Z0-9]/g, "_");
         const trimStat = r.trimmedStats
-            ? `<div class="text-center"><div class="text-xs text-gray-400 mb-0.5">Trimmed</div><div class="text-xs font-semibold text-gray-700">${r.trimmedStats.numSeqs} seq · ${r.trimmedStats.length} bp</div><div class="text-xs text-gray-400">${r.trimmedStats.gapPct}% gaps</div></div>`
-            : `<div class="text-center text-xs text-gray-300 italic">No trimming</div>`;
+            ? `<div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.trimmed", "Trimmed")}</div><div class="text-xs font-semibold text-gray-700">${r.trimmedStats.numSeqs} seq · ${r.trimmedStats.length} bp</div><div class="text-xs text-gray-400">${r.trimmedStats.gapPct}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>`
+            : `<div class="text-center text-xs text-gray-300 italic">${i18nText("step5.results.stats.noTrimming", "No trimming")}</div>`;
 
         const tabs = [
-            { key: "raw", label: "Raw", icon: "fa-dna" },
-            { key: "aligned", label: "Aligned", icon: "fa-align-left" },
-            ...(r.trimmedStats ? [{ key: "trimmed", label: "Trimmed", icon: "fa-scissors" }] : []),
+            { key: "raw", label: i18nText("step5.results.tabs.raw", "Raw"), icon: "fa-dna" },
+            { key: "aligned", label: i18nText("step5.results.tabs.aligned", "Aligned"), icon: "fa-align-left" },
+            ...(r.trimmedStats ? [{ key: "trimmed", label: i18nText("step5.results.tabs.trimmed", "Trimmed"), icon: "fa-scissors" }] : []),
         ];
 
         const tabBtns = tabs.map((t, i) =>
@@ -2858,13 +4318,29 @@ function renderAlignmentResults(markerResults, hasTrimal) {
         ).join("");
 
         const panels = tabs.map((t, i) => {
-            if (t.key === "raw") {
-                return `<div id="${id}-${t.key}" class="result-tab-panel ${i !== 0 ? 'hidden' : ''}">
-                    <canvas id="canvas-${id}-${t.key}" class="w-full rounded" style="image-rendering:pixelated;display:block;"></canvas>
-                </div>`;
-            }
             return `<div id="${id}-${t.key}" class="result-tab-panel ${i !== 0 ? 'hidden' : ''}">
-                <div id="vizwrap-${id}-${t.key}"></div>
+                <div class="alignment-view-shell">
+                    <div class="alignment-view-toolbar">
+                        <div class="alignment-view-toggle">
+                            <button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${t.key}" data-view="nt">${i18nText("step5.results.view.nt", "DNA view")}</button>
+                            <button class="alignment-view-btn" type="button" data-marker="${r.marker}" data-tab="${t.key}" data-view="aa">${i18nText("step5.results.view.aa", "Translate to amino acids")}</button>
+                        </div>
+                        <div class="alignment-toolbar-meta">
+                            <span class="alignment-view-hint">${i18nText("step5.results.view.hint", "Use translated mode to spot possible stop codons in the alignment.")}</span>
+                            <div class="alignment-genetic-code">
+                                <label for="genetic-code-${id}-${t.key}">${i18nText("step5.results.view.geneticCode", "Genetic code")}</label>
+                                <select id="genetic-code-${id}-${t.key}" class="alignment-genetic-code-select" data-marker="${r.marker}" data-tab="${t.key}">
+                                    <option value="1">${i18nText("step5.results.view.code.standard", "Standard (NCBI 1)")}</option>
+                                    <option value="2">${i18nText("step5.results.view.code.vertMito", "Vertebrate mitochondrial (NCBI 2)")}</option>
+                                    <option value="5">${i18nText("step5.results.view.code.invMito", "Invertebrate mitochondrial (NCBI 5)")}</option>
+                                    <option value="11">${i18nText("step5.results.view.code.bacterial", "Bacterial, archaeal and plant plastid (NCBI 11)")}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="vizwrap-${id}-${t.key}"></div>
+                    <div id="preview-${id}-${t.key}"></div>
+                </div>
             </div>`;
         }).join("");
 
@@ -2875,14 +4351,14 @@ function renderAlignmentResults(markerResults, hasTrimal) {
                 <div class="flex items-center gap-3">
                     <span class="step-badge badge-done" style="font-size:0.55rem;width:1rem;height:1rem;">✓</span>
                     <span class="font-semibold text-sm text-gray-800">${r.marker}</span>
-                    <span class="text-xs text-gray-400">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"}bp aligned</span>
+                    <span class="text-xs text-gray-400">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"} bp ${i18nText("step5.results.stats.alignedSuffix", "aligned")}</span>
                 </div>
                 <i id="${id}-chevron" class="fa-solid fa-chevron-down text-gray-400 text-xs transition-transform"></i>
             </button>
             <div id="${id}-body" class="hidden px-5 pb-5">
                 <div class="grid grid-cols-3 gap-3 mb-4 pt-2">
-                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">Raw</div><div class="text-xs font-semibold text-gray-700">${r.rawStats?.numSeqs ?? "?"} seq · ${r.rawStats?.avgLen ?? "?"}bp avg</div></div>
-                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">Aligned</div><div class="text-xs font-semibold text-gray-700">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"}bp</div><div class="text-xs text-gray-400">${r.alignedStats?.gapPct ?? "?"}% gaps</div></div>
+                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.raw", "Raw")}</div><div class="text-xs font-semibold text-gray-700">${r.rawStats?.numSeqs ?? "?"} seq · ${r.rawStats?.avgLen ?? "?"} bp ${i18nText("step5.results.stats.avg", "avg")}</div></div>
+                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.aligned", "Aligned")}</div><div class="text-xs font-semibold text-gray-700">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"} bp</div><div class="text-xs text-gray-400">${r.alignedStats?.gapPct ?? "?"}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>
                     ${trimStat}
                 </div>
                 <div class="flex gap-2 mb-3">${tabBtns}</div>
@@ -2891,18 +4367,9 @@ function renderAlignmentResults(markerResults, hasTrimal) {
         accordion.appendChild(panel);
 
         // Store sequences on wrappers for lazy rendering
-        const lazyRender = (key, content, enhanced) => {
-            const wrap = document.getElementById(enhanced ? `vizwrap-${id}-${key}` : `canvas-${id}-${key}`);
-            if (!wrap || wrap.dataset.rendered) return;
-            wrap.dataset.rendered = "1";
-            const seqs = parseFasta(content);
-            if (enhanced) renderAlignmentCanvasEnhanced(wrap, seqs);
-            else renderAlignmentCanvas(wrap, seqs);
-        };
-
         // Render raw tab immediately (it's visible by default)
         requestAnimationFrame(() => {
-            if (r.rawContent) lazyRender("raw", r.rawContent, false);
+            if (r.rawContent) renderAlignmentTab({ id, rawContent: r.rawContent, alignedContent: r.alignedContent, trimmedContent: r.trimmedContent }, "raw", "nt");
         });
 
         // Store content references for lazy rendering on tab switch / accordion open
@@ -2927,27 +4394,59 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             const panelEl = document.getElementById(`${id2}-${tab}`);
             panelEl?.classList.remove("hidden");
 
-            // Lazy render enhanced views
+            // Lazy render on first tab switch
             const panelDiv = btn.closest(".bg-white");
             const data = panelDiv?._markerData;
             if (!data) return;
-            if (tab === "aligned" && data.alignedContent) {
-                const wrap = document.getElementById(`vizwrap-${data.id}-aligned`);
+            const contentMap = { raw: data.rawContent, aligned: data.alignedContent, trimmed: data.trimmedContent };
+            const content = contentMap[tab];
+            if (content) {
+                const wrap = document.getElementById(`vizwrap-${data.id}-${tab}`);
                 if (wrap && !wrap.dataset.rendered) {
-                    wrap.dataset.rendered = "1";
-                    requestAnimationFrame(() => renderAlignmentCanvasEnhanced(wrap, parseFasta(data.alignedContent)));
-                }
-            }
-            if (tab === "trimmed" && data.trimmedContent) {
-                const wrap = document.getElementById(`vizwrap-${data.id}-trimmed`);
-                if (wrap && !wrap.dataset.rendered) {
-                    wrap.dataset.rendered = "1";
-                    requestAnimationFrame(() => renderAlignmentCanvasEnhanced(wrap, parseFasta(data.trimmedContent)));
+                    requestAnimationFrame(() => renderAlignmentTab(data, tab, wrap.dataset.view || "nt"));
                 }
             }
         });
     });
+
+    accordion.querySelectorAll(".alignment-view-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const marker = btn.dataset.marker;
+            const tab = btn.dataset.tab;
+            const mode = btn.dataset.view;
+            const id2 = "marker-result-" + marker.replace(/[^a-zA-Z0-9]/g, "_");
+            const panelEl = document.getElementById(`${id2}-${tab}`);
+            panelEl?.querySelectorAll(".alignment-view-btn").forEach((candidate) => {
+                candidate.classList.toggle("active", candidate === btn);
+            });
+            const panelDiv = btn.closest(".bg-white");
+            const data = panelDiv?._markerData;
+            if (!data) return;
+            renderAlignmentTab(data, tab, mode);
+        });
+    });
+
+    accordion.querySelectorAll(".alignment-genetic-code-select").forEach((select) => {
+        select.addEventListener("change", () => {
+            const marker = select.dataset.marker;
+            const tab = select.dataset.tab;
+            const id2 = "marker-result-" + marker.replace(/[^a-zA-Z0-9]/g, "_");
+            const panelEl = document.getElementById(`${id2}-${tab}`);
+            const activeBtn = panelEl?.querySelector(".alignment-view-btn.active");
+            const mode = activeBtn?.dataset.view || "nt";
+            const panelDiv = select.closest(".bg-white");
+            const data = panelDiv?._markerData;
+            if (!data) return;
+            renderAlignmentTab(data, tab, mode);
+        });
+    });
 }
+
+window.refreshAlignmentUiTranslations = function () {
+    if (state.alignmentResultsData) {
+        renderAlignmentResults(state.alignmentResultsData.markerResults, state.alignmentResultsData.hasTrimal);
+    }
+};
 
 window.toggleMarkerResult = function (id) {
     const body = document.getElementById(id + "-body");
@@ -3096,17 +4595,72 @@ function renderConcatSection(markerResults, hasTrimal) {
         ).join("");
     }
 
-    // Filter outgroup search
+    // Filter outgroup search — use assignment to avoid stacking listeners on re-render
     const ogSearch = document.getElementById("outgroupSearch");
     if (ogSearch) {
-        ogSearch.addEventListener("input", () => {
-            const q = ogSearch.value.toLowerCase();
-            ogList.querySelectorAll("label").forEach(l => {
-                l.classList.toggle("hidden", !l.textContent.toLowerCase().includes(q));
-            });
-        });
+        ogSearch.value = "";        // reset on re-render
+        ogSearch.oninput = filterOutgroups;
     }
 }
+
+function filterOutgroups() {
+    const input = document.getElementById("outgroupSearch");
+    const q = (input?.value || "").toLowerCase().trim();
+    const ogList = document.getElementById("outgroupList");
+    if (!ogList) return;
+    ogList.querySelectorAll("label").forEach(label => {
+        // Restore original text before re-highlighting
+        const span = label.querySelector("span.truncate");
+        if (!span) return;
+        if (span.dataset.orig === undefined) span.dataset.orig = span.textContent;
+        const orig = span.dataset.orig;
+        const matches = q !== "" && orig.toLowerCase().includes(q);
+        label.classList.toggle("hidden", q !== "" && !matches);
+        if (matches) {
+            // Highlight the match
+            const idx = orig.toLowerCase().indexOf(q);
+            span.innerHTML =
+                escHtml(orig.slice(0, idx)) +
+                `<mark class="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">${escHtml(orig.slice(idx, idx + q.length))}</mark>` +
+                escHtml(orig.slice(idx + q.length));
+        } else {
+            span.innerHTML = escHtml(orig);
+        }
+    });
+}
+
+function escHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildIqtreeCommand() {
+    const model = document.getElementById("iqtreeModel")?.value || "TEST";
+    const customModel = document.getElementById("iqtreeModelCustom")?.value || "GTR+G";
+    const bootstrap = document.getElementById("iqtreeBootstrap")?.value || "-B 1000";
+    const threads = document.getElementById("iqtreeThreads")?.value || "4";
+    const extra = (document.getElementById("iqtreeExtra")?.value || "").trim();
+    const outgroups = window._nexusData?.outgroups || [];
+    const dir = "~/Documents/SPLACE/iqtree";
+
+    const parts = [
+        "iqtree3",
+        "-s", `${dir}/concat.nex`,
+        "-p", `${dir}/partition.txt`,
+        "--prefix", `${dir}/concat`,
+        "-T", threads,
+        "-m", model === "custom" ? customModel : model,
+        ...(bootstrap ? bootstrap.split(" ").filter(Boolean) : []),
+        ...(outgroups.length ? ["-o", outgroups.join(",")] : []),
+        ...(extra ? extra.split(/\s+/).filter(Boolean) : []),
+        "--redo",
+    ];
+    return parts.join(" ");
+}
+
+window.updateIqtreeCommand = function () {
+    const el = document.getElementById("iqtreeCommandPreview");
+    if (el) el.textContent = buildIqtreeCommand();
+};
 
 window.generateNexus = function () {
     const useTrimmed = document.getElementById("concatUseTrimmedYes")?.checked ?? true;
@@ -3216,13 +4770,18 @@ function renderIqtreeSection(outgroups) {
             ? outgroups.join(", ")
             : "None selected";
     }
+    // Store outgroups for command preview
+    if (window._nexusData) window._nexusData.outgroups = outgroups || [];
 
-    // Pre-fill thread count
+    // Pre-fill thread count, then update command preview
     if (window.electronAPI?.getCpuCount) {
         window.electronAPI.getCpuCount().then(n => {
             const t = document.getElementById("iqtreeThreads");
             if (t && !t.value) t.value = Math.max(1, n - 2);
+            updateIqtreeCommand();
         });
+    } else {
+        updateIqtreeCommand();
     }
 }
 
@@ -3288,7 +4847,9 @@ if (window.electronAPI?.onIqtreeProgress) {
         const log = document.getElementById("iqtreeModalLog");
         if (log && data.message) {
             log.textContent += data.message + "\n";
-            log.scrollTop = log.scrollHeight;
+            // scroll the overflow container (parent of <pre>), not the <pre> itself
+            const logContainer = log.parentElement;
+            if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
         }
     });
 }
@@ -3356,10 +4917,18 @@ function showIqtreeResults(result) {
 
 window.saveIqtreeZip = async function () {
     if (!window.electronAPI?.saveZip) return;
-    const dirs = [window._alignmentOutputDir, window._iqtreeOutputDir].filter(Boolean);
-    if (!dirs.length) return;
+    if (!window._alignmentOutputDir && !window._iqtreeOutputDir) return;
+
+    // Collect raw FASTAs from stored marker results
+    const rawFastas = {};
+    for (const r of _lastMarkerResultsUI) {
+        if (r.rawContent) rawFastas[r.marker] = r.rawContent;
+    }
+
     const result = await window.electronAPI.saveZip({
-        sourceDirs: dirs,
+        alignmentDir: window._alignmentOutputDir || null,
+        iqtreeDir: window._iqtreeOutputDir || null,
+        rawFastas,
         suggestedName: "SPLACE_results.zip",
     });
     if (result.cancelled) return;

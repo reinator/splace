@@ -1,0 +1,110 @@
+/* Overlay e Card Principal */
+.splash-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 17, 22, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+}
+
+.splash-card {
+    background: #ffffff;
+    border-radius: 24px;
+    width: 100%;
+    max-width: 800px;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Hero: Logo + Texto + Seletor */
+.splash-hero {
+    background: #f1f2f6;
+    padding: 40px;
+    display: flex;
+    align-items: center; /* Logo e Texto na mesma altura */
+    gap: 25px;
+    position: relative;
+}
+
+.splash-logo {
+    width: 110px;
+    height: 110px;
+    background: #fff;
+    border-radius: 18px;
+    padding: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.splash-logo img {
+    max-width: 100%;
+    height: auto;
+}
+
+.splash-info {
+    flex: 1;
+}
+
+.splash-info h2 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0;
+}
+
+/* Seletor de Idioma do splash */
+.splash-overlay .lang-toggle {
+    display: flex;
+    background: #e5e7eb;
+    padding: 4px;
+    border-radius: 12px;
+    gap: 4px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.splash-overlay .lang-toggle button {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    background: transparent;
+    transition: all 0.2s;
+}
+
+.splash-overlay .lang-toggle button.active {
+    background: #ffffff;
+    color: #323795;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Grid de Opções */
+.splash-body {
+    padding: 30px 40px;
+}
+
+.splash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.btn-start {
+    background: #323795;
+    color: white;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 700;
+    width: 100%;
+    border: none;
+    margin-top: 20px;
+    cursor: pointer;
+}

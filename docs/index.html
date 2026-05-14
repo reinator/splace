@@ -1,24 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPLACE - SPlit, Align and ConcatenatE</title>
+    <title>SPLACE — SPlit, Align and ConcatenatE</title>
+
     <!-- Open Graph / Social Media Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="SPLACE - SPlit, Align and ConcatenatE">
-    <meta property="og:description" content="A comprehensive toolkit for phylogenomic analysis. Extract genes from GenBank files, align sequences, and build phylogenetic trees.">
+    <meta property="og:title" content="SPLACE — SPlit, Align and ConcatenatE">
+    <meta property="og:description" content="A comprehensive toolkit for phylogenomic analysis.">
     <meta property="og:image" content="https://raw.githubusercontent.com/luanrabelo/splace/main/docs/assets/SPLACE.png">
     <meta property="og:url" content="https://luanrabelo.github.io/splace/">
     <meta property="og:site_name" content="SPLACE">
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="SPLACE - SPlit, Align and ConcatenatE">
-    <meta name="twitter:description" content="A comprehensive toolkit for phylogenomic analysis. Extract genes from GenBank files, align sequences, and build phylogenetic trees.">
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/luanrabelo/splace/main/docs/assets/SPLACE.png">
-    <!-- General Meta -->
-    <meta name="description" content="SPLACE - A comprehensive toolkit for phylogenomic analysis. Extract genes from GenBank files, align sequences, and build phylogenetic trees.">
+    <meta name="description" content="SPLACE — toolkit for phylogenomic analysis.">
     <meta name="author" content="Luan Rabelo and Renato Moreira-Oliveira">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -31,946 +27,1087 @@
                     },
                     colors: {
                         'splace-red': {
-                            50: '#fef2f2',
-                            100: '#fde3e3',
-                            200: '#f9b3b3',
-                            300: '#f47a7a',
-                            400: '#d4213f',
-                            500: '#bf0030',
-                            600: '#a50026',
-                            700: '#8a001f',
-                            800: '#6e0019',
-                            900: '#520012',
+                            50:'#fef2f2',100:'#fde3e3',200:'#f9b3b3',300:'#f47a7a',400:'#d4213f',
+                            500:'#bf0030',600:'#a50026',700:'#8a001f',800:'#6e0019',900:'#520012',
                         },
                         'splace-blue': {
-                            50: '#eef0fb',
-                            100: '#d5d9f3',
-                            200: '#a8afe5',
-                            300: '#7b85d7',
-                            400: '#4e5bc9',
-                            500: '#3a47ab',
-                            600: '#323795',
-                            700: '#2a2e7d',
-                            800: '#212465',
-                            900: '#191b4d',
+                            50:'#eef0fb',100:'#d5d9f3',200:'#a8afe5',300:'#7b85d7',400:'#4e5bc9',
+                            500:'#3a47ab',600:'#323795',700:'#2a2e7d',800:'#212465',900:'#191b4d',
                         },
                     }
                 }
             }
         }
     </script>
+
     <!-- FontAwesome -->
     <script src="https://kit.fontawesome.com/7d94912b47.js" crossorigin="anonymous"></script>
+
     <!-- Tippy.js -->
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
-    <script src="tooltips.js"></script>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js"></script>
+
     <!-- JSZip + FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Alice&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Montserrat', sans-serif; }
+    <link href="https://fonts.googleapis.com/css2?family=Alice&family=JetBrains+Mono:wght@400;500&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 
-        /* Toggle Switch - Standard */
-        .switch-track {
-            display: inline-flex;
-            align-items: center;
-            width: 36px;
-            height: 20px;
-            border-radius: 10px;
-            background: #d1d5db;
-            cursor: pointer;
-            transition: background 0.2s;
-            padding: 2px;
-            flex-shrink: 0;
-        }
-        .switch-track.active {
-            background: #323795;
-        }
-        .switch-knob {
-            display: block;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
-        }
-        .switch-track.active .switch-knob {
-            transform: translateX(16px);
-        }
-
-        /* Toggle Switch - Small (for gene chips) */
-        .switch-track-sm {
-            display: inline-flex;
-            align-items: center;
-            width: 28px;
-            height: 16px;
-            border-radius: 8px;
-            background: #d1d5db;
-            cursor: pointer;
-            transition: background 0.2s;
-            padding: 2px;
-            flex-shrink: 0;
-        }
-        .switch-track-sm.active {
-            background: #323795;
-        }
-        .switch-knob-sm {
-            display: block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: white;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
-        }
-        .switch-track-sm.active .switch-knob-sm {
-            transform: translateX(12px);
-        }
-
-        /* Gene Chips */
-        .gene-chip {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            background: white;
-            cursor: pointer;
-            font-size: 0.875rem;
-            transition: all 0.15s;
-            user-select: none;
-            min-width: 0;
-        }
-        .gene-chip:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-        }
-        .gene-chip.active {
-            background: #eef0fb;
-            border-color: #a8afe5;
-            color: #323795;
-        }
-        .gene-name { font-weight: 500; }
-        .gene-count { font-size: 0.75rem; opacity: 0.6; }
-        .gene-len { font-size: 0.7rem; opacity: 0.5; font-style: italic; }
-
-        /* Drop zone */
-        .drop-active { border-color: #323795 !important; background: #eef0fb !important; }
-
-        /* Tippy theme */
-        .tippy-box[data-theme~='splace'] {
-            background: #323795;
-            color: #eef0fb;
-            font-size: 0.75rem;
-            border-radius: 8px;
-            line-height: 1.4;
-        }
-        .tippy-box[data-theme~='splace'] .tippy-arrow {
-            color: #323795;
-        }
-        .tippy-box[data-theme~='splace'] strong {
-            color: #f9b3b3;
-        }
-
-        /* Records Table */
-        .records-table tbody tr {
-            border-bottom: 1px solid #f3f4f6;
-            transition: background 0.1s;
-        }
-        .records-table tbody tr:nth-child(even) {
-            background: #d5d9f3;
-        }
-        .records-table tbody tr:nth-child(odd) {
-            background: #ffffff;
-        }
-        .records-table tbody tr:hover {
-            background: #eef0fb;
-        }
-        .records-table tbody tr:last-child {
-            border-bottom: none;
-        }
-
-        /* Header Builder Chips */
-        .header-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 5px 12px;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-            user-select: none;
-        }
-        .header-chip.available {
-            background: #f3f4f6;
-            color: #4b5563;
-            border: 1px solid #e5e7eb;
-        }
-        .header-chip.available:hover {
-            background: #eef0fb;
-            border-color: #a8afe5;
-            color: #323795;
-        }
-        .header-chip.selected {
-            background: #323795;
-            color: white;
-            border: 1px solid #323795;
-        }
-        .header-chip.selected:hover {
-            background: #2a2e7d;
-        }
-        .header-chip.dragging {
-            opacity: 0.5;
-        }
-
-        /* Column Eye Toggles */
-        .col-eye-toggle {
-            cursor: pointer;
-            border: none;
-            background: none;
-            padding: 0;
-            font-size: inherit;
-        }
-
-        /* Heatmap */
-        .heatmap-cell {
-            width: 28px;
-            height: 28px;
-            border-radius: 4px;
-            border: 1px solid white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .heatmap-cell.present {
-            background: #4676b4;
-        }
-        .heatmap-cell.absent {
-            background: #f26c41;
-        }
-        .heatmap-gene-label {
-            writing-mode: vertical-lr;
-            transform: rotate(180deg);
-            font-size: 1rem;
-            font-weight: 500;
-            white-space: nowrap;
-            height: auto;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            padding-top: 4px;
-            user-select: none;
-        }
-        .heatmap-sticky-col {
-            position: sticky;
-            left: 0;
-            background: white;
-            z-index: 1;
-        }
-        .heatmap-sticky-header td {
-            position: sticky;
-            top: 0;
-            background: white;
-            z-index: 2;
-        }
-        .heatmap-sticky-header .heatmap-sticky-col {
-            z-index: 3;
-        }
-        /* Crosshair hover label */
-        .heatmap-hover-label {
-            position: fixed;
-            pointer-events: none;
-            z-index: 100;
-            background: rgba(30,41,59,0.92);
-            color: #fff;
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 6px;
-            white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        .heatmap-cell, .heatmap-gene-label {
-            transition: opacity 0.3s ease;
-        }
-        .heatmap-sticky-col {
-            transition: color 0.3s ease;
-        }
-
-        /* Step badges */
-        .step-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.25rem;
-            height: 1.25rem;
-            border-radius: 50%;
-            font-size: 0.65rem;
-            font-weight: 700;
-            color: white;
-            flex-shrink: 0;
-            transition: background-color 0.35s ease;
-        }
-        .badge-required { background-color: #323795; }
-        .badge-optional  { background-color: #323795; }
-        .badge-pending   { background-color: #323795; }
-        .badge-done      { background-color: #323795; }
-    </style>
+    <!-- SPLACE styles -->
+    <link rel="stylesheet" href="css/splash.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/steps/step1.css">
+    <link rel="stylesheet" href="css/steps/step2.css">
+    <link rel="stylesheet" href="css/steps/step3.css">
+    <link rel="stylesheet" href="css/steps/step4.css">
+    <link rel="stylesheet" href="css/steps/step5.css">
+    <link rel="stylesheet" href="css/steps/step6.css">
+    <link rel="stylesheet" href="css/steps/step7.css">
 </head>
-<body class="bg-white min-h-screen">
+<body>
 
-<!-- Header -->
-<header class="bg-white border-b border-gray-200 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <img src="assets/SPLACE.png" alt="SPLACE Logo" style="width: 80px; height: auto; object-fit: contain;">
-            <div class="flex flex-col justify-center">
-                <h1 class="text-3xl  font-bold text-gray-800">SPLACE</h1>
-                <p class="text-xl text-gray-900"><b>SP</b>lit, <b>A</b>lign and <b>C</b>oncatenat<b>E</b></p>
+
+<div id="splashOverlay" class="splash-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="splashTitle">
+    <div class="splash-card">
+        <div class="splash-hero">
+            <div class="splash-logo">
+                <img src="assets/SPLACE.png" alt="SPLACE Logo" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/luanrabelo/splace/main/docs/assets/SPLACE.png';">
             </div>
-        </div>
-        <a href="https://github.com/luanrabelo/splace" target="_blank" class="text-gray-400 hover:text-splace-blue-600 transition-colors">
-            <i class="fa-brands fa-github text-4xl"></i>
-        </a>
-    </div>
-</header>
+            <div class="splash-title">
+                <h2 id="splashTitle">SPLACE</h2>
+                <div class="subtitle"><b>SPL</b>it, <b>A</b>lign and <b>C</b>oncatenat<b>E</b></div>
+                <div class="mt-1.5 text-sm font-medium text-black">Luan <strong>Rabelo</strong> &amp; Renato <strong>Moreira-Oliveira</strong></div>
+                <span class="splash-version mt-2 inline-block"><strong>v4.0.0</strong> · GPL-3.0 · <a href="https://github.com/luanrabelo/splace" target="_blank" rel="noopener noreferrer">https://github.com/luanrabelo/splace</a></span>
+            </div>
 
-<main class="max-w-full mx-auto px-4 py-6 space-y-6">
-
-    <!-- Step 1: Load Data -->
-    <section class="bg-white rounded-xl border border-gray-200 p-5">
-        <div class="flex items-center gap-2 mb-2">
-            <span id="step1-badge" class="step-badge badge-required text-xl px-4 py-4">1</span>
-            <span class="text-base font-semibold text-gray-700">
-                <i class="fa-solid fa-dna text-splace-blue-600 mr-1"></i>
-                Load Data
-            </span>
-            <span class="ml-1 text-gray-400 cursor-help" data-tippy-content="Enter NCBI accession numbers separated by commas, spaces, or newlines. E.g.: NC_061537, NC_023122">
-                <i class="fa-solid fa-circle-info text-base"></i>
-            </span>
-        </div>
-        
-        <div class="flex gap-2">
-            <textarea id="accessionInput" rows="3" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 resize-none font-sans" placeholder="NC_024026.1, KJ184305.1, NC_024184.1, KJ556976.1, OP056886.1, PV818392.1, PX528615.1, NC_022707.1, KF356397.1, KJ642220.1, NC_057648.1, NC_082556.1, NC_023954.1..."></textarea>
-            
-            <div class="flex flex-col gap-2">
-                <button id="exampleBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 px-5 rounded-lg text-base font-medium transition-colors whitespace-nowrap" data-tippy-content="Load example accessions from <b>Balcázar et al. (2026)</b>">
-                    <i class="fa-solid fa-flask mr-1"></i> Example
+            <div class="splash-lang lang-toggle" style="position:absolute; top:16px; right:16px; z-index:2;">
+                <button data-lang="en" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/us.png" srcset="https://flagcdn.com/w40/us.png 2x" alt="English" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    EN
                 </button>
-                <button id="fetchBtn" class="flex-1 bg-splace-blue-600 hover:bg-splace-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 rounded-lg text-base font-medium transition-colors whitespace-nowrap" disabled data-tippy-content="Fetch GenBank records from NCBI for the entered accession numbers">
-                    <i class="fa-solid fa-magnifying-glass mr-1"></i> Fetch
+                <button data-lang="es" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/es.png" srcset="https://flagcdn.com/w40/es.png 2x" alt="Español" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    ES
+                </button>
+                <button data-lang="pt" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/br.png" srcset="https://flagcdn.com/w40/br.png 2x" alt="Português" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    PT
                 </button>
             </div>
         </div>
-        
-        <div id="fetchStatus" class="text-base mt-2 text-gray-500 hidden"></div>
 
-    </section>
+        <div class="splash-body">
+            <div class="splash-section border-none">                
+                <div class="space-y-2 relative">
+                    <div class="splash-intro-line absolute left-[23px] top-4 bottom-4 w-0.5 bg-gray-200 z-0"></div>
 
-    <!-- Drop Zone -->
-    <section>
-        <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-splace-blue-400 hover:bg-splace-blue-50/50 transition-colors">
-            <input type="file" id="fileInput" class="hidden" multiple accept=".gb,.gbk,.genbank">
-            <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-400 mb-3"></i>
-            <p class="text-gray-600 font-medium">Drag & drop GenBank files or folders here</p>
-            <p class="text-gray-400 text-base mt-1">or click to browse (.gb, .gbk, .genbank)</p>
-        </div>
-    </section>
-
-    <!-- Loaded Records -->
-    <section id="recordsSection" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-            <h2 class="text-base font-semibold text-gray-700 flex items-center gap-2">
-                <span id="step2-badge" class="step-badge badge-required text-xl px-4 py-4">2</span>
-                <i class="fa-solid fa-list-check text-splace-blue-600 mr-1"></i>
-                Loaded Records <span id="recordCount" class="text-gray-400">(0)</span>
-            </h2>
-
-            <div class="flex flex-wrap gap-2 items-center">
-                
-                <button id="fetchTaxonomyBtn" class="text-base bg-splace-blue-100 hover:bg-splace-blue-200 text-splace-blue-700 px-2.5 py-1 rounded-md font-medium transition-colors" data-tippy-content="Fetch taxonomy ranks (Kingdom, Phylum, Class, Order, Family) from GBIF for all records using <b>dataFishing (Rabelo et al. 2025)</b>">
-                    <i class="fa-solid fa-globe mr-1"></i> Fetch Taxonomy
-                </button>
-                <button id="clearRecords" class="text-base text-red-500 hover:text-red-700 font-medium transition-colors">
-                    <i class="fa-solid fa-trash mr-1"></i> Clear all
-                </button>
-            </div>
-        </div>
-        <!-- Internet / species review notice -->
-        <div class="bg-splace-blue-50 border border-splace-blue-200 rounded-lg px-4 py-3 mb-3 text-splace-blue-900 space-y-2">
-            <div class="flex items-start gap-2">
-                <span>
-                    <p class="mt-2">Review and correct the species names below using the edit button (<i class="fa-solid fa-pen-to-square"></i>).</p>
-                    <p class="mt-2">Then click <strong>Fetch Taxonomy</strong> to retrieve classification ranks (Kingdom → Species) from GBIF via
-                    <strong data-tippy-content="Rabelo et al. (2025). dataFishing: An efficient Python tool and user-friendly web-form for mining mitochondrial and chloroplast sequences, taxonomic, and biodiversity data. Ecological Informatics 85:102970. https://doi.org/10.1016/j.ecoinf.2024.102970">dataFishing (Rabelo et al. 2025).</strong></p>
-                    <p class="mt-2"><i class="fa-solid fa-wifi mr-0.5"></i><strong>internet required</strong>.</p>
-                </span>
-            </div>
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-                <button onclick="document.getElementById('skipTaxonomyModal').classList.remove('hidden')" class="bg-splace-blue-100 hover:bg-splace-blue-200 border border-splace-blue-300 text-splace-blue-800 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                    <i class="fa-solid fa-forward-step mr-1"></i> Skip taxonomy and proceed
-                </button>
-                <span class="text-splace-blue-600">— or use <strong>Fetch Taxonomy</strong> above to proceed automatically.</span>
-            </div>
-        </div>
-        <!-- Column Visibility Toggles -->
-        <div id="columnTogglesRow" class="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-gray-500">
-            <span class="text-gray-400 font-medium mr-1"><i class="fa-solid fa-table-columns mr-1"></i>Columns:</span>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="accession"><i class="fa-solid fa-eye-slash"></i> Accession</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="kingdom"><i class="fa-solid fa-eye-slash"></i> Kingdom</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="phylum"><i class="fa-solid fa-eye-slash"></i> Phylum</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="class"><i class="fa-solid fa-eye"></i> Class</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="order"><i class="fa-solid fa-eye"></i> Order</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="family"><i class="fa-solid fa-eye"></i> Family</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="genus"><i class="fa-solid fa-eye"></i> Genus</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="species"><i class="fa-solid fa-eye"></i> Species</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="authorship"><i class="fa-solid fa-eye"></i> Authorship</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="pcgs"><i class="fa-solid fa-eye"></i> PCGs</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="rrnas"><i class="fa-solid fa-eye"></i> rRNAs</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="trnas"><i class="fa-solid fa-eye"></i> tRNAs</button>
-            <button class="col-eye-toggle hover:text-splace-blue-600 transition-colors" data-col-toggle="source"><i class="fa-solid fa-eye-slash"></i> Source</button>
-        </div>
-        <!-- Search records -->
-        <div class="relative mb-2">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-            <input type="text" id="recordSearch" oninput="filterRecords()"
-                placeholder="Search accession, species, family…"
-                class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-gray-50">
-            <button id="recordSearchClear" onclick="document.getElementById('recordSearch').value=''; filterRecords();"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors hidden">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        <div id="recordsList" class="overflow-x-auto max-h-64 overflow-y-auto">
-            <table class="records-table w-full text-base">
-                <thead class="sticky top-0 bg-white z-10">
-                    <tr class="text-left text-gray-500 tracking-wider border-b border-gray-200">
-                        <th class="px-3 py-2" data-col="accession">Accession</th>
-                        <th class="px-3 py-2" data-col="kingdom">Kingdom</th>
-                        <th class="px-3 py-2" data-col="phylum">Phylum</th>
-                        <th class="px-3 py-2" data-col="class">Class</th>
-                        <th class="px-3 py-2" data-col="order">Order</th>
-                        <th class="px-3 py-2" data-col="family">Family</th>
-                        <th class="px-3 py-2" data-col="genus">Genus</th>
-                        <th class="px-3 py-2" data-col="species">Species</th>
-                        <th class="px-3 py-2" data-col="authorship">Authorship</th>
-                        <th class="px-3 py-2 text-center" data-col="pcgs">PCGs</th>
-                        <th class="px-3 py-2 text-center" data-col="rrnas">rRNAs</th>
-                        <th class="px-3 py-2 text-center" data-col="trnas">tRNAs</th>
-                        <th class="px-3 py-2 text-center" data-col="source">Source</th>
-                        <th class="px-3 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody id="recordsTableBody"></tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- Feature Types (separate section) -->
-    <section id="featureTypesSection" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-        <h3 class="text-base font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <span id="step3-badge" class="step-badge badge-optional text-xl px-4 py-4">3</span>
-            <i class="fa-solid fa-layer-group text-splace-blue-600 mr-1"></i>
-            Feature Types
-        </h3>
-        <div class="bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2 mb-3 text-splace-blue-800 flex items-start gap-2">
-            <i class="fa-solid fa-tag mt-0.5 flex-shrink-0 text-splace-blue-500"></i>
-            <span>Gene names have been standardized using
-                <strong data-tippy-content="Rabelo et al. (2024). SynGenes: a Python class for standardizing nomenclatures of mitochondrial and chloroplast genes and a web form for enhancing searches for evolutionary analyses. BMC Bioinformatics 25:160. https://doi.org/10.1186/s12859-024-05781-y">SynGenes (Rabelo et al. 2024)</strong>.
-            </span>
-        </div>
-        <div id="featureTypesList" class="flex flex-wrap gap-4"></div>
-    </section>
-
-    <!-- Available Genes (separate section) -->
-    <section id="genesSection" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-            <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
-                <span id="step4-badge" class="step-badge badge-required text-xl px-4 py-4">4</span>
-                <i class="fa-solid fa-barcode text-splace-blue-600 mr-1"></i>
-                Select Markers
-            </h3>
-            <div class="flex flex-wrap gap-2">
-                <button id="selectAllGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors">Select All</button>
-                <button id="selectNoneGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors">None</button>
-                <button id="selectCompleteGenes" class="bg-green-100 hover:bg-green-200 px-2.5 py-1 rounded-md font-medium text-green-700 transition-colors" data-tippy-content="Select only genes present in all genomes (no missing data)">Complete</button>
-                <button id="selectDefaultGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors" data-tippy-content="Select the default gene set for phylogenetic analysis">Default to Phylogeny</button>
-            </div>
-        </div>
-        <div id="genesList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div>
-        <div id="geneMissingWarnings" class="mt-4 hidden"></div>
-        <div id="geneDuplicateWarnings" class="mt-4 hidden"></div>
-    </section>
-
-    <!-- Gene Presence Heatmap (visual extension of Step 4, no separate step number) -->
-    <section id="heatmapSection" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-        <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
-                <i class="fa-solid fa-th text-splace-blue-600"></i>
-                Gene Presence Heatmap
-            </h3>
-            <div class="flex items-center gap-4">
-                <span class="flex items-center gap-1.5">
-                    <span class="inline-block w-3 h-3 rounded-sm" style="background:#4676b4;"></span> Present
-                </span>
-                <span class="flex items-center gap-1.5">
-                    <span class="inline-block w-3 h-3 rounded-sm" style="background:#f26c41;"></span> Absent
-                </span>
-            </div>
-        </div>
-        <div id="heatmapContainer" class="overflow-x-auto overflow-y-auto max-h-96" style="cursor:grab;"></div>
-    </section>
-
-    <!-- Step 5: Download Actions (web) -->
-    <section id="downloadSection" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-        <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2 mb-3">
-            <span id="step6-web-badge" class="step-badge badge-optional text-xl px-4 py-4">5</span>
-            <i class="fa-solid fa-download text-splace-blue-600 mr-1"></i>
-            Export FASTA Files
-        </h3>
-        <button id="downloadBtn" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors text-center">
-            <i class="fa-solid fa-download mr-2"></i> Download FASTA Files
-        </button>
-        <!-- Desktop recommendation -->
-        <div class="mt-4 bg-splace-blue-50 border border-splace-blue-200 rounded-xl px-4 py-4">
-            <div class="flex items-start gap-3">
-                <i class="fa-solid fa-desktop text-splace-blue-600 mt-0.5 flex-shrink-0 text-lg"></i>
-                <div class="space-y-2">
-                    <p class="font-semibold text-splace-blue-900">Want the full pipeline?</p>
-                    <p class="text-splace-blue-800">To align sequences, run trimAl, concatenate genes, and perform phylogenetic inference, we recommend downloading <strong>SPLACE Desktop</strong>.</p>
-                    <a href="https://github.com/luanrabelo/splace/releases" target="_blank" rel="noopener"
-                       class="inline-flex items-center gap-2 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors mt-1">
-                        <i class="fa-brands fa-github"></i> Download SPLACE Desktop
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Step 5: Align (Electron desktop only) -->
-    <section id="nextStepSection" class="hidden space-y-4">
-
-        <div class="flex items-center gap-2">
-            <span id="step6-desktop-badge" class="step-badge badge-required text-xl px-4 py-4">5</span>
-            <span class="text-base font-semibold text-gray-700">
-                <i class="fa-solid fa-align-left text-splace-blue-600 mr-1"></i>
-                Sequence Alignment
-            </span>
-        </div>
-
-        <!-- 5a: Configure FASTA Header (always visible) -->
-        <div id="panel6a" class="bg-white rounded-xl border border-gray-200 p-5">
-            <div class="flex items-center gap-2 mb-3">
-                <span id="step6a-badge" class="step-badge badge-required">5a</span>
-                <h3 class="text-base font-semibold text-gray-700">Configure FASTA Header</h3>
-            </div>
-            <p class="text-xs text-gray-500 mb-3">Define the sequence identifier format for the alignment files. You must confirm the header before proceeding.</p>
-            <button id="openHeaderBuilderBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-4 py-2.5 rounded-xl text-base font-medium transition-colors">
-                <i class="fa-solid fa-pen-ruler mr-2"></i> Open Header Builder
-            </button>
-            <div id="headerPreviewInline" class="mt-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono text-xs text-gray-600 break-all hidden"></div>
-        </div>
-
-        <!-- 5b: MAFFT Settings (hidden until 5a confirmed) -->
-        <div id="panel6b" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-            <div class="flex items-center gap-2 mb-4">
-                <span id="step6b-badge" class="step-badge badge-optional">5b</span>
-                <h3 class="text-base font-semibold text-gray-700">MAFFT Settings</h3>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Alignment Method</label>
-                    <select id="mafftMethod" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
-                        <option value="--auto">--auto (automatic, recommended)</option>
-                        <option value="--localpair">--localpair (L-INS-i, most accurate, slow)</option>
-                        <option value="--globalpair">--globalpair (G-INS-i, global, slow)</option>
-                        <option value="--genafpair">--genafpair (E-INS-i, long gaps, slow)</option>
-                        <option value="--retree 2 --reorder">--retree 2 (FFT-NS-2, fast)</option>
-                        <option value="--retree 1">--retree 1 (FFT-NS-1, fastest)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Max Iterations <span class="text-gray-400 font-normal">(--maxiterate)</span></label>
-                    <input type="number" id="mafftMaxIterate" value="0" min="0" max="1000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                    <p class="text-xs text-gray-400 mt-0.5">0 = no refinement; 1000 = max</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Threads <span class="text-gray-400 font-normal">(per job)</span></label>
-                    <input type="number" id="mafftThreads" value="4" min="1" max="64" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                    <p id="mafftConcurrencyInfo" class="text-xs text-gray-400 mt-0.5">Calculating…</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Gap Opening <span class="text-gray-400 font-normal">(--op)</span></label>
-                    <input type="number" id="mafftOp" value="1.53" min="0" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Gap Extension <span class="text-gray-400 font-normal">(--ep)</span></label>
-                    <input type="number" id="mafftEp" value="0.0" min="0" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                </div>
-                <div class="col-span-2 flex flex-wrap gap-4 pt-1">
-                    <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
-                        <input type="checkbox" id="mafftAdjustDir" class="text-splace-blue-600 rounded">
-                        --adjustdirection <span class="text-xs text-gray-400">(auto reverse complement)</span>
-                    </label>
-                    <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
-                        <input type="checkbox" id="mafftReorder" class="text-splace-blue-600 rounded">
-                        --reorder <span class="text-xs text-gray-400">(sort by similarity)</span>
-                    </label>
-                    <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
-                        <input type="checkbox" id="mafftPreserveCase" class="text-splace-blue-600 rounded">
-                        --preservecase
-                    </label>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Additional Parameters <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input type="text" id="mafftExtra" placeholder="e.g. --nomemsave" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none font-mono">
-                </div>
-            </div>
-        </div>
-
-        <!-- 5c: Run MAFFT (hidden until 5a confirmed) -->
-        <div id="panel6c" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-            <div class="flex items-center gap-2 mb-3">
-                <span id="step6c-badge" class="step-badge badge-required">5c</span>
-                <h3 class="text-base font-semibold text-gray-700">Run Alignment</h3>
-            </div>
-            <p class="text-xs text-gray-500 mb-3">
-                Align all selected markers with MAFFT. Output is saved automatically to <code class="bg-gray-100 px-1 rounded">Documents/SPLACE_&lt;date&gt;/</code>.
-            </p>
-            <button id="runAlignmentBtn" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors">
-                <i class="fa-solid fa-play mr-2"></i> Run MAFFT Alignment
-            </button>
-        </div>
-
-        <!-- trimAl prompt (hidden, appears after MAFFT completes) -->
-        <div id="trimalPromptCard" class="hidden bg-splace-blue-50 border border-splace-blue-200 rounded-xl p-5">
-            <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-splace-blue-100 flex items-center justify-center">
-                    <i class="fa-solid fa-scissors text-splace-blue-600 text-base"></i>
-                </div>
-                <div class="flex-1">
-                    <h3 class="text-base font-semibold text-splace-blue-800 mb-1">Alignment complete — trim poorly-aligned regions?</h3>
-                    <p class="text-xs text-splace-blue-700 mb-3">trimAl removes columns with excessive gaps or low conservation, improving phylogenetic inference quality.</p>
-                    <div class="flex gap-3">
-                        <button id="trimalNoBtn" class="flex-1 px-4 py-2 rounded-xl border border-splace-blue-300 text-splace-blue-700 text-base font-medium hover:bg-splace-blue-100 transition-colors">
-                            <i class="fa-solid fa-xmark mr-1"></i> No, skip trimming
-                        </button>
-                        <button id="trimalYesBtn" class="flex-1 px-4 py-2 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors">
-                            <i class="fa-solid fa-scissors mr-1"></i> Yes, run trimAl
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 5d: trimAl Settings (hidden until user clicks Yes) -->
-        <div id="panel6d" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
-            <div class="flex items-center gap-2 mb-4">
-                <span id="step6d-badge" class="step-badge badge-optional">5d</span>
-                <h3 class="text-base font-semibold text-gray-700">trimAl Settings</h3>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Trimming Mode</label>
-                    <select id="trimalMode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white" onchange="toggleTrimalManual(this.value)">
-                        <option value="-automated1">-automated1 (heuristic, recommended)</option>
-                        <option value="-strict">-strict (strict automated)</option>
-                        <option value="-strictplus">-strictplus (strict+)</option>
-                        <option value="-gappyout">-gappyout (remove gappy columns)</option>
-                        <option value="-nogaps">-nogaps (remove all gap columns)</option>
-                        <option value="-noallgaps">-noallgaps (only all-gap columns)</option>
-                        <option value="manual">Manual thresholds</option>
-                    </select>
-                </div>
-                <div id="trimalManualFields" class="col-span-2 hidden grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Gap Threshold <span class="text-gray-400">(-gt, 0–1)</span></label>
-                        <input type="number" id="trimalGt" value="0.9" min="0" max="1" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                        <p class="text-xs text-gray-400 mt-0.5">Max fraction of gaps per column</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Similarity <span class="text-gray-400">(-st, 0–1)</span></label>
-                        <input type="number" id="trimalSt" min="0" max="1" step="0.01" placeholder="Optional" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Consistency <span class="text-gray-400">(-cons, 0–100)</span></label>
-                        <input type="number" id="trimalCons" min="0" max="100" step="1" placeholder="Optional" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Window Size <span class="text-gray-400">(-w)</span></label>
-                        <input type="number" id="trimalW" min="1" step="1" placeholder="Optional" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
-                    </div>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Additional Parameters <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input type="text" id="trimalExtra" placeholder="e.g. -colnumbering" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none font-mono">
-                </div>
-            </div>
-            <button id="runTrimalBtn" class="w-full mt-4 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors">
-                <i class="fa-solid fa-scissors mr-2"></i> Run trimAl
-            </button>
-        </div>
-
-        <!-- Results (hidden, injected after analysis) -->
-        <div id="alignmentResults" class="hidden space-y-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="step-badge badge-done" style="font-size:0.6rem;">✓</span>
-                    <span class="text-base font-semibold text-gray-700">Alignment Results</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <button id="showTrimalBtn" class="text-xs bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-2.5 py-1 rounded-lg font-medium transition-colors hidden">
-                        <i class="fa-solid fa-scissors mr-1"></i> Run trimAl
-                    </button>
-                    <div class="flex items-center gap-3 text-xs text-gray-600">
-                        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#1AC253"></span>A</span>
-                        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#E11218"></span>T/U</span>
-                        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#ECA918"></span>G</span>
-                        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#4272EE"></span>C</span>
-                        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-gray-200"></span>—</span>
-                    </div>
-                </div>
-            </div>
-            <div id="alignmentResultsAccordion" class="space-y-2"></div>
-        </div>
-
-        <!-- ============================================================ -->
-        <!-- Step 6 — Concatenate & NEXUS                                  -->
-        <!-- ============================================================ -->
-        <div id="concatSection" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
-            <div class="flex items-center gap-3">
-                <span class="step-badge badge-pending text-xl px-4 py-4" id="step-concat-badge">6</span>
-                <div>
-                    <h2 class="text-base font-bold text-gray-800">Concatenate &amp; Generate NEXUS</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Build a supermatrix from aligned genes and export for phylogenetic analysis.</p>
-                </div>
-            </div>
-
-            <!-- Source selection -->
-            <div class="space-y-2">
-                <div id="concatTrimmedOption">
-                    <label class="flex items-start gap-3 p-3 rounded-xl border-2 border-splace-blue-500 bg-splace-blue-50 cursor-pointer">
-                        <input type="radio" name="concatSource" id="concatUseTrimmedYes" class="mt-0.5 text-splace-blue-600" checked>
+                    <div class="relative z-10 flex items-start gap-3 bg-white p-3 border border-gray-200 rounded-xl shadow-sm">
+                        <span class="splash-step-number splash-step-number-primary">1</span>
                         <div>
-                            <p class="text-xs font-semibold text-gray-800">Trimmed sequences <span class="text-splace-blue-600 text-xs">(recommended)</span></p>
-                            <p class="text-xs text-gray-500 mt-0.5">Use trimAl output — removes poorly aligned positions.</p>
+                            <h4 class="font-bold text-sm text-gray-800" data-i18n="splash.step1.title">Load Data & Taxonomy</h4>
+                            <p class="text-[11px] text-gray-500 mt-1 leading-snug" data-i18n="splash.step1.body">Fetch GenBank records and auto-retrieve taxonomy via <strong class="text-splace-blue-600">dataFishing (Rabelo et al. 2025)</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="relative z-10 flex items-start gap-3 bg-white p-3 border border-gray-200 rounded-xl shadow-sm">
+                        <span class="splash-step-number splash-step-number-primary">2</span>
+                        <div>
+                            <h4 class="font-bold text-sm text-gray-800" data-i18n="splash.step2.title">Loaded Records</h4>
+                            <p class="text-[11px] text-gray-500 mt-1 leading-snug" data-i18n="splash.step2.body">Review imported genomes, fix species names and fetch classification metadata.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="splash-platform-grid grid grid-cols-1 md:grid-cols-2 gap-4 px-2 pb-2 mt-6">
+
+                    <div class="splash-platform-web bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col relative pt-5 md:col-span-2">
+                        <div class="splash-platform-badge splash-platform-badge-web absolute -top-2.5 left-4" data-i18n="splash.web.title">Web App</div>
+
+                        <div class="flex-1 flex flex-col gap-3">
+                            <div class="flex items-start gap-2">
+                                <span class="splash-step-number splash-step-number-secondary">3</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-gray-800 mt-1" data-i18n="splash.web.step">Export FASTA</h4>
+                                    <p class="text-[10px] text-gray-500 mt-0.5 leading-snug" data-i18n="splash.web.body">Download unaligned per-gene FASTA files directly.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button data-splash-start="web" class="splash-action-btn splash-action-btn-primary mt-4 w-full" type="button" disabled>
+                            <span data-i18n="splash.start">Start Web App</span> <i class="fa-solid fa-hourglass-half"></i>
+                        </button>
+                    </div>
+
+                    <div class="splash-platform-desktop bg-splace-blue-50 border border-splace-blue-200 rounded-xl p-4 flex flex-col relative pt-5 md:col-span-2">
+                        <div class="splash-platform-badge splash-platform-badge-desktop absolute -top-2.5 left-4 flex items-center gap-1">
+                            <span data-i18n="splash.desktop.title">Desktop App</span> <span class="splash-platform-rec ml-0.5" data-i18n="splash.desktop.rec">Recommended</span>
+                            
+                        </div>
+
+                        <div class="splash-platform-flow flex-1 flex flex-col gap-3 relative z-0 mt-1">
+                            <div class="splash-platform-line absolute left-[15px] top-4 bottom-6 w-0.5 bg-splace-blue-200 z-0"></div>
+
+                            <div class="splash-step-item flex items-start gap-2 relative z-10">
+                                <span class="splash-step-number splash-step-number-primary">3</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-splace-blue-900 mt-1" data-i18n="splash.desktop.s1">Sequence Alignment</h4>
+                                    <p class="text-[10px] text-splace-blue-700 mt-0.5 leading-snug" data-i18n="splash.desktop.s1.body">Configure FASTA headers, align with MAFFT and inspect stop codons in translated views.</p>
+                                </div>
+                            </div>
+                            <div class="splash-step-item flex items-start gap-2 relative z-10">
+                                <span class="splash-step-number splash-step-number-primary">4</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-splace-blue-900 mt-1" data-i18n="splash.desktop.s2">Sequence Trimming</h4>
+                                    <p class="text-[10px] text-splace-blue-700 mt-0.5 leading-snug" data-i18n="splash.desktop.s2.body">Trim with trimAl.</p>
+                                </div>
+                            </div>
+                            <div class="splash-step-item flex items-start gap-2 relative z-10">
+                                <span class="splash-step-number splash-step-number-primary">5</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-splace-blue-900 mt-1" data-i18n="splash.desktop.s3">Concatenate & NEXUS</h4>
+                                    <p class="text-[10px] text-splace-blue-700 mt-0.5 leading-snug" data-i18n="splash.desktop.s3.body">Concatenate aligned loci into a supermatrix.</p>
+                                </div>
+                            </div>
+                            <div class="splash-step-item flex items-start gap-2 relative z-10">
+                                <span class="splash-step-number splash-step-number-primary">6</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-splace-blue-900 mt-1" data-i18n="splash.desktop.s4">Generate NEXUS</h4>
+                                    <p class="text-[10px] text-splace-blue-700 mt-0.5 leading-snug" data-i18n="splash.desktop.s4.body">Export partitions and the NEXUS matrix for inference.</p>
+                                </div>
+                            </div>
+                            <div class="splash-step-item flex items-start gap-2 relative z-10">
+                                <span class="splash-step-number splash-step-number-primary">7</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-splace-blue-900 mt-1" data-i18n="splash.desktop.s5">Tree Inference</h4>
+                                    <p class="text-[10px] text-splace-blue-700 mt-0.5 leading-snug" data-i18n="splash.desktop.s5.body">Estimate the phylogeny with IQ-TREE3.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a data-splash-download="desktop" href="https://github.com/luanrabelo/splace/releases" target="_blank" rel="noopener" class="splash-action-btn splash-action-btn-primary mt-4 w-full">
+                            <i class="fa-solid fa-download"></i> <span data-i18n="splash.download">Download App</span>
+                        </a>
+                        <button data-splash-start="desktop" class="splash-action-btn splash-action-btn-primary mt-4 w-full hidden" type="button" disabled>
+                            <span data-i18n="splash.startDesktop">Start SPLACE</span> <i class="fa-solid fa-hourglass-half"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- APP SHELL                                                          -->
+<!-- ================================================================== -->
+<div class="app-shell" data-logs="open" data-minimap="open">
+
+    <!-- Header -->
+    <header class="app-header" role="banner">
+        <button id="menuToggleBtn" class="icon-btn" type="button" aria-label="Toggle pipeline navigator" data-tippy-content="Toggle pipeline navigator">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <div class="brand">
+            <img src="assets/SPLACE.png" alt="SPLACE" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/luanrabelo/splace/main/docs/assets/SPLACE.png';">
+            <div class="brand-text">
+                <h1>SPLACE</h1>
+                <p data-i18n="app.tagline"><b>SPL</b>it, <b>A</b>lign and <b>C</b>oncatenat<b>E</b></p>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <div class="lang-toggle" role="group" aria-label="Language">
+                <button data-lang="en" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/us.png" srcset="https://flagcdn.com/w40/us.png 2x" alt="English" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    EN
+                </button>
+                <button data-lang="es" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/es.png" srcset="https://flagcdn.com/w40/es.png 2x" alt="Español" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    ES
+                </button>
+                <button data-lang="pt" type="button" class="flex items-center gap-1.5">
+                    <img src="https://flagcdn.com/w20/br.png" srcset="https://flagcdn.com/w40/br.png 2x" alt="Português" class="w-4 h-auto rounded-[2px] shadow-sm">
+                    PT
+                </button>
+            </div>
+
+            <button id="ncbiApiKeyBtn" class="icon-btn" type="button" aria-label="NCBI API key" data-i18n="step1.api.label" data-i18n-attr="data-tippy-content" data-tippy-content="NCBI API key">
+                <i class="fa-solid fa-key"></i>
+            </button>
+
+            <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" data-tippy-content="Display & language">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+
+            <span class="icon-btn-wrap">
+                <button id="logsToggleBtn" class="icon-btn" type="button" aria-label="Toggle logs" data-tippy-content="Activity log">
+                    <i class="fa-solid fa-rectangle-list"></i>
+                </button>
+                <span id="logsBadge" class="icon-btn-badge hidden">0</span>
+            </span>
+
+            <button id="helpBtn" class="icon-btn" type="button" aria-label="Help" data-tippy-content="Show welcome screen">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+
+            <a href="https://github.com/luanrabelo/splace" target="_blank" rel="noopener" class="icon-btn" aria-label="GitHub" data-tippy-content="GitHub">
+                <i class="fa-brands fa-github"></i>
+            </a>
+        </div>
+    </header>
+
+    <!-- Settings popover -->
+    <div id="settingsPopover" class="settings-popover" role="dialog" aria-label="Display settings">
+        <div class="settings-row">
+            <label data-i18n="settings.theme"></label>
+            <div class="seg" data-seg="theme">
+                <button data-val="light" type="button" data-i18n="settings.theme.light"></button>
+                <button data-val="dark"  type="button" data-i18n="settings.theme.dark"></button>
+                <button data-val="auto"  type="button" data-i18n="settings.theme.auto"></button>
+            </div>
+        </div>
+        <div class="settings-row">
+            <label data-i18n="settings.density"></label>
+            <div class="seg" data-seg="density">
+                <button data-val="comfortable" type="button" data-i18n="settings.density.comfy"></button>
+                <button data-val="compact"     type="button" data-i18n="settings.density.compact"></button>
+            </div>
+        </div>
+        <div class="settings-row">
+            <label data-i18n="settings.fontsize"></label>
+            <div class="font-slider-row">
+                <span class="small">A</span>
+                <input id="fontSizeSlider" class="font-slider" type="range" min="13" max="20" step="1" value="16" aria-label="Font size">
+                <span class="large">A</span>
+                <span id="fontSizeValue" class="value">16px</span>
+                <button id="fontSizeResetBtn" type="button" class="ml-2 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded transition-colors" data-i18n="settings.fontsize.reset" title="Reset to default size"><i class="fa-solid fa-rotate-left"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mini-map / step navigator -->
+    <aside class="app-minimap" role="navigation" aria-label="Pipeline navigator">
+        <div class="mm-section">
+            <div class="mm-progress-head">
+                <div class="mm-title" data-i18n="nav.progress"></div>
+                <div id="mmProgressPct" class="mm-progress-pct">0%</div>
+            </div>
+            <div class="mm-progress-bar"><div id="mmProgress" style="width:0%"></div></div>
+        </div>
+        <div class="mm-section">
+            <div class="mm-title" data-i18n="nav.steps"></div>
+            <nav id="mmList"></nav>
+        </div>
+    </aside>
+
+    <!-- Mobile tab bar -->
+    <nav class="mobile-tabs" aria-label="Section navigation">
+        <button data-tab="workspace" class="active" type="button" data-i18n="tab.workspace"></button>
+        <button data-tab="records" type="button" data-i18n="tab.records"></button>
+        <button data-tab="heatmap" type="button" data-i18n="tab.heatmap"></button>
+        <button data-tab="logs" type="button" data-i18n="tab.logs"></button>
+    </nav>
+
+    <!-- Main content -->
+    <main class="app-main" id="appMain" role="main">
+
+        <!-- Step 1: Load Data -->
+        <section id="step1Section" class="step-section bg-white rounded-xl border border-gray-200 p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <span id="step1-badge" class="step-badge badge-required">1</span>
+                <span class="text-base font-semibold text-gray-700 flex items-center gap-2">
+                    <i class="fa-solid fa-dna text-splace-blue-600"></i>
+                    <span data-i18n="step.1">Load Data</span>
+                </span>
+            </div>
+
+            <div class="step1-intro mb-4">
+                <p class="text-sm text-gray-600" data-i18n="step1.intro">Choose one of three ways to load GenBank data into SPLACE.</p>
+            </div>
+
+            <details class="step1-tips-accordion">
+                <summary class="step1-tips-summary">
+                    <span class="step1-tips-summary-main">
+                        <span class="step1-tips-icon" aria-hidden="true"><i class="fa-solid fa-lightbulb"></i></span>
+                        <span class="step1-tips-copy">
+                            <span class="step1-tips-kicker" data-i18n="step1.taxonomy.tips.kicker">Tips</span>
+                            <span class="step1-tips-title" data-i18n="step1.taxonomy.tips.title">Recommended workflow</span>
+                        </span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down step1-tips-chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="step1-tips-content">
+                    <p data-i18n="step1.taxonomy.tips.body">Build the taxonomy table gradually and combine complementary sources when needed.</p>
+                    <p class="text-sm text-gray-600 mt-2 mb-8">
+                        <span data-i18n="step1.taxonomy.tips.exampleInfo.prefix">Each option below includes an</span>
+                        <button class="step1-inline-btn" type="button" disabled style="pointer-events: none; opacity: 0.8;">
+                            <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.taxonomy.example">Example</span>
+                        </button>
+                        <span data-i18n="step1.taxonomy.tips.exampleInfo.suffix">button to help you get started quickly.</span>
+                    </p>
+                    <ul class="step1-tips-list">
+                        <li data-i18n="step1.taxonomy.tips.item1">Prefer complete genomes whenever possible because they usually improve downstream analyses.</li>
+                        <li data-i18n="step1.taxonomy.tips.item2">Run multiple taxonomic searches to add ingroups and outgroups. New results are appended to the same taxonomy table.</li>
+                        <li data-i18n="step1.taxonomy.tips.item3">You can combine taxonomic searches, accession imports, and local .gb, .gbk or .genbank files in the same dataset.</li>
+                    </ul>
+                </div>
+            </details>
+
+            <div class="step1-grid">
+                <div class="step1-card">
+                    <div class="step1-card-head">
+                        <div>
+                            <p class="step1-card-kicker" data-i18n="step1.taxonomy.kicker">Option 1</p>
+                            <div class="step1-card-title-row">
+                                <h3 class="step1-card-title" data-i18n="step1.taxonomy.title">Search by taxonomic name</h3>
+                                <button class="step1-help-btn" type="button" data-i18n="step1.tooltip.taxonomyInfo" data-i18n-attr="data-tippy-content" data-tippy-content="Search NCBI by taxonomic name, genome type, database and completeness before importing the chosen genomes.">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="taxonomySearchExampleBtn" class="step1-inline-btn" type="button" data-i18n="step1.tooltip.taxonomyExample" data-i18n-attr="data-tippy-content" data-tippy-content="Fill the taxonomic search with <b>Bufonidae</b>, <b>mitochondrion</b>, <b>complete genomes</b> and <b>RefSeq only</b>.">
+                            <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.taxonomy.example">Example</span>
+                        </button>
+                    </div>
+                    <p class="step1-card-text" data-i18n="step1.taxonomy.body">Search NCBI and download matching GenBank records automatically into the tool.</p>
+                    <div class="step1-api-hint">
+                        <i class="fa-solid fa-key" aria-hidden="true"></i>
+                        <span data-i18n="step1.taxonomy.apiHint">Use the key button to add an NCBI API key and speed up imports.</span>
+                    </div>
+
+                    <div class="step1-form-grid">
+                        <label class="step1-field">
+                            <span data-i18n="step1.taxonomy.name">Taxonomic name</span>
+                            <input id="taxonomySearchInput" type="text" placeholder="Bufonidae" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-white">
+                        </label>
+
+                        <label class="step1-field">
+                            <span data-i18n="step1.taxonomy.organelle">Genome type</span>
+                            <select id="taxonomyOrganelleSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-white">
+                                <option value="mitochondrion" data-i18n="step1.taxonomy.organelle.mito">Mitochondrion</option>
+                                <option value="chloroplast" data-i18n="step1.taxonomy.organelle.chloro">Chloroplast</option>
+                            </select>
+                        </label>
+
+                        <div class="step1-field step1-field-compact">
+                            <span data-i18n="step1.taxonomy.completeness">Genome scope</span>
+                            <div class="step1-switch-stack step1-switch-stack-compact">
+                                <label class="step1-switch-row">
+                                    <input id="taxonomyCompleteCheckbox" type="checkbox">
+                                    <span class="switch-track"><span class="switch-knob"></span></span>
+                                    <span data-i18n="step1.taxonomy.completeness.complete">Complete genomes</span>
+                                </label>
+                                <label class="step1-switch-row">
+                                    <input id="taxonomyPartialCheckbox" type="checkbox">
+                                    <span class="switch-track"><span class="switch-knob"></span></span>
+                                    <span data-i18n="step1.taxonomy.completeness.partial">Partial genomes</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="step1-field step1-field-compact">
+                            <span data-i18n="step1.taxonomy.database">Database</span>
+                            <label class="step1-switch-row">
+                                <input id="taxonomyRefseqOnly" type="checkbox">
+                                <span class="switch-track"><span class="switch-knob"></span></span>
+                                <span data-i18n="step1.taxonomy.database.refseqOnly">RefSeq only</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="step1-query-preview">
+                        <div class="step1-query-label" data-i18n="step1.taxonomy.queryLabel">Query preview</div>
+                        <code id="taxonomyQueryPreview" class="step1-query-code"></code>
+                    </div>
+
+                    <div class="step1-actions mt-3">
+                        <button id="taxonomySearchBtn" class="step1-primary-btn bg-splace-blue-600 hover:bg-splace-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-base font-medium transition-colors whitespace-nowrap" disabled type="button">
+                            <i class="fa-solid fa-magnifying-glass mr-1"></i><span data-i18n="step1.taxonomy.search">Search and import</span>
+                        </button>
+                    </div>
+                    <div id="taxonomyFetchStatus" class="text-sm mt-2 text-gray-500 hidden"></div>
+                </div>
+
+                <div class="step1-card">
+                    <div class="step1-card-head">
+                        <div>
+                            <p class="step1-card-kicker" data-i18n="step1.accession.kicker">Option 2</p>
+                            <div class="step1-card-title-row">
+                                <h3 class="step1-card-title" data-i18n="step1.accession.title">Paste accession numbers</h3>
+                                <button class="step1-help-btn" type="button" data-i18n="step1.tooltip.accessionInfo" data-i18n-attr="data-tippy-content" data-tippy-content="Paste one or more known accessions and fetch those exact GenBank records from NCBI.">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="exampleBtn" class="step1-inline-btn" data-i18n="step1.tooltip.accessionExample" data-i18n-attr="data-tippy-content" data-tippy-content="Load example accessions from <b>Balcázar et al. (2026)</b>" type="button">
+                            <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.accession.example">Example</span>
+                        </button>
+                    </div>
+                    <p class="step1-card-text" data-i18n="step1.accession.body">Enter accession numbers separated by commas, spaces or line breaks.</p>
+
+                    <textarea id="accessionInput" rows="3" class="flex-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 resize-none font-sans" placeholder="NC_024026.1, KJ184305.1, NC_024184.1, KJ556976.1, OP056886.1, PV818392.1, NC_022707.1, KF356397.1..."></textarea>
+
+                    <div class="step1-actions mt-3">
+                        <button id="fetchBtn" class="step1-primary-btn bg-splace-blue-600 hover:bg-splace-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-base font-medium transition-colors whitespace-nowrap" disabled data-i18n="step1.tooltip.accessionFetch" data-i18n-attr="data-tippy-content" data-tippy-content="Fetch GenBank records from NCBI for the entered accession numbers" type="button">
+                            <i class="fa-solid fa-magnifying-glass mr-1"></i> <span data-i18n="step1.accession.fetch">Fetch</span>
+                        </button>
+                    </div>
+
+                    <div id="fetchStatus" class="text-sm mt-2 text-gray-500 hidden"></div>
+                </div>
+
+                <div class="step1-card">
+                    <div class="step1-card-head">
+                        <div>
+                            <p class="step1-card-kicker" data-i18n="step1.files.kicker">Option 3</p>
+                            <div class="step1-card-title-row">
+                                <h3 class="step1-card-title" data-i18n="step1.files.title">Use local GenBank files</h3>
+                                <button class="step1-help-btn" type="button" data-i18n="step1.tooltip.filesInfo" data-i18n-attr="data-tippy-content" data-tippy-content="Import local .gb, .gbk or .genbank files when the records are already on your computer.">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="step1-card-text" data-i18n="step1.files.body">Import your own .gb, .gbk or .genbank files from disk.</p>
+
+                    <!-- Drop zone, embedded in step 1 -->
+                    <div id="dropZone" class="mt-1 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer transition-colors">
+                        <input type="file" id="fileInput" class="hidden" multiple accept=".gb,.gbk,.genbank">
+                        <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-600 font-medium" data-i18n="step1.files.drop">Drag and drop GenBank files or folders here</p>
+                        <p class="text-gray-400 text-sm mt-1" data-i18n="step1.files.browse">or click to browse (.gb, .gbk, .genbank)</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 2: Loaded Records -->
+        <section id="recordsSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <h2 class="text-base font-semibold text-gray-700 flex items-center gap-2">
+                    <span id="step2-badge" class="step-badge badge-required">2</span>
+                    <i class="fa-solid fa-list-check text-splace-blue-600"></i>
+                    <span data-i18n="step.2">Loaded Records</span>
+                    <span id="recordCount" class="text-gray-400">(0)</span>
+                </h2>
+
+                <div class="step2-toolbar-actions">
+                    <button id="fetchTaxonomyBtn" class="step2-toolbar-btn" data-citation-key="datafishing" data-i18n-tooltip="step2.tooltip.fetchTaxonomy" data-tippy-content="Rabelo et al. (2025). dataFishing: An efficient Python tool and user-friendly web-form for mining mitochondrial and chloroplast sequences, taxonomic, and biodiversity data. Ecological Informatics 85:102970." type="button">
+                        <i class="fa-solid fa-globe mr-1"></i><span data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</span>
+                    </button>
+                    <button id="clearRecords" class="step2-toolbar-btn step2-toolbar-btn-danger" type="button">
+                        <i class="fa-solid fa-trash mr-1"></i><span data-i18n="step2.action.clearAll">Clear all</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="step2-intro-card">
+                <div class="step2-intro-copy">
+                    <p data-i18n="step2.intro.review">Review and correct the species names below using the edit button.</p>
+                    <p>
+                        <span data-i18n="step2.intro.fetchPrefix">Then click</span>
+                        <strong data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</strong>
+                        <span data-i18n="step2.intro.fetchSuffix">to retrieve classification ranks from GBIF via</span>
+                        <strong class="citation-ref" data-citation-key="datafishing" data-i18n="step2.intro.dataFishingTooltip" data-i18n-tooltip="step2.intro.dataFishingCitation" data-tippy-content="Rabelo et al. (2025). dataFishing: An efficient Python tool and user-friendly web-form for mining mitochondrial and chloroplast sequences, taxonomic, and biodiversity data. Ecological Informatics 85:102970.">dataFishing (Rabelo et al. 2025)</strong>.
+                    </p>
+                    <p><i class="fa-solid fa-wifi mr-1"></i><strong data-i18n="step2.intro.internet">Internet required</strong>.</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                    <button onclick="document.getElementById('skipTaxonomyModal').classList.remove('hidden')" class="step1-inline-btn" type="button">
+                        <i class="fa-solid fa-forward-step mr-1"></i><span data-i18n="step2.action.skip">Skip taxonomy and proceed</span>
+                    </button>
+                    <span class="text-splace-blue-700 text-sm"><span data-i18n="step2.intro.orUse">Or use</span> <strong data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</strong> <span data-i18n="step2.intro.auto">above to proceed automatically.</span></span>
+                </div>
+            </div>
+
+            <!-- Column Visibility -->
+            <div id="columnTogglesRow" class="step2-column-row">
+                <span class="step2-column-label"><i class="fa-solid fa-table-columns mr-1"></i><span data-i18n="step2.columns.label">Columns:</span></span>
+                <button class="col-eye-toggle" data-col-toggle="accession" type="button"><i class="fa-solid fa-eye-slash"></i> <span data-i18n="step2.columns.accession">Accession</span></button>
+                <button class="col-eye-toggle" data-col-toggle="kingdom" type="button"><i class="fa-solid fa-eye-slash"></i> <span data-i18n="step2.columns.kingdom">Kingdom</span></button>
+                <button class="col-eye-toggle" data-col-toggle="phylum" type="button"><i class="fa-solid fa-eye-slash"></i> <span data-i18n="step2.columns.phylum">Phylum</span></button>
+                <button class="col-eye-toggle" data-col-toggle="class" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.class">Class</span></button>
+                <button class="col-eye-toggle" data-col-toggle="order" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.order">Order</span></button>
+                <button class="col-eye-toggle" data-col-toggle="family" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.family">Family</span></button>
+                <button class="col-eye-toggle" data-col-toggle="genus" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.genus">Genus</span></button>
+                <button class="col-eye-toggle" data-col-toggle="species" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.species">Species</span></button>
+                <button class="col-eye-toggle" data-col-toggle="authorship" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.authorship">Authorship</span></button>
+                <button class="col-eye-toggle" data-col-toggle="pcgs" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.pcgs">PCGs</span></button>
+                <button class="col-eye-toggle" data-col-toggle="rrnas" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.rrnas">rRNAs</span></button>
+                <button class="col-eye-toggle" data-col-toggle="trnas" type="button"><i class="fa-solid fa-eye"></i> <span data-i18n="step2.columns.trnas">tRNAs</span></button>
+                <button class="col-eye-toggle" data-col-toggle="source" type="button"><i class="fa-solid fa-eye-slash"></i> <span data-i18n="step2.columns.source">Source</span></button>
+            </div>
+
+            <!-- Search records -->
+            <div class="relative mb-2 step2-search-shell">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                <input type="text" id="recordSearch" oninput="filterRecords()"
+                    data-i18n="step2.search.placeholder" data-i18n-attr="placeholder"
+                    placeholder="Search accession, species, family…"
+                    class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-gray-50">
+                <button id="recordSearchClear" onclick="document.getElementById('recordSearch').value=''; filterRecords();"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors hidden" type="button">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div id="recordsList" class="overflow-x-auto max-h-72 overflow-y-auto rounded-xl border border-splace-blue-100 step2-records-shell">
+                <table class="records-table w-full text-sm">
+                    <thead class="sticky top-0 bg-white z-10">
+                        <tr class="text-left text-gray-500 tracking-wider border-b border-gray-200">
+                            <th class="px-3 py-2" data-col="accession" data-i18n="step2.columns.accession">Accession</th>
+                            <th class="px-3 py-2" data-col="kingdom" data-i18n="step2.columns.kingdom">Kingdom</th>
+                            <th class="px-3 py-2" data-col="phylum" data-i18n="step2.columns.phylum">Phylum</th>
+                            <th class="px-3 py-2" data-col="class" data-i18n="step2.columns.class">Class</th>
+                            <th class="px-3 py-2" data-col="order" data-i18n="step2.columns.order">Order</th>
+                            <th class="px-3 py-2" data-col="family" data-i18n="step2.columns.family">Family</th>
+                            <th class="px-3 py-2" data-col="genus" data-i18n="step2.columns.genus">Genus</th>
+                            <th class="px-3 py-2" data-col="species" data-i18n="step2.columns.species">Species</th>
+                            <th class="px-3 py-2" data-col="authorship" data-i18n="step2.columns.authorship">Authorship</th>
+                            <th class="px-3 py-2 text-center" data-col="pcgs" data-i18n="step2.columns.pcgs">PCGs</th>
+                            <th class="px-3 py-2 text-center" data-col="rrnas" data-i18n="step2.columns.rrnas">rRNAs</th>
+                            <th class="px-3 py-2 text-center" data-col="trnas" data-i18n="step2.columns.trnas">tRNAs</th>
+                            <th class="px-3 py-2 text-center" data-col="source" data-i18n="step2.columns.source">Source</th>
+                            <th class="px-3 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Step 3: Feature Types -->
+        <section id="featureTypesSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <h3 class="text-base font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span id="step3-badge" class="step-badge badge-optional">3</span>
+                <i class="fa-solid fa-layer-group text-splace-blue-600"></i>
+                <span data-i18n="step.3">Feature Types</span>
+            </h3>
+            <div class="bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2 mb-3 text-splace-blue-800 flex items-start gap-2">
+                <i class="fa-solid fa-tag mt-0.5 flex-shrink-0 text-splace-blue-500"></i>
+                <span>
+                    <span data-i18n="step3.standardized.prefix">Gene names have been standardized using</span>
+                    <strong class="citation-ref" data-citation-key="syngenes" data-i18n="step3.standardized.link" data-i18n-tooltip="step3.standardized.citation" data-tippy-content="Rabelo et al. (2024). SynGenes: a Python class for standardizing nomenclatures of mitochondrial and chloroplast genes. BMC Bioinformatics 25:160.">SynGenes (Rabelo et al. 2024)</strong><span data-i18n="step3.standardized.suffix">.</span>
+                </span>
+            </div>
+            <div id="featureTypesList" class="flex flex-wrap gap-4"></div>
+        </section>
+
+        <!-- Step 4: Available Genes -->
+        <section id="genesSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
+                    <span id="step4-badge" class="step-badge badge-required">4</span>
+                    <i class="fa-solid fa-barcode text-splace-blue-600"></i>
+                    <span data-i18n="step.4">Select Markers</span>
+                </h3>
+                <div class="flex flex-wrap gap-2">
+                    <button id="selectAllGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors text-sm" type="button" data-i18n="step4.tooltip.all" data-i18n-attr="data-tippy-content" data-tippy-content="Select every visible marker"><span data-i18n="step4.action.all">Select All</span></button>
+                    <button id="selectNoneGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors text-sm" type="button" data-i18n="step4.tooltip.none" data-i18n-attr="data-tippy-content" data-tippy-content="Clear every selected marker"><span data-i18n="step4.action.none">None</span></button>
+                    <button id="selectCompleteGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors text-sm" data-i18n="step4.tooltip.complete" data-i18n-attr="data-tippy-content" data-tippy-content="Select only genes present in all genomes (no missing data)" type="button"><span data-i18n="step4.action.complete">Complete</span></button>
+                    <button id="selectDefaultGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors text-sm" data-i18n="step4.tooltip.default" data-i18n-attr="data-tippy-content" data-tippy-content="Select the default gene set for phylogenetic analysis" type="button"><span data-i18n="step4.action.default">Default to Phylogeny</span></button>
+                </div>
+            </div>
+            <div id="genesList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div>
+            <div id="geneMissingWarnings" class="mt-4 hidden"></div>
+            <div id="geneDuplicateWarnings" class="mt-4 hidden"></div>
+        </section>
+
+        <!-- Heatmap (visual extension of step 4) -->
+        <section id="heatmapSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
+                    <i class="fa-solid fa-th text-splace-blue-600"></i>
+                    <span data-i18n="step4.heatmap.title">Gene Presence Heatmap</span>
+                </h3>
+                <div class="flex items-center gap-4 text-sm">
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm" style="background:#4676b4;"></span> <span data-i18n="step4.heatmap.present">Present</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm" style="background:#f26c41;"></span> <span data-i18n="step4.heatmap.absent">Absent</span>
+                    </span>
+                </div>
+            </div>
+            <div id="heatmapContainer" class="overflow-x-auto overflow-y-auto max-h-96" style="cursor:grab;"></div>
+        </section>
+
+        <!-- Step 5 (Web): Download FASTA -->
+        <section id="downloadSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                <span id="step6-web-badge" class="step-badge badge-optional">5</span>
+                <i class="fa-solid fa-download text-splace-blue-600"></i>
+                <span data-i18n="step.5.web">Export FASTA Files</span>
+            </h3>
+            <button id="downloadBtn" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors text-center" type="button">
+                <i class="fa-solid fa-download mr-2"></i> <span data-i18n="step5.web.downloadBtn">Download FASTA Files</span>
+            </button>
+
+            <div class="mt-4 bg-splace-blue-50 border border-splace-blue-200 rounded-xl px-4 py-4">
+                <div class="flex items-start gap-3">
+                    <i class="fa-solid fa-desktop text-splace-blue-600 mt-0.5 flex-shrink-0 text-lg"></i>
+                    <div class="space-y-2">
+                        <p class="font-semibold text-splace-blue-900" data-i18n="step5.web.pipeline.title">Want the full pipeline?</p>
+                        <p class="text-splace-blue-800" data-i18n="step5.web.pipeline.body">To align sequences, run trimAl, concatenate genes, and perform phylogenetic inference, we recommend downloading <strong>SPLACE Desktop</strong>.</p>
+                        <a href="https://github.com/luanrabelo/splace/releases" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-2 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors mt-1">
+                            <i class="fa-brands fa-github"></i> <span data-i18n="step5.web.pipeline.cta">Download SPLACE Desktop</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div id="citationsWeb"></div>
+        </section>
+
+        <!-- Step 5 (Desktop): Sequence Alignment -->
+        <section id="nextStepSection" class="hidden space-y-4">
+            <div class="flex items-center gap-2">
+                <span id="step6-desktop-badge" class="step-badge badge-required">5</span>
+                <span class="text-base font-semibold text-gray-700">
+                    <i class="fa-solid fa-align-left text-splace-blue-600 mr-1"></i>
+                    <span data-i18n="step.5.desktop">Sequence Alignment</span>
+                </span>
+            </div>
+
+            <div id="panel6a" class="bg-white rounded-xl border border-gray-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span id="step6a-badge" class="step-badge badge-required">5a</span>
+                    <h3 class="text-base font-semibold text-gray-700" data-i18n="step5.header.panelTitle">Configure FASTA Header</h3>
+                </div>
+                <p class="text-sm text-gray-500 mb-3" data-i18n="step5.header.panelBody">Define the sequence identifier format for the alignment files. You must confirm the header before proceeding.</p>
+                <button id="openHeaderBuilderBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-4 py-2.5 rounded-xl text-base font-medium transition-colors" type="button">
+                    <i class="fa-solid fa-pen-ruler mr-2"></i> <span data-i18n="step5.header.openBtn">Open Header Builder</span>
+                </button>
+                <div id="headerPreviewInline" class="mt-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono text-xs text-gray-600 break-all hidden"></div>
+            </div>
+
+            <div id="panel6b" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <span id="step6b-badge" class="step-badge badge-optional">5b</span>
+                    <h3 class="text-base font-semibold text-gray-700" data-i18n="step5.mafft.title">MAFFT Settings</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1" data-i18n="step5.mafft.method">Alignment Method</label>
+                        <select id="mafftMethod" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
+                            <option value="--auto" data-i18n="step5.mafft.method.auto">--auto (automatic, recommended)</option>
+                            <option value="--localpair" data-i18n="step5.mafft.method.localpair">--localpair (L-INS-i, most accurate, slow)</option>
+                            <option value="--globalpair" data-i18n="step5.mafft.method.globalpair">--globalpair (G-INS-i, global, slow)</option>
+                            <option value="--genafpair" data-i18n="step5.mafft.method.genafpair">--genafpair (E-INS-i, long gaps, slow)</option>
+                            <option value="--retree 2 --reorder" data-i18n="step5.mafft.method.retree2">--retree 2 (FFT-NS-2, fast)</option>
+                            <option value="--retree 1" data-i18n="step5.mafft.method.retree1">--retree 1 (FFT-NS-1, fastest)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.mafft.maxiterate">Max Iterations</span> <span class="text-gray-400 font-normal">(--maxiterate)</span></label>
+                        <input type="number" id="mafftMaxIterate" value="0" min="0" max="1000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                        <p class="text-xs text-gray-400 mt-0.5" data-i18n="step5.mafft.maxiterate.help">0 = no refinement; 1000 = max</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.mafft.threads">Threads</span> <span class="text-gray-400 font-normal" data-i18n="step5.mafft.threads.help">(per job)</span></label>
+                        <input type="number" id="mafftThreads" value="4" min="1" max="64" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                        <p id="mafftConcurrencyInfo" class="text-xs text-gray-400 mt-0.5" data-i18n="step5.mafft.concurrency.calculating">Calculating…</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.mafft.gapOpening">Gap Opening</span> <span class="text-gray-400 font-normal">(--op)</span></label>
+                        <input type="number" id="mafftOp" value="1.53" min="0" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.mafft.gapExtension">Gap Extension</span> <span class="text-gray-400 font-normal">(--ep)</span></label>
+                        <input type="number" id="mafftEp" value="0.0" min="0" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                    </div>
+                    <div class="md:col-span-2 flex flex-wrap gap-4 pt-1">
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
+                            <input type="checkbox" id="mafftAdjustDir" class="text-splace-blue-600 rounded">
+                            --adjustdirection <span class="text-xs text-gray-400" data-i18n="step5.mafft.adjustdirection.help">(auto reverse complement)</span>
+                        </label>
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
+                            <input type="checkbox" id="mafftReorder" class="text-splace-blue-600 rounded">
+                            --reorder <span class="text-xs text-gray-400" data-i18n="step5.mafft.reorder.help">(sort by similarity)</span>
+                        </label>
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-base text-gray-700">
+                            <input type="checkbox" id="mafftPreserveCase" class="text-splace-blue-600 rounded">
+                            <span data-i18n="step5.mafft.preservecase">--preservecase</span>
+                        </label>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.mafft.extra">Additional Parameters</span> <span class="font-normal text-gray-400" data-i18n="step5.optional">(optional)</span></label>
+                        <input type="text" id="mafftExtra" placeholder="e.g. --nomemsave" data-i18n="step5.mafft.extra.placeholder" data-i18n-attr="placeholder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none font-mono">
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel6c" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
+                <div class="flex items-center gap-2 mb-3">
+                    <span id="step6c-badge" class="step-badge badge-required">5c</span>
+                    <h3 class="text-base font-semibold text-gray-700" data-i18n="step5.run.title">Run Alignment</h3>
+                </div>
+                <p class="text-sm text-gray-500 mb-3" data-i18n="step5.run.body">
+                    Align all selected markers with MAFFT. Output is saved automatically to <code class="bg-gray-100 px-1 rounded">Documents/SPLACE_&lt;date&gt;/</code>.
+                </p>
+                <button id="runAlignmentBtn" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors" type="button">
+                    <i class="fa-solid fa-play mr-2"></i> <span data-i18n="step5.run.button">Run MAFFT Alignment</span>
+                </button>
+            </div>
+
+            <div id="trimalPromptCard" class="hidden bg-splace-blue-50 border border-splace-blue-200 rounded-xl p-5">
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-splace-blue-100 flex items-center justify-center">
+                        <i class="fa-solid fa-scissors text-splace-blue-600 text-base"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-base font-semibold text-splace-blue-800 mb-1" data-i18n="step5.trimal.prompt.title">Alignment complete — trim poorly-aligned regions?</h3>
+                        <p class="text-sm text-splace-blue-700 mb-3" data-i18n="step5.trimal.prompt.body">trimAl removes columns with excessive gaps or low conservation, improving phylogenetic inference quality.</p>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button id="trimalNoBtn" class="flex-1 px-4 py-2 rounded-xl border border-splace-blue-300 text-splace-blue-700 text-base font-medium hover:bg-splace-blue-100 transition-colors" type="button">
+                                <i class="fa-solid fa-xmark mr-1"></i> <span data-i18n="step5.trimal.prompt.no">No, skip trimming</span>
+                            </button>
+                            <button id="trimalYesBtn" class="flex-1 px-4 py-2 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button">
+                                <i class="fa-solid fa-scissors mr-1"></i> <span data-i18n="step5.trimal.prompt.yes">Yes, run trimAl</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel6d" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <span id="step6d-badge" class="step-badge badge-optional">5d</span>
+                    <h3 class="text-base font-semibold text-gray-700" data-i18n="step5.trimal.title">trimAl Settings</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1" data-i18n="step5.trimal.mode">Trimming Mode</label>
+                        <select id="trimalMode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white" onchange="toggleTrimalManual(this.value)">
+                            <option value="-automated1" data-i18n="step5.trimal.mode.automated1">-automated1 (heuristic, recommended)</option>
+                            <option value="-strict" data-i18n="step5.trimal.mode.strict">-strict (strict automated)</option>
+                            <option value="-strictplus" data-i18n="step5.trimal.mode.strictplus">-strictplus (strict+)</option>
+                            <option value="-gappyout" data-i18n="step5.trimal.mode.gappyout">-gappyout (remove gappy columns)</option>
+                            <option value="-nogaps" data-i18n="step5.trimal.mode.nogaps">-nogaps (remove all gap columns)</option>
+                            <option value="-noallgaps" data-i18n="step5.trimal.mode.noallgaps">-noallgaps (only all-gap columns)</option>
+                            <option value="manual" data-i18n="step5.trimal.mode.manual">Manual thresholds</option>
+                        </select>
+                    </div>
+                    <div id="trimalManualFields" class="md:col-span-2 hidden grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.gapThreshold">Gap Threshold</span> <span class="text-gray-400">(-gt, 0–1)</span></label>
+                            <input type="number" id="trimalGt" value="0.9" min="0" max="1" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                            <p class="text-xs text-gray-400 mt-0.5" data-i18n="step5.trimal.gapThreshold.help">Max fraction of gaps per column</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.similarity">Similarity</span> <span class="text-gray-400">(-st, 0–1)</span></label>
+                            <input type="number" id="trimalSt" min="0" max="1" step="0.01" placeholder="Optional" data-i18n="step5.optionalLabel" data-i18n-attr="placeholder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.consistency">Consistency</span> <span class="text-gray-400">(-cons, 0–100)</span></label>
+                            <input type="number" id="trimalCons" min="0" max="100" step="1" placeholder="Optional" data-i18n="step5.optionalLabel" data-i18n-attr="placeholder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.window">Window Size</span> <span class="text-gray-400">(-w)</span></label>
+                            <input type="number" id="trimalW" min="1" step="1" placeholder="Optional" data-i18n="step5.optionalLabel" data-i18n-attr="placeholder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none">
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.extra">Additional Parameters</span> <span class="font-normal text-gray-400" data-i18n="step5.optional">(optional)</span></label>
+                        <input type="text" id="trimalExtra" placeholder="e.g. -colnumbering" data-i18n="step5.trimal.extra.placeholder" data-i18n-attr="placeholder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none font-mono">
+                    </div>
+                </div>
+                <button id="runTrimalBtn" class="w-full mt-4 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors" type="button">
+                    <i class="fa-solid fa-scissors mr-2"></i> <span data-i18n="step5.trimal.run">Run trimAl</span>
+                </button>
+            </div>
+
+            <div id="alignmentResults" class="hidden space-y-4">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="step-badge badge-done" style="font-size:0.7rem;">✓</span>
+                        <span class="text-base font-semibold text-gray-700" data-i18n="step5.results.title">Alignment Results</span>
+                    </div>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <button id="showTrimalBtn" class="text-sm bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-2.5 py-1 rounded-lg font-medium transition-colors hidden" type="button">
+                            <i class="fa-solid fa-scissors mr-1"></i> <span data-i18n="step5.results.runTrimal">Run trimAl</span>
+                        </button>
+                        <div class="flex items-center gap-3 text-sm text-gray-600">
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#1AC253"></span>A</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#E11218"></span>T/U</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#ECA918"></span>G</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#4272EE"></span>C</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-gray-200"></span>—</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="alignmentResultsAccordion" class="space-y-2"></div>
+            </div>
+
+            <!-- Step 6: Concatenate -->
+            <div id="concatSection" class="step-section hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+                <div class="flex items-center gap-3">
+                    <span class="step-badge badge-pending" id="step-concat-badge">6</span>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800" data-i18n="step.6">Concatenate &amp; Generate NEXUS</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">Build a supermatrix from aligned genes and export for phylogenetic analysis.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div id="concatTrimmedOption">
+                        <label class="flex items-start gap-3 p-3 rounded-xl border-2 border-splace-blue-500 bg-splace-blue-50 cursor-pointer">
+                            <input type="radio" name="concatSource" id="concatUseTrimmedYes" class="mt-0.5 text-splace-blue-600" checked>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-800">Trimmed sequences <span class="text-splace-blue-600 text-sm">(recommended)</span></p>
+                                <p class="text-sm text-gray-500 mt-0.5">Use trimAl output — removes poorly aligned positions.</p>
+                            </div>
+                        </label>
+                    </div>
+                    <label class="flex items-start gap-3 p-3 rounded-xl border-2 border-gray-200 cursor-pointer">
+                        <input type="radio" name="concatSource" id="concatUseTrimmedNo" class="mt-0.5 text-splace-blue-600">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Aligned sequences</p>
+                            <p class="text-sm text-gray-500 mt-0.5">Use MAFFT output without trimming.</p>
                         </div>
                     </label>
                 </div>
-                <label class="flex items-start gap-3 p-3 rounded-xl border-2 border-gray-200 cursor-pointer">
-                    <input type="radio" name="concatSource" id="concatUseTrimmedNo" class="mt-0.5 text-splace-blue-600">
+
+                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                    <input type="checkbox" id="concatAllowMissing" class="rounded text-splace-blue-600">
                     <div>
-                        <p class="text-xs font-semibold text-gray-800">Aligned sequences</p>
-                        <p class="text-xs text-gray-500 mt-0.5">Use MAFFT output without trimming.</p>
+                        <p class="text-sm font-semibold text-gray-800">Allow missing sequences</p>
+                        <p class="text-sm text-gray-500">If unchecked, species missing any gene are <strong>excluded</strong> from the matrix. If checked, missing genes are filled with <code class="bg-gray-200 px-1 rounded">?</code>.</p>
                     </div>
                 </label>
-            </div>
 
-            <!-- Allow missing -->
-            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
-                <input type="checkbox" id="concatAllowMissing" class="rounded text-splace-blue-600">
                 <div>
-                    <p class="text-xs font-semibold text-gray-800">Allow missing sequences</p>
-                    <p class="text-xs text-gray-500">If unchecked, species missing any gene are <strong>excluded</strong> from the matrix. If checked, missing genes are filled with <code class="bg-gray-200 px-1 rounded">?</code>.</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-1.5">
+                        <i class="fa-solid fa-tree-deciduous text-splace-blue-500 mr-1"></i>
+                        Outgroup(s) — select species for rooting
+                    </p>
+                    <input id="outgroupSearch" type="text" placeholder="Search species…"
+                        oninput="filterOutgroups()"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500">
+                    <div id="outgroupList" class="border border-gray-200 rounded-xl overflow-y-auto max-h-44 bg-white divide-y divide-gray-100"></div>
                 </div>
-            </label>
 
-            <!-- Outgroup selector -->
-            <div>
-                <p class="text-xs font-semibold text-gray-700 mb-1.5">
-                    <i class="fa-solid fa-tree-deciduous text-splace-blue-500 mr-1"></i>
-                    Outgroup(s) — select species for rooting
-                </p>
-                <input id="outgroupSearch" type="text" placeholder="Search species…"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs mb-2 focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500">
-                <div id="outgroupList" class="border border-gray-200 rounded-xl overflow-y-auto max-h-44 bg-white divide-y divide-gray-100"></div>
+                <div id="concatMissingWarning" class="hidden text-sm rounded-lg px-3 py-2 border"></div>
+
+                <button onclick="generateNexus()"
+                    class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-base font-semibold transition-colors" type="button">
+                    <i class="fa-solid fa-table-cells-large mr-2"></i>Generate NEXUS &amp; Partition Table
+                </button>
+
+                <div id="concatSummary" class="hidden text-sm text-gray-500 text-center"></div>
+                <div id="partitionTable" class="hidden rounded-xl border border-gray-200 overflow-hidden"></div>
             </div>
 
-            <!-- Warning -->
-            <div id="concatMissingWarning" class="hidden text-xs rounded-lg px-3 py-2 border"></div>
-
-            <!-- Generate button -->
-            <button onclick="generateNexus()"
-                class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-base font-semibold transition-colors">
-                <i class="fa-solid fa-table-cells-large mr-2"></i>Generate NEXUS &amp; Partition Table
-            </button>
-
-            <!-- Summary -->
-            <div id="concatSummary" class="hidden text-xs text-gray-500 text-center"></div>
-
-            <!-- Partition table -->
-            <div id="partitionTable" class="hidden rounded-xl border border-gray-200 overflow-hidden"></div>
-
-        <!-- ============================================================ -->
-        <!-- Step 7 — IQ-TREE3                                             -->
-        <!-- ============================================================ -->
-        <div id="iqtreeSection" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
-            <div class="flex items-center gap-3">
-                <span class="step-badge badge-pending text-xl px-4 py-4" id="step-iqtree-badge">7</span>
-                <div>
-                    <h2 class="text-base font-bold text-gray-800">Phylogenetic Inference with IQ-TREE3</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Maximum-likelihood tree estimation from the concatenated supermatrix.</p>
-                </div>
-            </div>
-
-            <!-- Model -->
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Substitution Model</label>
-                    <select id="iqtreeModel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-splace-blue-400"
-                        onchange="document.getElementById('iqtreeModelCustomRow').classList.toggle('hidden', this.value !== 'custom')">
-                        <option value="TEST">ModelFinder — auto best-fit (recommended)</option>
-                        <option value="GTR+G">GTR+G</option>
-                        <option value="GTR+G+I">GTR+G+I</option>
-                        <option value="HKY+G">HKY+G</option>
-                        <option value="custom">Custom…</option>
-                    </select>
-                    <div id="iqtreeModelCustomRow" class="hidden mt-2">
-                        <input id="iqtreeModelCustom" type="text" placeholder="e.g. GTR+R4"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-splace-blue-400">
+            <!-- Step 7: IQ-TREE -->
+            <div id="iqtreeSection" class="step-section hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+                <div class="flex items-center gap-3">
+                    <span class="step-badge badge-pending" id="step-iqtree-badge">7</span>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800" data-i18n="step.7">Phylogenetic Inference with IQ-TREE3</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">Maximum-likelihood tree estimation from the concatenated supermatrix.</p>
                     </div>
                 </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Substitution Model</label>
+                        <select id="iqtreeModel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400"
+                            onchange="document.getElementById('iqtreeModelCustomRow').classList.toggle('hidden', this.value !== 'custom'); updateIqtreeCommand()">
+                            <option value="TEST">ModelFinder — auto best-fit (recommended)</option>
+                            <option value="MFP+MERGE">MFP+MERGE — partition model finder</option>
+                            <option value="GTR+G">GTR+G</option>
+                            <option value="GTR+G+I">GTR+G+I</option>
+                            <option value="HKY+G">HKY+G</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <div id="iqtreeModelCustomRow" class="hidden mt-2">
+                            <input id="iqtreeModelCustom" type="text" placeholder="e.g. GTR+R4"
+                                oninput="updateIqtreeCommand()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-splace-blue-400">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Bootstrap Support</label>
+                        <select id="iqtreeBootstrap" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400" onchange="updateIqtreeCommand()">
+                            <option value="-B 1000">UFBoot2 — 1000 replicates (recommended)</option>
+                            <option value="-B 5000">UFBoot2 — 5000 replicates</option>
+                            <option value="-b 100">Classical bootstrap — 100 replicates (slow)</option>
+                            <option value="">No bootstrap</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Threads</label>
+                        <input id="iqtreeThreads" type="number" min="1" oninput="updateIqtreeCommand()"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Outgroup</label>
+                        <p id="iqtreeOutgroupLabel" class="text-sm text-gray-500 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 min-h-[34px]">None selected</p>
+                    </div>
+                </div>
+
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Bootstrap Support</label>
-                    <select id="iqtreeBootstrap" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-splace-blue-400">
-                        <option value="-B 1000">UFBoot2 — 1000 replicates (recommended)</option>
-                        <option value="-B 5000">UFBoot2 — 5000 replicates</option>
-                        <option value="-b 100">Classical bootstrap — 100 replicates (slow)</option>
-                        <option value="">No bootstrap</option>
-                    </select>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Extra flags <span class="font-normal text-gray-400">(space-separated)</span></label>
+                    <input id="iqtreeExtra" type="text" value="--alrt 1000 --bnni" placeholder="e.g. --alrt 1000 --bnni"
+                        oninput="updateIqtreeCommand()"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400">
+                </div>
+
+                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                    <input type="checkbox" id="iqtreePerGene" class="rounded text-splace-blue-600">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Also infer per-gene trees</p>
+                        <p class="text-sm text-gray-500">Run a separate IQ-TREE analysis for each gene (saved in <code class="bg-gray-200 px-1 rounded">gene_trees/</code>).</p>
+                    </div>
+                </label>
+
+                <div class="rounded-xl border border-splace-blue-200 bg-gray-900 overflow-hidden">
+                    <div class="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700">
+                        <span class="text-xs text-gray-400 font-mono"><i class="fa-solid fa-terminal mr-1.5"></i>Command preview</span>
+                        <button onclick="navigator.clipboard?.writeText(document.getElementById('iqtreeCommandPreview')?.textContent || '')"
+                            class="text-gray-400 hover:text-gray-200 transition-colors text-xs" data-tippy-content="Copy to clipboard" type="button">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                    <pre id="iqtreeCommandPreview" class="text-green-400 font-mono text-xs px-3 py-2 whitespace-pre-wrap break-all leading-5 select-all"></pre>
+                </div>
+
+                <button onclick="runIqtree()"
+                    class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-base font-semibold transition-colors" type="button">
+                    <i class="fa-solid fa-tree mr-2"></i>Run IQ-TREE3
+                </button>
+
+                <div id="iqtreeResults" class="hidden space-y-3 pt-2 border-t border-gray-100">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <p class="text-sm font-semibold text-gray-700"><i class="fa-solid fa-check-circle text-splace-blue-600 mr-1"></i>Analysis complete</p>
+                        <button onclick="saveIqtreeZip()"
+                            class="flex items-center gap-2 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors" type="button">
+                            <i class="fa-solid fa-file-zipper"></i> Save Results as ZIP
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-500">Output directory: <code id="iqtreeOutputDir" class="bg-gray-100 px-1 rounded font-mono text-xs"></code></p>
+                    <div id="iqtreeFileList" class="border border-gray-200 rounded-xl p-2 bg-gray-50 max-h-48 overflow-y-auto"></div>
+                    <div id="iqtreeGeneResults" class="hidden border border-gray-200 rounded-xl p-3 bg-gray-50"></div>
+                    <div id="citationsDesktop"></div>
                 </div>
             </div>
+        </section>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Threads</label>
-                    <input id="iqtreeThreads" type="number" min="1"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-splace-blue-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Outgroup</label>
-                    <p id="iqtreeOutgroupLabel" class="text-xs text-gray-500 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 min-h-[34px]">None selected</p>
-                </div>
-            </div>
+        <footer class="app-footer text-center py-6 text-xs text-gray-500">
+            SPLACE v4.0.0 · GPL-3.0 · Luan Rabelo &amp; Renato Moreira-Oliveira
+        </footer>
+    </main>
 
-            <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">Extra flags <span class="font-normal text-gray-400">(space-separated)</span></label>
-                <input id="iqtreeExtra" type="text" placeholder="e.g. --alrt 1000 --bnni"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-splace-blue-400">
-            </div>
-
-            <!-- Per-gene trees option -->
-            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
-                <input type="checkbox" id="iqtreePerGene" class="rounded text-splace-blue-600">
-                <div>
-                    <p class="text-xs font-semibold text-gray-800">Also infer per-gene trees</p>
-                    <p class="text-xs text-gray-500">Run a separate IQ-TREE analysis for each gene (saved in <code class="bg-gray-200 px-1 rounded">gene_trees/</code>). Uses the same model and bootstrap settings.</p>
-                </div>
-            </label>
-
-            <button onclick="runIqtree()"
-                class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-base font-semibold transition-colors">
-                <i class="fa-solid fa-tree mr-2"></i>Run IQ-TREE3
-            </button>
-
-            <!-- IQ-TREE results (shown after run) -->
-            <div id="iqtreeResults" class="hidden space-y-3 pt-2 border-t border-gray-100">
-                <div class="flex items-center justify-between">
-                    <p class="text-xs font-semibold text-gray-700"><i class="fa-solid fa-check-circle text-green-500 mr-1"></i>Analysis complete</p>
-                    <button onclick="saveIqtreeZip()"
-                        class="flex items-center gap-2 bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors">
-                        <i class="fa-solid fa-file-zipper"></i> Save Results as ZIP
-                    </button>
-                </div>
-                <p class="text-xs text-gray-500">Output directory: <code id="iqtreeOutputDir" class="bg-gray-100 px-1 rounded font-mono text-xs"></code></p>
-                <div id="iqtreeFileList" class="border border-gray-200 rounded-xl p-2 bg-gray-50 max-h-48 overflow-y-auto"></div>
-                <div id="iqtreeGeneResults" class="hidden border border-gray-200 rounded-xl p-3 bg-gray-50"></div>
+    <!-- Logs drawer -->
+    <aside class="app-logs" role="complementary" aria-label="Activity log">
+        <div class="logs-header">
+            <i class="fa-solid fa-rectangle-list" style="color: var(--accent);"></i>
+            <h2 data-i18n="logs.title">Activity log</h2>
+            <div class="logs-toolbar">
+                <button id="logsCopyBtn" data-tippy-content="Copy all" type="button"><i class="fa-regular fa-copy"></i></button>
+                <button id="logsDownloadBtn" data-tippy-content="Download as .txt" type="button"><i class="fa-solid fa-download"></i></button>
+                <button id="logsClearBtn" data-tippy-content="Clear" type="button"><i class="fa-solid fa-broom"></i></button>
+                <button id="logsCollapseBtn" data-tippy-content="Hide" type="button"><i class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
+        <div id="logsBody" class="logs-body" aria-live="polite">
+            <div class="logs-empty">
+                <i class="fa-solid fa-bars-staggered"></i>
+                <p data-i18n="logs.empty"></p>
+            </div>
+        </div>
+    </aside>
+</div>
 
-    </section>
+<!-- ================================================================== -->
+<!-- MODALS — preserved as-is (splace.js depends on these IDs)          -->
+<!-- ================================================================== -->
 
-</main>
-
-<!-- IQ-TREE Progress Modal -->
 <div id="iqtreeModal" class="fixed inset-0 z-50 hidden">
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative">
-            <div class="flex items-center gap-3 mb-4">
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex flex-col p-4 md:p-6">
+        <div class="bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col overflow-hidden">
+            <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 flex-shrink-0">
                 <div class="w-10 h-10 rounded-full bg-splace-blue-50 flex items-center justify-center flex-shrink-0">
                     <i id="iqtreeModalIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg"></i>
                 </div>
                 <div>
-                    <h3 id="iqtreeModalTitle" class="text-2xl font-semibold text-gray-800">Running IQ-TREE…</h3>
-                    <p class="text-base text-gray-500 mt-0.5">This may take a few minutes depending on dataset size.</p>
+                    <h3 id="iqtreeModalTitle" class="text-xl font-semibold text-gray-800">Running IQ-TREE…</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">This may take a few minutes depending on dataset size.</p>
                 </div>
             </div>
-            <div class="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 max-h-64 overflow-y-auto whitespace-pre-wrap mb-4" id="iqtreeModalLog"></div>
-            <button id="iqtreeModalClose" class="hidden w-full px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors">
-                <i class="fa-solid fa-check mr-1"></i> Done
-            </button>
+            <div class="flex-1 overflow-y-auto bg-gray-900 p-4">
+                <pre class="text-green-400 font-mono text-sm whitespace-pre-wrap leading-relaxed" id="iqtreeModalLog"></pre>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex-shrink-0">
+                <button id="iqtreeModalClose" class="hidden w-full px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button">
+                    <i class="fa-solid fa-check mr-1"></i> Done
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Analysis Progress Modal (Electron) -->
 <div id="analysisModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative">
-
-            <!-- Phase header -->
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-splace-blue-50 flex items-center justify-center flex-shrink-0">
-                    <i id="analysisModalIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg"></i>
+    <div class="fixed inset-0 p-3 sm:p-4">
+        <div class="analysis-modal-shell bg-white rounded-2xl shadow-2xl relative">
+            <section class="analysis-modal-main">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-splace-blue-50 flex items-center justify-center flex-shrink-0">
+                        <i id="analysisModalIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 id="analysisModalTitle" class="text-xl font-semibold text-gray-800">Running…</h3>
+                        <p id="analysisModalSubtitle" class="text-sm text-gray-500 mt-0.5"></p>
+                    </div>
                 </div>
-                <div>
-                    <h3 id="analysisModalTitle" class="text-2xl font-semibold text-gray-800">Running…</h3>
-                    <p id="analysisModalSubtitle" class="text-base text-gray-500 mt-0.5"></p>
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm text-gray-500 mb-1">
+                        <span id="analysisModalProgressLabel">0 / 0 markers</span>
+                        <span id="analysisModalProgressPct">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2.5 rounded-full transition-all duration-300" style="width:0%"></div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Overall progress bar -->
-            <div class="mb-4">
-                <div class="flex justify-between text-base text-gray-500 mb-1">
-                    <span id="analysisModalProgressLabel">0 / 0 markers</span>
-                    <span id="analysisModalProgressPct">0%</span>
+                <div class="analysis-modal-marker-panel">
+                    <div class="analysis-modal-section-head">
+                        <div>
+                            <h4 class="analysis-modal-section-title">Markers in queue</h4>
+                            <p class="analysis-modal-section-copy">Track each marker while MAFFT runs.</p>
+                        </div>
+                    </div>
+                    <div id="analysisModalMarkerList" class="analysis-modal-marker-list"></div>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2.5 rounded-full transition-all duration-300" style="width:0%"></div>
-                </div>
-            </div>
 
-            <!-- Per-marker status list -->
-            <div id="analysisModalMarkerList" class="max-h-52 overflow-y-auto space-y-1 mb-4 rounded-lg border border-gray-100 p-2 bg-gray-50"></div>
+                <button id="analysisModalClose" class="hidden analysis-modal-close-btn" type="button">
+                    <i class="fa-solid fa-check mr-1"></i> Done
+                </button>
+            </section>
 
-            <!-- Log (collapsible) -->
-            <details class="mb-2">
-                <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">
-                    <i class="fa-solid fa-terminal mr-1"></i> Show log
-                </summary>
-                <div id="analysisModalLog" class="mt-2 bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 max-h-32 overflow-y-auto whitespace-pre-wrap"></div>
-            </details>
-
-            <!-- Close button (only shown when done) -->
-            <button id="analysisModalClose" class="hidden w-full mt-2 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors">
-                <i class="fa-solid fa-check mr-1"></i> Done
-            </button>
+            <aside class="analysis-modal-log-panel" aria-label="Analysis log">
+                <div id="analysisModalLog" class="analysis-modal-log"></div>
+            </aside>
         </div>
     </div>
 </div>
 
-<!-- Clear All Confirmation Modal -->
 <div id="clearModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="clearModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
@@ -979,18 +1116,17 @@
                 <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
                     <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
                 </div>
-                <h3 class="text-2xl font-semibold text-gray-800">Clear all records?</h3>
-                <p class="text-xl text-gray-500 mt-2">This action cannot be undone. All loaded records and selections will be removed.</p>
+                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.clear.title">Clear all records?</h3>
+                <p class="text-sm text-gray-500 mt-2" data-i18n="modal.clear.body">This action cannot be undone. All loaded records and selections will be removed.</p>
             </div>
             <div class="flex gap-3">
-                <button id="clearModalCancel" class="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-base font-medium hover:bg-gray-50 transition-colors">Cancel</button>
-                <button id="clearModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors">Clear all</button>
+                <button id="clearModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
+                <button id="clearModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.clear.confirm">Clear all</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Skip Taxonomy Warning Modal -->
 <div id="skipTaxonomyModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-2xl" onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
@@ -999,21 +1135,20 @@
                 <div class="mx-auto w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mb-3">
                     <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i>
                 </div>
-                <h3 class="text-2xl font-semibold text-gray-800">Skip taxonomy review?</h3>
-                <div class="text-xl text-gray-500 mt-3 space-y-2 text-justify-center">
-                    <p>If species names contain <strong class="text-gray-700">special characters</strong> or there are <strong class="text-gray-700">duplicate entries</strong>, errors may occur in future analyses.</p>
-                    <p>It is recommended to correct species names and fetch taxonomy for best results.</p>
+                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.skiptax.title">Skip taxonomy review?</h3>
+                <div class="text-sm text-gray-500 mt-3 space-y-2 text-center">
+                    <p data-i18n="modal.skiptax.body1">If species names contain <strong class="text-gray-700">special characters</strong> or there are <strong class="text-gray-700">duplicate entries</strong>, errors may occur in future analyses.</p>
+                    <p data-i18n="modal.skiptax.body2">It is recommended to correct species names and fetch taxonomy for best results.</p>
                 </div>
             </div>
-            <div class="flex gap-3">
-                <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-base font-medium transition-colors hover:bg-green-50 transition-colors">Review now</button>
-                <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden'); proceedToAnalysis();" class="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-medium transition-colors">Proceed anyway</button>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.skiptax.review">Review now</button>
+                <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden'); proceedToAnalysis();" class="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.skiptax.proceed">Proceed anyway</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Remove Record Confirmation Modal -->
 <div id="removeModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="removeModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
@@ -1022,216 +1157,325 @@
                 <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
                     <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
                 </div>
-                <h3 class="text-2xl font-semibold text-gray-800">Remove record?</h3>
-                <p id="removeModalText" class="text-xl text-gray-500 mt-2">This action cannot be undone.</p>
+                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.remove.title">Remove record?</h3>
+                <p id="removeModalText" class="text-sm text-gray-500 mt-2" data-i18n="modal.remove.body">This action cannot be undone.</p>
             </div>
             <div class="flex gap-3">
-                <button id="removeModalCancel" class="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-base font-medium hover:bg-gray-50 transition-colors">Cancel</button>
-                <button id="removeModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors">Remove</button>
+                <button id="removeModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
+                <button id="removeModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.remove.confirm">Remove</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Edit Record Modal -->
 <div id="editModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="editModalOverlay"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto">
+    <div class="fixed inset-0 flex items-center justify-center p-3">
+        <div class="bg-white rounded-2xl shadow-xl w-full h-full p-6 relative overflow-y-auto">
             <div class="mb-4">
-                <h3 class="text-2xl font-semibold text-gray-800">
-                    <i class="fa-solid fa-pen-to-square text-splace-blue-600 mr-2"></i>Edit Record
+                <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                    <i class="fa-solid fa-pen-to-square text-splace-blue-600 mr-2"></i><span data-i18n="modal.edit.title">Edit Record</span>
                 </h3>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="modal.edit.fullscreenHint">Review the current record and update species and taxonomy fields below.</p>
             </div>
-
-            <!-- Record Info (read-only) -->
-            <div class="bg-gray-50 rounded-lg p-3 mb-4 text-base text-gray-600">
+            <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm text-gray-600">
                 <div id="editModalInfo"></div>
             </div>
-
-            <!-- Editable Fields -->
             <div class="space-y-4">
-                <div>
-                    <label class="block text-base font-medium text-gray-700 mb-1">Species</label>
-                    <input type="text" id="editSpeciesInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none italic" placeholder="e.g., Rhinella marina">
-                    <p id="editSpeciesError" class="text-xs text-red-500 mt-1 hidden"></p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1"><span data-i18n="modal.edit.genus">Genus</span> <span class="text-gray-400 font-normal" data-i18n="modal.edit.genus.auto">(auto)</span></label>
+                        <input type="text" id="editGenusDisplay" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base bg-gray-50 text-gray-500 outline-none italic" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.species">Species</label>
+                        <input type="text" id="editSpeciesInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none italic" placeholder="e.g., Rhinella marina">
+                        <p id="editSpeciesError" class="text-xs text-red-500 mt-1 hidden"></p>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-base font-medium text-gray-700 mb-1">Genus <span class="text-gray-400 font-normal">(auto)</span></label>
-                    <input type="text" id="editGenusDisplay" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base bg-gray-50 text-gray-500 outline-none italic" readonly>
-                </div>
-
-                <!-- GBIF Fetch Button -->
-                <div>
-                    <button id="editGbifBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-3 py-2 rounded-lg text-base font-medium transition-colors disabled:opacity-50" disabled data-tippy-content="Auto-fill taxonomy ranks from GBIF using dataFishing (Rabelo et al. 2025)">
-                        <i class="fa-solid fa-globe mr-1"></i> Fetch Taxonomy from GBIF
+                    <button id="editGbifBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50" disabled data-citation-key="datafishing" data-tippy-content="Auto-fill taxonomy ranks from GBIF using dataFishing (Rabelo et al. 2025)" type="button">
+                        <i class="fa-solid fa-globe mr-1"></i> <span data-i18n="modal.edit.gbif">Fetch Taxonomy from GBIF</span>
                     </button>
                     <p id="editGbifStatus" class="text-xs text-gray-500 mt-1 hidden"></p>
                 </div>
-
-                <!-- Taxonomy Ranks (2-column grid) -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Kingdom</label>
-                        <input type="text" id="editKingdomInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none" placeholder="e.g., Animalia">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.kingdom">Kingdom</label>
+                        <input type="text" id="editKingdomInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Animalia">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Phylum</label>
-                        <input type="text" id="editPhylumInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none" placeholder="e.g., Chordata">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.phylum">Phylum</label>
+                        <input type="text" id="editPhylumInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Chordata">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Class</label>
-                        <input type="text" id="editClassInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none" placeholder="e.g., Amphibia">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.class">Class</label>
+                        <input type="text" id="editClassInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Amphibia">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Order</label>
-                        <input type="text" id="editOrderInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none" placeholder="e.g., Anura">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.order">Order</label>
+                        <input type="text" id="editOrderInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Anura">
                     </div>
                 </div>
-
                 <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Family</label>
-                    <input type="text" id="editFamilyInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none" placeholder="e.g., Bufonidae">
+                    <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.family">Family</label>
+                    <input type="text" id="editFamilyInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Bufonidae">
                     <p id="editFamilyError" class="text-xs text-red-500 mt-1 hidden"></p>
                 </div>
             </div>
-
             <div class="flex gap-3 mt-6">
-                <button id="editModalCancel" class="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-base font-medium hover:bg-gray-50 transition-colors">Cancel</button>
-                <button id="editModalSave" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors">Save</button>
+                <button id="editModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
+                <button id="editModalSave" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.edit.save">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Progress Modal -->
 <div id="progressModal" class="fixed inset-0 z-50 hidden">
-    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6">
-            <div class="text-center mb-4">
-                <div class="mx-auto w-12 h-12 rounded-full bg-splace-blue-50 flex items-center justify-center mb-3">
-                    <i id="progressIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-xl"></i>
+        <div class="progress-modal-card bg-white rounded-2xl shadow-xl max-w-5xl w-full overflow-hidden flex flex-col">
+            <div class="p-6 pb-5">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-splace-blue-50 flex items-center justify-center shrink-0 shadow-inner progress-modal-icon-wrap">
+                        <i id="progressIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-2xl"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h3 id="progressTitle" class="text-lg font-bold text-gray-800 leading-tight">Loading...</h3>
+                        <p id="progressSubtitle" class="text-sm text-gray-500 mt-0.5 font-medium"></p>
+                    </div>
                 </div>
-                <h3 id="progressTitle" class="text-2xl font-semibold text-gray-800">Loading...</h3>
-                <p id="progressSubtitle" class="text-xl text-gray-500 mt-1"></p>
+                <div id="progressDetail" class="progress-modal-detail"></div>
+                <div id="progressMetaGrid" class="progress-modal-meta-grid">
+                    <div class="progress-modal-meta-card">
+                        <span id="progressRateLabel" class="progress-modal-meta-label"></span>
+                        <strong id="progressRateValue" class="progress-modal-meta-value"></strong>
+                    </div>
+                    <div class="progress-modal-meta-card">
+                        <span id="progressApiLabel" class="progress-modal-meta-label"></span>
+                        <strong id="progressApiValue" class="progress-modal-meta-value"></strong>
+                    </div>
+                </div>
+                <div id="progressCurrentPanel" class="progress-modal-current">
+                    <span id="progressCurrentLabel" class="progress-modal-current-label"></span>
+                    <strong id="progressCurrentItem" class="progress-modal-current-value"></strong>
+                </div>
+                <div class="progress-modal-bar-track w-full bg-gray-100 rounded-full mb-2 overflow-hidden shadow-inner">
+                    <div id="progressBar" class="progress-modal-bar-fill bg-splace-blue-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-xs text-gray-400">
+                    <span id="progressStatusText" class="font-medium text-gray-500"></span>
+                    <span id="progressPercentage" class="font-bold">0%</span>
+                </div>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div id="progressBar" class="bg-splace-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <p id="progressDetail" class="text-xs text-gray-400 text-center"></p>
         </div>
     </div>
 </div>
 
-<!-- Header Builder Modal -->
+<div id="taxonomyImportModal" class="fixed inset-0 z-50 hidden">
+    <div id="taxonomyImportOverlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-3">
+        <div class="bg-white rounded-2xl shadow-xl w-full h-full overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-gray-100">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-full bg-splace-blue-50 flex items-center justify-center shrink-0 shadow-inner">
+                        <i class="fa-solid fa-filter-circle-dollar text-splace-blue-600 text-2xl"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h3 id="taxonomyImportTitle" class="text-lg font-bold text-gray-800 leading-tight" data-i18n="step1.review.title">Review genomes before importing</h3>
+                        <p id="taxonomyImportSubtitle" class="text-sm text-gray-500 mt-0.5" data-i18n="step1.review.subtitle">Choose which genomes should be imported. All switches start enabled.</p>
+                    </div>
+                </div>
+                <div id="taxonomyImportSummary" class="taxonomy-review-summary mt-4"></div>
+            </div>
+
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button id="taxonomyImportSelectAll" class="step1-filter-chip" type="button" data-i18n="step1.review.selectAll">Enable all</button>
+                    <button id="taxonomyImportSelectNone" class="step1-filter-chip" type="button" data-i18n="step1.review.selectNone">Disable all</button>
+                    <button id="taxonomyImportDisableUnverified" class="step1-filter-chip" type="button" data-i18n="step1.review.disableUnverified">Disable UNVERIFIED</button>
+                    <button id="taxonomyImportSelectComplete" class="step1-filter-chip" type="button" data-i18n="step1.review.selectComplete">Only complete</button>
+                    <button id="taxonomyImportSelectPartial" class="step1-filter-chip" type="button" data-i18n="step1.review.selectPartial">Only partial</button>
+                </div>
+                <div id="taxonomyImportSelectionCount" class="text-sm font-medium text-splace-blue-700"></div>
+            </div>
+
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-sm taxonomy-review-table">
+                    <thead class="sticky top-0 bg-white z-10">
+                        <tr class="text-left text-gray-500 tracking-wider border-b border-gray-200">
+                            <th class="px-4 py-3 w-28" data-i18n="step1.review.column.import">Import</th>
+                            <th class="px-4 py-3 w-36" data-i18n="step1.review.column.accession">Accession</th>
+                            <th class="px-4 py-3" data-i18n="step1.review.column.description">Genome description</th>
+                            <th class="px-4 py-3 w-40" data-i18n="step1.review.column.scope">Classification</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taxonomyImportTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="px-6 pt-4 pb-5 bg-white flex flex-col sm:flex-row gap-3 justify-end">
+                <button id="taxonomyImportCancel" class="px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white transition-colors" type="button" data-i18n="step1.review.cancel">Cancel</button>
+                <button id="taxonomyImportConfirm" class="px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" type="button" data-i18n="step1.review.importSelected">Import selected genomes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ncbiApiKeyModal" class="fixed inset-0 z-50 hidden">
+    <div id="ncbiApiKeyModalOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fa-solid fa-key text-splace-blue-600 mr-2"></i><span data-i18n="step1.api.label">NCBI API key</span>
+                </h3>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="step1.api.helper">Without an API key, imports run at about 3 requests per second. With a saved valid key, SPLACE uses up to 10 requests per second.</p>
+            </div>
+            <div class="step1-api-panel !mt-0">
+                <div class="step1-api-row">
+                    <input id="ncbiApiKeyInput" type="password" autocomplete="off" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-white" placeholder="NCBI API key">
+                    <button id="saveNcbiApiKeyBtn" class="step1-inline-btn" type="button">
+                        <i class="fa-solid fa-key mr-1"></i><span data-i18n="step1.api.save">Save key</span>
+                    </button>
+                    <button id="clearNcbiApiKeyBtn" class="step1-inline-btn step2-toolbar-btn-danger" type="button">
+                        <i class="fa-solid fa-trash mr-1"></i><span data-i18n="step1.api.clear">Clear key</span>
+                    </button>
+                </div>
+                <a href="https://account.ncbi.nlm.nih.gov/settings/" target="_blank" rel="noopener" class="step1-api-link">
+                    <i class="fa-solid fa-up-right-from-square mr-1"></i><span data-i18n="step1.api.getLink">Get an API key from your NCBI account settings</span>
+                </a>
+                <p id="ncbiApiKeyStatus" class="step1-api-status" data-i18n="step1.api.helper">Without an API key, imports run at about 3 requests per second. With a saved valid key, SPLACE uses up to 10 requests per second.</p>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button id="ncbiApiKeyModalClose" class="px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.close">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="clearNcbiApiKeyModal" class="fixed inset-0 z-50 hidden">
+    <div id="clearNcbiApiKeyModalOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
+            <div class="text-center mb-4">
+                <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
+                    <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.api.clear.title">Remove saved API key?</h3>
+                <p class="text-sm text-gray-500 mt-2" data-i18n="modal.api.clear.body">Option 1 and Option 2 will go back to the default NCBI request rate.</p>
+            </div>
+            <div class="flex gap-3">
+                <button id="clearNcbiApiKeyModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
+                <button id="clearNcbiApiKeyModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="step1.api.clear">Clear key</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="headerModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="headerModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto">
             <div class="mb-4">
-                <h3 class="text-2xl font-semibold text-gray-800">
-                    <i class="fa-solid fa-pen-ruler text-splace-blue-600 mr-2"></i>FASTA Header Builder
+                <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                    <i class="fa-solid fa-pen-ruler text-splace-blue-600 mr-2"></i><span data-i18n="modal.header.title">FASTA Header Builder</span>
                 </h3>
-                <p class="text-base text-gray-500 mt-1">Compose the header for your FASTA sequences by selecting and ordering the fields below.</p>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="modal.header.intro">Compose the header for your FASTA sequences by selecting and ordering the fields below.</p>
             </div>
-
-            <!-- Available Fields -->
             <div class="mb-4">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Available Fields</label>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2" data-i18n="modal.header.available">Available Fields</label>
                 <div id="headerAvailableFields" class="flex flex-wrap gap-2 min-h-[36px]"></div>
             </div>
-
-            <!-- Selected Fields (Header Composition) -->
             <div class="mb-4">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Header Composition <span class="font-normal normal-case">(drag to reorder)</span></label>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2"><span data-i18n="modal.header.composition">Header Composition</span> <span class="font-normal normal-case" data-i18n="modal.header.composition.hint">(drag to reorder)</span></label>
                 <div id="headerSelectedFields" class="flex flex-wrap gap-2 min-h-[36px] border-2 border-dashed border-gray-200 rounded-lg p-2"></div>
             </div>
-
-            <!-- Separator -->
             <div class="mb-4">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Separator</label>
-                <div class="flex gap-2">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2" data-i18n="modal.header.separator">Separator</label>
+                <div class="flex gap-2 flex-wrap">
                     <label class="inline-flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="headerSeparator" value="_" checked class="text-splace-blue-600 focus:ring-splace-blue-400">
-                        <span class="text-base text-gray-700">Underscore (_)</span>
+                        <span class="text-sm text-gray-700">Underscore (_)</span>
                     </label>
                     <label class="inline-flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="headerSeparator" value="|" class="text-splace-blue-600 focus:ring-splace-blue-400">
-                        <span class="text-base text-gray-700">Pipe (|)</span>
+                        <span class="text-sm text-gray-700">Pipe (|)</span>
                     </label>
                     <label class="inline-flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="headerSeparator" value="-" class="text-splace-blue-600 focus:ring-splace-blue-400">
-                        <span class="text-base text-gray-700">Dash (-)</span>
+                        <span class="text-sm text-gray-700">Dash (-)</span>
                     </label>
                 </div>
             </div>
-
-            <!-- Live Preview -->
             <div class="mb-4">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Preview</label>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2" data-i18n="modal.header.preview">Preview</label>
                 <div id="headerPreview" class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono text-xs text-gray-700 break-all min-h-[32px]">
                     &gt;Species_Accession
                 </div>
             </div>
-
-            <!-- Duplicate Warning -->
             <div id="headerDuplicateWarning" class="mb-4 hidden">
                 <div class="bg-splace-red-50 border border-splace-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
                     <i class="fa-solid fa-triangle-exclamation text-splace-red-600 mt-0.5"></i>
                     <div>
-                        <p class="text-base font-medium text-splace-red-700">Duplicate headers detected</p>
+                        <p class="text-sm font-medium text-splace-red-700" data-i18n="modal.header.duplicate.title">Duplicate headers detected</p>
                         <p id="headerDuplicateText" class="text-xs text-splace-red-600 mt-0.5"></p>
                     </div>
                 </div>
             </div>
-
-            <!-- Instructions -->
             <details class="mb-5">
                 <summary class="text-xs font-medium text-splace-blue-600 cursor-pointer hover:text-splace-blue-700">
-                    <i class="fa-solid fa-circle-info mr-1"></i> Instructions
+                    <i class="fa-solid fa-circle-info mr-1"></i> <span data-i18n="modal.header.instructions">Instructions</span>
                 </summary>
                 <div class="mt-2 text-xs text-gray-500 space-y-1.5 pl-4">
-                    <p><strong>1.</strong> Click on available fields to add them to the header composition.</p>
-                    <p><strong>2.</strong> Click on selected fields (blue) to remove them from the header.</p>
-                    <p><strong>3.</strong> Drag selected fields to reorder them.</p>
-                    <p><strong>4.</strong> Choose a separator character between fields.</p>
-                    <p><strong>5.</strong> The preview shows how the first record's header will appear.</p>
-                    <p><strong>6.</strong> If your field combination produces duplicate headers across records, a warning will appear and the download button will be disabled.</p>
-                    <p><strong>7.</strong> To ensure unique headers, include <em>Accession</em> (always unique) or combine enough fields to differentiate all records.</p>
+                    <p><strong>1.</strong> <span data-i18n="modal.header.instructions.1">Click on available fields to add them to the header composition.</span></p>
+                    <p><strong>2.</strong> <span data-i18n="modal.header.instructions.2">Click on selected fields (blue) to remove them from the header.</span></p>
+                    <p><strong>3.</strong> <span data-i18n="modal.header.instructions.3">Drag selected fields to reorder them.</span></p>
+                    <p><strong>4.</strong> <span data-i18n="modal.header.instructions.4">Choose a separator character between fields.</span></p>
+                    <p><strong>5.</strong> <span data-i18n="modal.header.instructions.5">The preview shows how the first record's header will appear.</span></p>
                 </div>
             </details>
-
-            <!-- Download Format -->
             <div class="mb-5">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Download Format</label>
-                <div class="flex gap-3">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2" data-i18n="modal.header.format">Download Format</label>
+                <div class="flex gap-3 flex-col sm:flex-row">
                     <label class="flex-1 inline-flex items-center gap-2 cursor-pointer border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors has-[:checked]:border-splace-blue-400 has-[:checked]:bg-splace-blue-50">
                         <input type="radio" name="downloadFormat" value="zip" checked class="text-splace-blue-600 focus:ring-splace-blue-400">
-                        <span class="text-base text-gray-700"><i class="fa-solid fa-file-zipper mr-1 text-gray-400"></i> ZIP Archive</span>
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-file-zipper mr-1 text-gray-400"></i> <span data-i18n="modal.header.format.zip">ZIP Archive</span></span>
                     </label>
                     <label class="flex-1 inline-flex items-center gap-2 cursor-pointer border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors has-[:checked]:border-splace-blue-400 has-[:checked]:bg-splace-blue-50">
                         <input type="radio" name="downloadFormat" value="individual" class="text-splace-blue-600 focus:ring-splace-blue-400">
-                        <span class="text-base text-gray-700"><i class="fa-solid fa-copy mr-1 text-gray-400"></i> Individual Files</span>
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-copy mr-1 text-gray-400"></i> <span data-i18n="modal.header.format.individual">Individual Files</span></span>
                     </label>
                 </div>
             </div>
-
             <div class="flex gap-3">
-                <button id="headerModalCancel" class="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-base font-medium hover:bg-gray-50 transition-colors">Cancel</button>
-                <button id="headerModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    <i class="fa-solid fa-download mr-1"></i> Download
+                <button id="headerModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
+                <button id="headerModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled type="button">
+                    <i class="fa-solid fa-download mr-1"></i> <span data-i18n="modal.header.download">Download</span>
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<footer class="text-center py-4 text-xs text-gray-600 font-sans">
-    SPLACE v4.0.0 | GPL-3.0 | Luan Rabelo and Renato Moreira-Oliveira
-</footer>
-
+<!-- ================================================================== -->
+<!-- Scripts (chrome FIRST so console capture is in place)              -->
+<!-- ================================================================== -->
+<script src="js/i18n/registry.js"></script>
+<script src="js/i18n/core.js"></script>
+<script src="js/i18n/splash.js"></script>
+<script src="js/i18n/step1.js"></script>
+<script src="js/i18n/step2.js"></script>
+<script src="js/i18n/step3.js"></script>
+<script src="js/i18n/step4.js"></script>
+<script src="js/i18n/step5.js"></script>
+<script src="js/i18n/step6.js"></script>
+<script src="js/i18n/step7.js"></script>
+<script src="chrome.js"></script>
+<script src="tooltips.js"></script>
+<script src="citations.js"></script>
 <script src="splace.js"></script>
+<script src="js/splash.js"></script>
 
 </body>
 </html>
