@@ -753,24 +753,30 @@ async function fetchMultiple(accessions, options = {}) {
         }
     );
 
+    let lastRequestAt = 0;
+
     for (let i = 0; i < accessions.length; i++) {
         const acc = accessions[i].trim();
         if (!acc) continue;
         const currentLabel = options.progressItems?.[acc] || acc;
         localStatusEl.textContent = `Fetching ${i + 1}/${accessions.length}: ${acc}...`;
         updateProgress(i + 1, accessions.length, currentLabel);
+        const wait = getNcbiFetchDelay() - (Date.now() - lastRequestAt);
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        lastRequestAt = Date.now();
         try {
             const record = await fetchAccession(acc);
             results.push(record);
-            await new Promise(r => setTimeout(r, getNcbiFetchDelay()));
+            console.log(`Fetched: ${record.organism || acc} (${record.accession || acc})`);
         } catch (e) {
-            // Error fetching record, skipped
+            console.error(`Failed to fetch ${acc}: ${e.message}`);
         }
     }
     localStatusEl.textContent = `Fetched ${results.length}/${accessions.length} records`;
     setTimeout(() => localStatusEl.classList.add("hidden"), 3000);
 
     hideProgress(`Loaded ${results.length} record${results.length !== 1 ? 's' : ''}`);
+    console.log(`NCBI fetch complete: ${results.length}/${accessions.length} records`);
 
     return results;
 }
@@ -1044,7 +1050,7 @@ function closeTaxonomyImportModal(selectedIds = null) {
 function openTaxonomyImportModal({ taxon, summaryHtml, candidates, searchDetails = [] }) {
     document.getElementById("taxonomyImportTitle").textContent = i18nText("step1.review.title");
     const searchDetailsHtml = searchDetails.length > 0
-        ? `<div class="taxonomy-review-meta">${searchDetails.map((detail) => `<span class="step1-filter-chip"><strong>${escHtml(detail.label)}:</strong> ${escHtml(detail.value)}</span>`).join("")}</div>`
+        ? `<div class="taxonomy-review-meta">${searchDetails.map((detail) => `<span class="step1-filter-chip">${escHtml(detail.label)}: <strong>${escHtml(detail.value)}</strong></span>`).join("")}</div>`
         : "";
     document.getElementById("taxonomyImportSubtitle").innerHTML = `${i18nText("step1.review.subtitle")}${searchDetailsHtml}`;
     const unverifiedCount = summarizeUnverifiedCandidates(candidates);
@@ -1810,6 +1816,13 @@ function renderGenes(genesByType) {
         }
     }
 
+    const countEl = document.getElementById("selectedMarkersCount");
+    if (countEl) {
+        const n = state.selectedGenes.size;
+        if (n > 0) { countEl.textContent = n; countEl.classList.remove("hidden"); }
+        else { countEl.classList.add("hidden"); }
+    }
+
     // Render heatmap
     renderHeatmap();
 }
@@ -2056,7 +2069,7 @@ window.removeRecord = function (index) {
     const r = state.records[index];
     const tax = extractTaxonomy(r);
     document.getElementById("removeModalText").innerHTML =
-        `Remove <em>${tax.genus} ${tax.species}</em> (${r.accession})? This action cannot be undone.`;
+        `Remove <strong><em>${tax.genus} ${tax.species}</em></strong> (${r.accession})? This action cannot be undone.`;
     document.getElementById("removeModal").classList.remove("hidden");
 };
 
@@ -2414,6 +2427,7 @@ async function fetchAllTaxonomy() {
     const errorSuffix = errorCount > 0 ? i18nText("step2.progress.doneErrors", { count: errorCount }) : "";
     const uniqueSuffix = totalUnique < totalRecords ? i18nText("step2.progress.doneUnique", { unique: totalUnique, records: totalRecords }) : "";
     hideProgress(i18nText("step2.progress.done", { success: successCount, errors: errorSuffix, unique: uniqueSuffix }));
+    console.log(`Taxonomy fetched: ${successCount}/${totalUnique} species${errorCount > 0 ? `, ${errorCount} failed` : ""}`);
     btn.disabled = false;
     renderRecords();
     renderGeneSelection(); // reveal steps 3 & 4 now that taxonomy is done
@@ -2637,7 +2651,7 @@ function initHeaderDragDrop() {
 }
 
 function openHeaderBuilder() {
-    renderHeaderBuilder();
+    try { renderHeaderBuilder(); } catch (e) { console.error("Header builder render error:", e); }
     document.getElementById("headerModal").classList.remove("hidden");
 }
 
@@ -2742,6 +2756,7 @@ async function downloadZip() {
     }
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, `splace_${state.detectedDataType || "genes"}_genes.zip`);
+    console.log(`Downloaded ZIP: ${files.size} gene${files.size !== 1 ? 's' : ''}`);
 }
 
 // ========================================================================
@@ -2775,16 +2790,17 @@ function handleFiles(fileList) {
                 record.fileDate = new Date(file.lastModified);
                 if (!record.accession) record.accession = file.name.replace(GENBANK_EXTENSIONS, "");
                 mergeRecords([record]);
+                console.log(`Parsed: ${record.organism || record.accession || file.name} (${file.name})`);
             } catch {
-                // Error parsing file, skipped
+                console.error(`Failed to parse ${file.name}`);
             }
 
             loaded++;
             updateProgress(loaded, validFiles.length, file.name);
-
             if (loaded === validFiles.length) {
                 renderRecords();
                 hideProgress(`Loaded ${validFiles.length} file${validFiles.length !== 1 ? 's' : ''}`);
+                console.log(`${validFiles.length} file${validFiles.length !== 1 ? 's' : ''} loaded`);
             }
         };
         reader.readAsText(file);

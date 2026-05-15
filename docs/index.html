@@ -348,9 +348,9 @@
                 </summary>
                 <div class="step1-tips-content">
                     <p data-i18n="step1.taxonomy.tips.body">Build the taxonomy table gradually and combine complementary sources when needed.</p>
-                    <p class="text-sm text-gray-600 mt-2 mb-8">
+                    <p class="mt-2 mb-8">
                         <span data-i18n="step1.taxonomy.tips.exampleInfo.prefix">Each option below includes an</span>
-                        <button class="step1-inline-btn" type="button" disabled style="pointer-events: none; opacity: 0.8;">
+                        <button class="step1-inline-btn step1-example-btn" type="button" disabled style="pointer-events: none; opacity: 0.8;">
                             <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.taxonomy.example">Example</span>
                         </button>
                         <span data-i18n="step1.taxonomy.tips.exampleInfo.suffix">button to help you get started quickly.</span>
@@ -375,14 +375,13 @@
                                 </button>
                             </div>
                         </div>
-                        <button id="taxonomySearchExampleBtn" class="step1-inline-btn" type="button" data-i18n="step1.tooltip.taxonomyExample" data-i18n-attr="data-tippy-content" data-tippy-content="Fill the taxonomic search with <b>Bufonidae</b>, <b>mitochondrion</b>, <b>complete genomes</b> and <b>RefSeq only</b>.">
+                        <button id="taxonomySearchExampleBtn" class="step1-inline-btn step1-example-btn" type="button" data-i18n="step1.tooltip.taxonomyExample" data-i18n-attr="data-tippy-content" data-tippy-content="Fill the taxonomic search with <b>Bufonidae</b>, <b>mitochondrion</b>, <b>complete genomes</b> and <b>RefSeq only</b>.">
                             <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.taxonomy.example">Example</span>
                         </button>
                     </div>
                     <p class="step1-card-text" data-i18n="step1.taxonomy.body">Search NCBI and download matching GenBank records automatically into the tool.</p>
                     <div class="step1-api-hint">
-                        <i class="fa-solid fa-key" aria-hidden="true"></i>
-                        <span data-i18n="step1.taxonomy.apiHint">Use the key button to add an NCBI API key and speed up imports.</span>
+                        <span data-i18n="step1.taxonomy.apiHint">Add an NCBI API key to speed up imports.</span>
                     </div>
 
                     <div class="step1-form-grid">
@@ -432,7 +431,7 @@
 
                     <div class="step1-actions mt-3">
                         <button id="taxonomySearchBtn" class="step1-primary-btn bg-splace-blue-600 hover:bg-splace-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-base font-medium transition-colors whitespace-nowrap" disabled type="button">
-                            <i class="fa-solid fa-magnifying-glass mr-1"></i><span data-i18n="step1.taxonomy.search">Search and import</span>
+                            <i class="fa-solid fa-magnifying-glass mr-1"></i><span data-i18n="step1.taxonomy.search">Search</span>
                         </button>
                     </div>
                     <div id="taxonomyFetchStatus" class="text-sm mt-2 text-gray-500 hidden"></div>
@@ -449,7 +448,7 @@
                                 </button>
                             </div>
                         </div>
-                        <button id="exampleBtn" class="step1-inline-btn" data-i18n="step1.tooltip.accessionExample" data-i18n-attr="data-tippy-content" data-tippy-content="Load example accessions from <b>Balcázar et al. (2026)</b>" type="button">
+                        <button id="exampleBtn" class="step1-inline-btn step1-example-btn" data-i18n="step1.tooltip.accessionExample" data-i18n-attr="data-tippy-content" data-tippy-content="Load example accessions from <b>Balcázar et al. (2026)</b>" type="button">
                             <i class="fa-solid fa-flask mr-1"></i><span data-i18n="step1.accession.example">Example</span>
                         </button>
                     </div>
@@ -611,6 +610,7 @@
                     <span id="step4-badge" class="step-badge badge-required">4</span>
                     <i class="fa-solid fa-barcode text-splace-blue-600"></i>
                     <span data-i18n="step.4">Select Markers</span>
+                    <span id="selectedMarkersCount" class="hidden text-xs font-semibold text-splace-blue-700 bg-splace-blue-100 px-2 py-0.5 rounded-full"></span>
                 </h3>
                 <div class="flex flex-wrap gap-2">
                     <button id="selectAllGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors text-sm" type="button" data-i18n="step4.tooltip.all" data-i18n-attr="data-tippy-content" data-tippy-content="Select every visible marker"><span data-i18n="step4.action.all">Select All</span></button>
@@ -650,7 +650,7 @@
                 <i class="fa-solid fa-download text-splace-blue-600"></i>
                 <span data-i18n="step.5.web">Export FASTA Files</span>
             </h3>
-            <button id="downloadBtn" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors text-center" type="button">
+            <button id="downloadBtn" onclick="openHeaderBuilder()" class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors text-center" type="button">
                 <i class="fa-solid fa-download mr-2"></i> <span data-i18n="step5.web.downloadBtn">Download FASTA Files</span>
             </button>
 
@@ -1041,13 +1041,13 @@
     <div class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex flex-col p-4 md:p-6">
         <div class="bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col overflow-hidden">
-            <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 flex-shrink-0">
-                <div class="w-10 h-10 rounded-full bg-splace-blue-50 flex items-center justify-center flex-shrink-0">
-                    <i id="iqtreeModalIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg"></i>
+            <div class="modal-header flex-shrink-0">
+                <div class="modal-header-icon">
+                    <i id="iqtreeModalIcon" class="fa-solid fa-spinner fa-spin"></i>
                 </div>
                 <div>
-                    <h3 id="iqtreeModalTitle" class="text-xl font-semibold text-gray-800">Running IQ-TREE…</h3>
-                    <p class="text-sm text-gray-500 mt-0.5">This may take a few minutes depending on dataset size.</p>
+                    <h3 id="iqtreeModalTitle" class="modal-header-title">Running IQ-TREE…</h3>
+                    <p class="modal-header-subtitle">This may take a few minutes depending on dataset size.</p>
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto bg-gray-900 p-4">
@@ -1065,17 +1065,17 @@
 <div id="analysisModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
     <div class="fixed inset-0 p-3 sm:p-4">
-        <div class="analysis-modal-shell bg-white rounded-2xl shadow-2xl relative">
-            <section class="analysis-modal-main">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 rounded-full bg-splace-blue-50 flex items-center justify-center flex-shrink-0">
-                        <i id="analysisModalIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg"></i>
-                    </div>
-                    <div>
-                        <h3 id="analysisModalTitle" class="text-xl font-semibold text-gray-800">Running…</h3>
-                        <p id="analysisModalSubtitle" class="text-sm text-gray-500 mt-0.5"></p>
-                    </div>
+        <div class="analysis-modal-shell bg-white rounded-2xl shadow-2xl relative overflow-hidden">
+            <div class="modal-header" style="grid-column: 1 / -1; border-radius: 1rem 1rem 0 0;">
+                <div class="modal-header-icon">
+                    <i id="analysisModalIcon" class="fa-solid fa-spinner fa-spin"></i>
                 </div>
+                <div>
+                    <h3 id="analysisModalTitle" class="modal-header-title">Running…</h3>
+                    <p id="analysisModalSubtitle" class="modal-header-subtitle"></p>
+                </div>
+            </div>
+            <section class="analysis-modal-main">
                 <div class="mb-4">
                     <div class="flex justify-between text-sm text-gray-500 mb-1">
                         <span id="analysisModalProgressLabel">0 / 0 markers</span>
@@ -1111,15 +1111,17 @@
 <div id="clearModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="clearModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
-            <div class="text-center mb-4">
-                <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.clear.title">Clear all records?</h3>
-                <p class="text-sm text-gray-500 mt-2" data-i18n="modal.clear.body">This action cannot be undone. All loaded records and selections will be removed.</p>
+                <h3 class="modal-header-title" data-i18n="modal.clear.title">Clear all records?</h3>
             </div>
-            <div class="flex gap-3">
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500" data-i18n="modal.clear.body">This action cannot be undone. All loaded records and selections will be removed.</p>
+            </div>
+            <div class="px-6 pb-5 flex gap-3">
                 <button id="clearModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
                 <button id="clearModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.clear.confirm">Clear all</button>
             </div>
@@ -1130,18 +1132,18 @@
 <div id="skipTaxonomyModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-2xl" onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
-            <div class="text-center mb-5">
-                <div class="mx-auto w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i>
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.skiptax.title">Skip taxonomy review?</h3>
-                <div class="text-sm text-gray-500 mt-3 space-y-2 text-center">
-                    <p data-i18n="modal.skiptax.body1">If species names contain <strong class="text-gray-700">special characters</strong> or there are <strong class="text-gray-700">duplicate entries</strong>, errors may occur in future analyses.</p>
-                    <p data-i18n="modal.skiptax.body2">It is recommended to correct species names and fetch taxonomy for best results.</p>
-                </div>
+                <h3 class="modal-header-title" data-i18n="modal.skiptax.title">Skip taxonomy review?</h3>
             </div>
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="px-6 py-4 text-sm text-gray-500 space-y-2">
+                <p data-i18n="modal.skiptax.body1">If species names contain <strong class="text-gray-700">special characters</strong> or there are <strong class="text-gray-700">duplicate entries</strong>, errors may occur in future analyses.</p>
+                <p data-i18n="modal.skiptax.body2">It is recommended to correct species names and fetch taxonomy for best results.</p>
+            </div>
+            <div class="px-6 pb-5 flex flex-col sm:flex-row gap-3">
                 <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.skiptax.review">Review now</button>
                 <button onclick="document.getElementById('skipTaxonomyModal').classList.add('hidden'); proceedToAnalysis();" class="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.skiptax.proceed">Proceed anyway</button>
             </div>
@@ -1152,15 +1154,17 @@
 <div id="removeModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="removeModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
-            <div class="text-center mb-4">
-                <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.remove.title">Remove record?</h3>
-                <p id="removeModalText" class="text-sm text-gray-500 mt-2" data-i18n="modal.remove.body">This action cannot be undone.</p>
+                <h3 class="modal-header-title" data-i18n="modal.remove.title">Remove record?</h3>
             </div>
-            <div class="flex gap-3">
+            <div class="px-6 py-4">
+                <p id="removeModalText" class="text-sm text-gray-500" data-i18n="modal.remove.body">This action cannot be undone.</p>
+            </div>
+            <div class="px-6 pb-5 flex gap-3">
                 <button id="removeModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
                 <button id="removeModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.remove.confirm">Remove</button>
             </div>
@@ -1171,59 +1175,61 @@
 <div id="editModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="editModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-3">
-        <div class="bg-white rounded-2xl shadow-xl w-full h-full p-6 relative overflow-y-auto">
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold text-gray-800 flex items-center">
-                    <i class="fa-solid fa-pen-to-square text-splace-blue-600 mr-2"></i><span data-i18n="modal.edit.title">Edit Record</span>
-                </h3>
-                <p class="text-sm text-gray-500 mt-1" data-i18n="modal.edit.fullscreenHint">Review the current record and update species and taxonomy fields below.</p>
+        <div class="bg-white rounded-2xl shadow-xl w-full h-full relative flex flex-col overflow-hidden">
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                        <i class="fa-solid fa-pen-to-square text-splace-blue-600 mr-2"></i><span data-i18n="modal.edit.title">Edit Record</span>
+                    </h3>
+                    <p class="text-sm text-gray-500 mt-1" data-i18n="modal.edit.fullscreenHint">Review the current record and update species and taxonomy fields below.</p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm text-gray-600">
+                    <div id="editModalInfo"></div>
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1"><span data-i18n="modal.edit.genus">Genus</span> <span class="text-gray-400 font-normal" data-i18n="modal.edit.genus.auto">(auto)</span></label>
+                            <input type="text" id="editGenusDisplay" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base bg-gray-50 text-gray-500 outline-none italic" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.species">Species</label>
+                            <input type="text" id="editSpeciesInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none italic" placeholder="e.g., Rhinella marina">
+                            <p id="editSpeciesError" class="text-xs text-red-500 mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="editGbifBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50" disabled data-citation-key="datafishing" data-tippy-content="Auto-fill taxonomy ranks from GBIF using dataFishing (Rabelo et al. 2025)" type="button">
+                            <i class="fa-solid fa-globe mr-1"></i> <span data-i18n="modal.edit.gbif">Fetch Taxonomy from GBIF</span>
+                        </button>
+                        <p id="editGbifStatus" class="text-xs text-gray-500 mt-1 hidden"></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.kingdom">Kingdom</label>
+                            <input type="text" id="editKingdomInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Animalia">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.phylum">Phylum</label>
+                            <input type="text" id="editPhylumInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Chordata">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.class">Class</label>
+                            <input type="text" id="editClassInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Amphibia">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.order">Order</label>
+                            <input type="text" id="editOrderInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Anura">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.family">Family</label>
+                        <input type="text" id="editFamilyInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Bufonidae">
+                        <p id="editFamilyError" class="text-xs text-red-500 mt-1 hidden"></p>
+                    </div>
+                </div>
             </div>
-            <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm text-gray-600">
-                <div id="editModalInfo"></div>
-            </div>
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1"><span data-i18n="modal.edit.genus">Genus</span> <span class="text-gray-400 font-normal" data-i18n="modal.edit.genus.auto">(auto)</span></label>
-                        <input type="text" id="editGenusDisplay" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base bg-gray-50 text-gray-500 outline-none italic" readonly>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.species">Species</label>
-                        <input type="text" id="editSpeciesInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none italic" placeholder="e.g., Rhinella marina">
-                        <p id="editSpeciesError" class="text-xs text-red-500 mt-1 hidden"></p>
-                    </div>
-                </div>
-                <div>
-                    <button id="editGbifBtn" class="w-full bg-splace-blue-50 hover:bg-splace-blue-100 text-splace-blue-700 border border-splace-blue-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50" disabled data-citation-key="datafishing" data-tippy-content="Auto-fill taxonomy ranks from GBIF using dataFishing (Rabelo et al. 2025)" type="button">
-                        <i class="fa-solid fa-globe mr-1"></i> <span data-i18n="modal.edit.gbif">Fetch Taxonomy from GBIF</span>
-                    </button>
-                    <p id="editGbifStatus" class="text-xs text-gray-500 mt-1 hidden"></p>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.kingdom">Kingdom</label>
-                        <input type="text" id="editKingdomInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Animalia">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.phylum">Phylum</label>
-                        <input type="text" id="editPhylumInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Chordata">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.class">Class</label>
-                        <input type="text" id="editClassInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Amphibia">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.order">Order</label>
-                        <input type="text" id="editOrderInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Anura">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="modal.edit.family">Family</label>
-                    <input type="text" id="editFamilyInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base outline-none" placeholder="e.g., Bufonidae">
-                    <p id="editFamilyError" class="text-xs text-red-500 mt-1 hidden"></p>
-                </div>
-            </div>
-            <div class="flex gap-3 mt-6">
+            <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white">
                 <button id="editModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
                 <button id="editModalSave" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.edit.save">Save</button>
             </div>
@@ -1234,39 +1240,54 @@
 <div id="progressModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="progress-modal-card bg-white rounded-2xl shadow-xl max-w-5xl w-full overflow-hidden flex flex-col">
-            <div class="p-6 pb-5">
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 rounded-full bg-splace-blue-50 flex items-center justify-center shrink-0 shadow-inner progress-modal-icon-wrap">
-                        <i id="progressIcon" class="fa-solid fa-spinner fa-spin text-splace-blue-600 text-2xl"></i>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <h3 id="progressTitle" class="text-lg font-bold text-gray-800 leading-tight">Loading...</h3>
-                        <p id="progressSubtitle" class="text-sm text-gray-500 mt-0.5 font-medium"></p>
-                    </div>
+        <div class="progress-modal-card rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col">
+
+            <!-- Header -->
+            <div class="progress-modal-header">
+                <div class="progress-modal-icon-wrap">
+                    <i id="progressIcon" class="fa-solid fa-spinner fa-spin text-2xl"></i>
                 </div>
+                <div>
+                    <h3 id="progressTitle" class="progress-modal-title">Loading...</h3>
+                    <p id="progressSubtitle" class="progress-modal-heading-subtitle"></p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="progress-modal-body">
+
                 <div id="progressDetail" class="progress-modal-detail"></div>
+
                 <div id="progressMetaGrid" class="progress-modal-meta-grid">
                     <div class="progress-modal-meta-card">
-                        <span id="progressRateLabel" class="progress-modal-meta-label"></span>
-                        <strong id="progressRateValue" class="progress-modal-meta-value"></strong>
+                        <i class="fa-solid fa-gauge-high progress-modal-meta-icon"></i>
+                        <div>
+                            <span id="progressRateLabel" class="progress-modal-meta-label"></span>
+                            <strong id="progressRateValue" class="progress-modal-meta-value"></strong>
+                        </div>
                     </div>
                     <div class="progress-modal-meta-card">
-                        <span id="progressApiLabel" class="progress-modal-meta-label"></span>
-                        <strong id="progressApiValue" class="progress-modal-meta-value"></strong>
+                        <i class="fa-solid fa-key progress-modal-meta-icon"></i>
+                        <div>
+                            <span id="progressApiLabel" class="progress-modal-meta-label"></span>
+                            <strong id="progressApiValue" class="progress-modal-meta-value"></strong>
+                        </div>
                     </div>
                 </div>
+
                 <div id="progressCurrentPanel" class="progress-modal-current">
                     <span id="progressCurrentLabel" class="progress-modal-current-label"></span>
                     <strong id="progressCurrentItem" class="progress-modal-current-value"></strong>
                 </div>
-                <div class="progress-modal-bar-track w-full bg-gray-100 rounded-full mb-2 overflow-hidden shadow-inner">
-                    <div id="progressBar" class="progress-modal-bar-fill bg-splace-blue-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+
+                <div class="progress-modal-bar-track">
+                    <div id="progressBar" class="progress-modal-bar-fill" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between items-center text-xs text-gray-400">
-                    <span id="progressStatusText" class="font-medium text-gray-500"></span>
-                    <span id="progressPercentage" class="font-bold">0%</span>
+                <div class="progress-modal-bar-footer">
+                    <span id="progressStatusText" class="progress-modal-status-text"></span>
+                    <span id="progressPercentage" class="progress-modal-pct">0%</span>
                 </div>
+
             </div>
         </div>
     </div>
@@ -1276,18 +1297,16 @@
     <div id="taxonomyImportOverlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-3">
         <div class="bg-white rounded-2xl shadow-xl w-full h-full overflow-hidden flex flex-col">
-            <div class="px-6 py-5 border-b border-gray-100">
-                <div class="flex items-start gap-4">
-                    <div class="w-12 h-12 rounded-full bg-splace-blue-50 flex items-center justify-center shrink-0 shadow-inner">
-                        <i class="fa-solid fa-filter-circle-dollar text-splace-blue-600 text-2xl"></i>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <h3 id="taxonomyImportTitle" class="text-lg font-bold text-gray-800 leading-tight" data-i18n="step1.review.title">Review genomes before importing</h3>
-                        <p id="taxonomyImportSubtitle" class="text-sm text-gray-500 mt-0.5" data-i18n="step1.review.subtitle">Choose which genomes should be imported. All switches start enabled.</p>
-                    </div>
+            <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-white flex-shrink-0">
+                <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-splace-blue-50 text-splace-blue-600 text-xl flex-shrink-0">
+                    <i class="fa-solid fa-filter-circle-dollar"></i>
                 </div>
-                <div id="taxonomyImportSummary" class="taxonomy-review-summary mt-4"></div>
+                <div class="min-w-0 flex-1">
+                    <h3 id="taxonomyImportTitle" class="text-base font-bold text-gray-800" data-i18n="step1.review.title">Review genomes before importing</h3>
+                    <p id="taxonomyImportSubtitle" class="text-sm text-gray-500 mt-0.5" data-i18n="step1.review.subtitle">Choose which genomes should be imported. All switches start enabled.</p>
+                </div>
             </div>
+            <div id="taxonomyImportSummary" class="taxonomy-review-summary px-6 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0"></div>
 
             <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
                 <div class="flex flex-wrap gap-2 justify-end">
@@ -1325,13 +1344,17 @@
 <div id="ncbiApiKeyModal" class="fixed inset-0 z-50 hidden">
     <div id="ncbiApiKeyModalOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold text-gray-800">
-                    <i class="fa-solid fa-key text-splace-blue-600 mr-2"></i><span data-i18n="step1.api.label">NCBI API key</span>
-                </h3>
-                <p class="text-sm text-gray-500 mt-1" data-i18n="step1.api.helper">Without an API key, imports run at about 3 requests per second. With a saved valid key, SPLACE uses up to 10 requests per second.</p>
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+                <div>
+                    <h3 class="modal-header-title" data-i18n="step1.api.label">NCBI API key</h3>
+                    <p class="modal-header-subtitle" data-i18n="step1.api.helper">Without an API key, imports run at about 3 requests per second.</p>
+                </div>
             </div>
+            <div class="p-6">
             <div class="step1-api-panel !mt-0">
                 <div class="step1-api-row">
                     <input id="ncbiApiKeyInput" type="password" autocomplete="off" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 focus:border-splace-blue-500 outline-none bg-white" placeholder="NCBI API key">
@@ -1350,6 +1373,7 @@
             <div class="flex justify-end mt-6">
                 <button id="ncbiApiKeyModalClose" class="px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.close">Close</button>
             </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1357,15 +1381,17 @@
 <div id="clearNcbiApiKeyModal" class="fixed inset-0 z-50 hidden">
     <div id="clearNcbiApiKeyModalOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative">
-            <div class="text-center mb-4">
-                <div class="mx-auto w-12 h-12 rounded-full bg-splace-red-50 flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-triangle-exclamation text-splace-red-600 text-xl"></i>
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-800" data-i18n="modal.api.clear.title">Remove saved API key?</h3>
-                <p class="text-sm text-gray-500 mt-2" data-i18n="modal.api.clear.body">Option 1 and Option 2 will go back to the default NCBI request rate.</p>
+                <h3 class="modal-header-title" data-i18n="modal.api.clear.title">Remove saved API key?</h3>
             </div>
-            <div class="flex gap-3">
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500" data-i18n="modal.api.clear.body">Option 1 and Option 2 will go back to the default NCBI request rate.</p>
+            </div>
+            <div class="px-6 pb-5 flex gap-3">
                 <button id="clearNcbiApiKeyModalCancel" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="modal.cancel">Cancel</button>
                 <button id="clearNcbiApiKeyModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-red-600 hover:bg-splace-red-700 text-white text-base font-medium transition-colors" type="button" data-i18n="step1.api.clear">Clear key</button>
             </div>
@@ -1376,13 +1402,17 @@
 <div id="headerModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="headerModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto">
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold text-gray-800 flex items-center">
-                    <i class="fa-solid fa-pen-ruler text-splace-blue-600 mr-2"></i><span data-i18n="modal.header.title">FASTA Header Builder</span>
-                </h3>
-                <p class="text-sm text-gray-500 mt-1" data-i18n="modal.header.intro">Compose the header for your FASTA sequences by selecting and ordering the fields below.</p>
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="modal-header">
+                <div class="modal-header-icon">
+                    <i class="fa-solid fa-pen-ruler"></i>
+                </div>
+                <div>
+                    <h3 class="modal-header-title" data-i18n="modal.header.title">FASTA Header Builder</h3>
+                    <p class="modal-header-subtitle" data-i18n="modal.header.intro">Compose the header for your FASTA sequences by selecting and ordering the fields below.</p>
+                </div>
             </div>
+            <div class="p-6 overflow-y-auto flex-1">
             <div class="mb-4">
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2" data-i18n="modal.header.available">Available Fields</label>
                 <div id="headerAvailableFields" class="flex flex-wrap gap-2 min-h-[36px]"></div>
@@ -1423,7 +1453,7 @@
                     </div>
                 </div>
             </div>
-            <details class="mb-5">
+            <details class="mb-5" open>
                 <summary class="text-xs font-medium text-splace-blue-600 cursor-pointer hover:text-splace-blue-700">
                     <i class="fa-solid fa-circle-info mr-1"></i> <span data-i18n="modal.header.instructions">Instructions</span>
                 </summary>
@@ -1453,6 +1483,7 @@
                 <button id="headerModalConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled type="button">
                     <i class="fa-solid fa-download mr-1"></i> <span data-i18n="modal.header.download">Download</span>
                 </button>
+            </div>
             </div>
         </div>
     </div>

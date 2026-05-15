@@ -20,7 +20,7 @@
 
 .step1-card-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: .75rem;
     margin-bottom: .5rem;
@@ -113,6 +113,24 @@
     background: var(--surface-2);
     color: var(--text-muted);
     border-color: var(--border);
+}
+
+.step1-example-btn {
+    color: #fff;
+    background: #a50026;
+    border-color: #a50026;
+}
+
+.step1-example-btn:hover {
+    color: #fff;
+    background: #8a001f;
+    border-color: #8a001f;
+}
+
+.step1-example-btn:disabled {
+    color: #fff;
+    background: #a50026;
+    border-color: #a50026;
 }
 
 .step1-help-btn {
@@ -405,20 +423,70 @@
 }
 
 .progress-modal-card {
-    border: 1px solid rgba(50, 55, 149, 0.08);
-    background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 88%, var(--accent-soft)) 100%);
     overflow: hidden;
-    min-height: 28rem;
-    max-height: min(90vh, 58rem);
+    max-height: min(90vh, 52rem);
+}
+
+.progress-modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.85rem;
+    padding: 1.75rem 1.5rem 1.5rem;
+    background: linear-gradient(135deg, var(--splace-blue-900, #1e2263) 0%, var(--splace-blue-700, #323795) 100%);
+    flex-shrink: 0;
 }
 
 .progress-modal-icon-wrap {
-    background: linear-gradient(135deg, rgba(50, 55, 149, 0.12), rgba(123, 133, 215, 0.14));
-    border: 1px solid var(--accent-soft-border);
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.18);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.progress-modal-icon-wrap i,
+.progress-modal-icon-wrap [class*="fa-"] {
+    color: white !important;
+}
+
+.progress-modal-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    line-height: 1.3;
+    margin: 0;
+    min-height: unset;
+}
+
+.progress-modal-heading-subtitle {
+    font-size: 0.83rem;
+    color: rgba(255, 255, 255, 0.72);
+    margin: 0.3rem 0 0;
+    font-weight: 500;
+    min-height: unset;
+}
+
+.progress-modal-body {
+    padding: 1.25rem 1.5rem 1.4rem;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    overflow-y: auto;
+}
+
+.progress-modal-body > * {
+    width: 100%;
 }
 
 .progress-modal-detail {
-    margin-bottom: 1rem;
     border: 1px solid var(--accent-soft-border);
     background: var(--accent-soft);
     border-radius: .95rem;
@@ -426,7 +494,7 @@
     color: var(--text);
     font-size: .9rem;
     line-height: 1.55;
-    min-height: 5.25rem;
+    min-height: 4.5rem;
 }
 
 .progress-modal-detail.hidden,
@@ -439,27 +507,37 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .75rem;
-    margin-bottom: .85rem;
 }
 
 .progress-modal-meta-grid.progress-modal-meta-grid--standalone {
-    margin-bottom: 1rem;
+    margin-bottom: 0;
 }
 
 .progress-modal-meta-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     border: 1px solid var(--border);
     background: var(--surface-2);
     border-radius: .95rem;
-    padding: .75rem .85rem;
+    padding: .85rem 1rem;
+}
+
+.progress-modal-meta-icon {
+    font-size: 1.25rem;
+    color: var(--splace-blue-600, #323795);
+    flex-shrink: 0;
+    width: 1.5rem;
+    text-align: center;
 }
 
 .progress-modal-meta-label {
     display: block;
-    font-size: .72rem;
+    font-size: .7rem;
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: .3rem;
+    margin-bottom: .2rem;
     font-weight: 700;
 }
 
@@ -474,17 +552,16 @@
     background: var(--accent-soft);
     border-radius: .95rem;
     padding: .75rem .85rem;
-    margin-bottom: 1rem;
-    min-height: 4.6rem;
+    min-height: 4rem;
 }
 
 .progress-modal-current-label {
     display: block;
-    font-size: .72rem;
+    font-size: .7rem;
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: .3rem;
+    margin-bottom: .25rem;
     font-weight: 700;
 }
 
@@ -494,12 +571,32 @@
     word-break: break-word;
 }
 
-#progressTitle {
-    min-height: 3.1rem;
+.progress-modal-bar-track {
+    width: 100%;
+    height: 10px;
+    background: var(--surface-2);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--border);
 }
 
-#progressSubtitle {
-    min-height: 1.35rem;
+.progress-modal-bar-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.35rem;
+}
+
+.progress-modal-status-text {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.progress-modal-pct {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--splace-blue-700, #323795);
 }
 
 .progress-modal-footer {
@@ -507,17 +604,13 @@
 }
 
 [data-theme="dark"] .progress-modal-card {
-    background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 82%, var(--accent-soft)) 100%);
+    background: var(--surface);
 }
 
-.progress-modal-card.progress-modal-gbif {
-    border-color: rgba(37, 99, 235, 0.12);
-    background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 91%, #dbeafe) 100%);
+[data-theme="dark"] .progress-modal-header {
+    background: linear-gradient(135deg, #141850 0%, #1e2263 100%);
 }
 
-.progress-modal-card.progress-modal-gbif .progress-modal-icon-wrap {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(125, 211, 252, 0.14));
-}
 
 .progress-modal-card.progress-modal-gbif .progress-modal-detail,
 .progress-modal-card.progress-modal-gbif .progress-modal-current {
@@ -533,11 +626,17 @@
 .analysis-modal-shell {
     display: grid;
     grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.95fr);
+    grid-template-rows: auto 1fr;
     gap: 0;
     width: min(100%, 1500px);
     height: calc(100vh - 2rem);
     margin: 0 auto;
     overflow: hidden;
+}
+
+.analysis-modal-shell > .modal-header {
+    grid-column: 1 / -1;
+    border-radius: 1rem 1rem 0 0;
 }
 
 .analysis-modal-main {
@@ -862,7 +961,6 @@ details[open] .step1-tips-chevron {
 
 .step1-tips-content > p:first-child {
     margin-bottom: .5rem;
-    font-weight: 500;
 }
 
 .step1-tips-content > p:nth-child(2) {
@@ -880,27 +978,23 @@ details[open] .step1-tips-chevron {
 }
 
 .step1-tips-list li {
-    position: relative;
-    padding-left: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
     line-height: 1.55;
 }
 
 .step1-tips-list li::before {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    top: 0.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.1rem;
-    height: 1.1rem;
-    border-radius: .35rem;
-    background: var(--splace-blue-600);
-    color: white;
-    font-size: .7rem;
-    font-weight: 700;
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    content: "\f071";
     flex-shrink: 0;
+    color: #a50026;
+    font-size: 1.1rem;
+    width: 1.5rem;
+    text-align: center;
+    line-height: 1;
+    margin-top: 0.15rem;
 }
 
 [data-theme="dark"] .step1-tips-accordion {
@@ -1054,4 +1148,219 @@ details[open] .step1-tips-chevron {
 .taxonomy-review-badge.unverified {
     background-color: #a50026;
     color: white;
+}
+
+/* ========================================================================
+   Taxonomy Import Modal — redesign
+   ======================================================================== */
+
+.tax-review-panel {
+    background: var(--surface);
+    border-radius: 1.25rem;
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.35);
+    width: 100%;
+    max-width: 68rem;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tax-review-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.4rem 1.5rem 1.25rem;
+    background: linear-gradient(135deg, var(--splace-blue-900, #1e2263) 0%, var(--splace-blue-700, #323795) 100%);
+    flex-shrink: 0;
+}
+
+.tax-review-header-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.tax-review-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    line-height: 1.3;
+    margin: 0;
+}
+
+.tax-review-subtitle {
+    font-size: 0.83rem;
+    color: rgba(255, 255, 255, 0.72);
+    margin: 0.3rem 0 0;
+    line-height: 1.5;
+}
+
+.tax-review-subtitle .taxonomy-review-meta {
+    margin-top: 0.65rem;
+}
+
+.tax-review-header .step1-filter-chip {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.tax-review-header .step1-filter-chip strong {
+    color: white;
+}
+
+.tax-review-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.14);
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+    font-size: 1rem;
+    margin-left: auto;
+}
+
+.tax-review-close:hover {
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.tax-review-summary {
+    padding: 1.1rem 1.5rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    flex-shrink: 0;
+}
+
+.tax-review-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+}
+
+.tax-review-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.tax-review-toolbar-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
+
+.tax-review-toolbar-divider {
+    width: 1px;
+    height: 1.4rem;
+    background: var(--border);
+    flex-shrink: 0;
+    margin: 0 0.3rem;
+}
+
+.tax-review-count {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--splace-blue-700, #323795);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.step1-filter-chip-warn {
+    border-color: rgba(165, 0, 38, 0.3);
+    color: #a50026;
+}
+
+.step1-filter-chip-warn:hover {
+    background: rgba(165, 0, 38, 0.07);
+    border-color: rgba(165, 0, 38, 0.5);
+    color: #a50026;
+}
+
+.tax-review-thead-row {
+    background: var(--surface-2);
+    border-bottom: 2px solid var(--border);
+}
+
+.tax-review-thead-row th {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.taxonomy-review-table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+.tax-review-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+}
+
+.tax-review-btn {
+    padding: 0.6rem 1.35rem;
+    border-radius: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.tax-review-btn-cancel {
+    background: transparent;
+    color: #a50026;
+    border: 1.5px solid rgba(165, 0, 38, 0.45);
+}
+
+.tax-review-btn-cancel:hover {
+    background: rgba(165, 0, 38, 0.07);
+    border-color: #a50026;
+}
+
+.tax-review-btn-confirm {
+    background: var(--splace-blue-700, #323795);
+    color: white;
+    border: 1.5px solid var(--splace-blue-700, #323795);
+}
+
+.tax-review-btn-confirm:hover:not(:disabled) {
+    background: var(--splace-blue-800, #252b75);
+    border-color: var(--splace-blue-800, #252b75);
+}
+
+.tax-review-btn-confirm:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
