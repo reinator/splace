@@ -40,8 +40,8 @@
         }
     </script>
 
-    <!-- FontAwesome -->
-    <script src="https://kit.fontawesome.com/7d94912b47.js" crossorigin="anonymous"></script>
+    <!-- FontAwesome (offline) -->
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
 
     <!-- Tippy.js -->
     <script src="https://unpkg.com/@popperjs/core@2"></script>
@@ -501,9 +501,6 @@
                 </h2>
 
                 <div class="step2-toolbar-actions">
-                    <button id="fetchTaxonomyBtn" class="step2-toolbar-btn" data-citation-key="datafishing" data-i18n-tooltip="step2.tooltip.fetchTaxonomy" data-tippy-content="Rabelo et al. (2025). dataFishing: An efficient Python tool and user-friendly web-form for mining mitochondrial and chloroplast sequences, taxonomic, and biodiversity data. Ecological Informatics 85:102970." type="button">
-                        <i class="fa-solid fa-globe mr-1"></i><span data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</span>
-                    </button>
                     <button id="clearRecords" class="step2-toolbar-btn step2-toolbar-btn-danger" type="button">
                         <i class="fa-solid fa-trash mr-1"></i><span data-i18n="step2.action.clearAll">Clear all</span>
                     </button>
@@ -523,10 +520,12 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 pt-1">
+                    <button id="fetchTaxonomyBtn" class="step2-toolbar-btn" data-citation-key="datafishing" data-i18n-tooltip="step2.tooltip.fetchTaxonomy" data-tippy-content="Rabelo et al. (2025). dataFishing: An efficient Python tool and user-friendly web-form for mining mitochondrial and chloroplast sequences, taxonomic, and biodiversity data. Ecological Informatics 85:102970." type="button">
+                        <i class="fa-solid fa-globe mr-1"></i><span data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</span>
+                    </button>
                     <button onclick="document.getElementById('skipTaxonomyModal').classList.remove('hidden')" class="step1-inline-btn" type="button">
                         <i class="fa-solid fa-forward-step mr-1"></i><span data-i18n="step2.action.skip">Skip taxonomy and proceed</span>
                     </button>
-                    <span class="text-splace-blue-700 text-sm"><span data-i18n="step2.intro.orUse">Or use</span> <strong data-i18n="step2.action.fetchTaxonomy">Fetch Taxonomy</strong> <span data-i18n="step2.intro.auto">above to proceed automatically.</span></span>
                 </div>
             </div>
 
@@ -600,12 +599,13 @@
                     <strong class="citation-ref" data-citation-key="syngenes" data-i18n="step3.standardized.link" data-i18n-tooltip="step3.standardized.citation" data-tippy-content="Rabelo et al. (2024). SynGenes: a Python class for standardizing nomenclatures of mitochondrial and chloroplast genes. BMC Bioinformatics 25:160.">SynGenes (Rabelo et al. 2024)</strong><span data-i18n="step3.standardized.suffix">.</span>
                 </span>
             </div>
-            <div id="featureTypesList" class="flex flex-wrap gap-4"></div>
+            <p class="text-sm text-gray-500 mb-3" data-i18n="step3.intro">Select the gene categories you want to include in your analysis. Toggle each category to activate or deactivate it.</p>
+            <div id="featureTypesList" class="flex flex-wrap gap-3"></div>
         </section>
 
         <!-- Step 4: Available Genes -->
         <section id="genesSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                 <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
                     <span id="step4-badge" class="step-badge badge-required">4</span>
                     <i class="fa-solid fa-barcode text-splace-blue-600"></i>
@@ -615,8 +615,18 @@
                 <div class="flex flex-wrap gap-2">
                     <button id="selectAllGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors text-sm" type="button" data-i18n="step4.tooltip.all" data-i18n-attr="data-tippy-content" data-tippy-content="Select every visible marker"><span data-i18n="step4.action.all">Select All</span></button>
                     <button id="selectNoneGenes" class="bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md font-medium text-gray-600 transition-colors text-sm" type="button" data-i18n="step4.tooltip.none" data-i18n-attr="data-tippy-content" data-tippy-content="Clear every selected marker"><span data-i18n="step4.action.none">None</span></button>
-                    <button id="selectCompleteGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors text-sm" data-i18n="step4.tooltip.complete" data-i18n-attr="data-tippy-content" data-tippy-content="Select only genes present in all genomes (no missing data)" type="button"><span data-i18n="step4.action.complete">Complete</span></button>
+                    <button id="selectCompleteGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors text-sm" data-i18n="step4.tooltip.complete" data-i18n-attr="data-tippy-content" data-tippy-content="Select only genes present in all genomes (no missing data)" type="button"><span data-i18n="step4.action.complete">Shared Only</span></button>
                     <button id="selectDefaultGenes" class="bg-splace-blue-100 hover:bg-splace-blue-200 px-2.5 py-1 rounded-md font-medium text-splace-blue-700 transition-colors text-sm" data-i18n="step4.tooltip.default" data-i18n-attr="data-tippy-content" data-tippy-content="Select the default gene set for phylogenetic analysis" type="button"><span data-i18n="step4.action.default">Default to Phylogeny</span></button>
+                </div>
+            </div>
+            <!-- Button legend -->
+            <div class="bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2 mt-3 mb-3 text-splace-blue-800 flex items-start gap-2">
+                <i class="fa-solid fa-circle-info mt-0.5 flex-shrink-0 text-splace-blue-500"></i>
+                <div class="flex flex-col gap-y-1.5">
+                    <span><kbd class="bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 text-xs font-semibold font-sans" data-i18n="step4.action.all">Select All</kbd> — <span data-i18n="step4.legend.all">selects every visible marker</span></span>
+                    <span><kbd class="bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 text-xs font-semibold font-sans" data-i18n="step4.action.none">None</kbd> — <span data-i18n="step4.legend.none">clears all selections</span></span>
+                    <span><kbd class="bg-splace-blue-100 text-splace-blue-700 rounded px-1.5 py-0.5 text-xs font-semibold font-sans" data-i18n="step4.action.complete">Shared Only</kbd> — <span data-i18n="step4.legend.complete">genes present in all genomes</span></span>
+                    <span><kbd class="bg-splace-blue-100 text-splace-blue-700 rounded px-1.5 py-0.5 text-xs font-semibold font-sans" data-i18n="step4.action.default">Default to Phylogeny</kbd> — <span data-i18n="step4.legend.default">recommended set for phylogenetic analysis</span></span>
                 </div>
             </div>
             <div id="genesList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div>
@@ -690,6 +700,60 @@
                     <i class="fa-solid fa-pen-ruler mr-2"></i> <span data-i18n="step5.header.openBtn">Open Header Builder</span>
                 </button>
                 <div id="headerPreviewInline" class="mt-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono text-xs text-gray-600 break-all hidden"></div>
+            </div>
+
+            <!-- Sequence Type selector (before MAFFT Settings) -->
+            <div id="panel6seq" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
+                <div class="flex items-center gap-2 mb-3">
+                    <span id="step6seq-badge" class="step-badge badge-optional">5b</span>
+                    <h3 class="text-base font-semibold text-gray-700">Sequence Type</h3>
+                </div>
+                <p class="text-sm text-gray-500 mb-3">Choose how to align sequences. Codon-aware mode aligns protein translations via MAFFT then back-translates to DNA, preserving reading frame.</p>
+                <div class="grid grid-cols-3 gap-3">
+                    <label id="alignSeqNtLabel" class="flex items-center gap-3 cursor-pointer border-2 border-splace-blue-400 bg-splace-blue-50 rounded-xl p-3 transition-all">
+                        <input type="radio" name="alignSeqType" id="alignSeqNt" value="nt" checked class="accent-splace-blue-600">
+                        <div>
+                            <div class="font-semibold text-sm text-splace-blue-900">Nucleotide</div>
+                            <div class="text-xs text-gray-500">Align DNA/RNA sequences directly</div>
+                        </div>
+                    </label>
+                    <label id="alignSeqAaLabel" class="flex items-center gap-3 cursor-pointer border-2 border-gray-200 rounded-xl p-3 transition-all">
+                        <input type="radio" name="alignSeqType" id="alignSeqAa" value="aa" class="accent-splace-blue-600">
+                        <div>
+                            <div class="font-semibold text-sm text-gray-800">Amino Acid</div>
+                            <div class="text-xs text-gray-500">Translate with seqkit, then align</div>
+                        </div>
+                    </label>
+                    <label id="alignSeqCodonLabel" class="flex items-center gap-3 cursor-pointer border-2 border-gray-200 rounded-xl p-3 transition-all">
+                        <input type="radio" name="alignSeqType" id="alignSeqCodon" value="codon" class="accent-splace-blue-600">
+                        <div>
+                            <div class="font-semibold text-sm text-gray-800">Codon Aware</div>
+                            <div class="text-xs text-gray-500">Protein-guided codon alignment (CDS only)</div>
+                        </div>
+                    </label>
+                </div>
+                <div id="codonModeWarning" class="hidden mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p class="text-xs text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
+                </div>
+                <div id="alignGeneticCodeSection" class="hidden mt-3 bg-splace-blue-50 border border-splace-blue-100 rounded-lg p-3">
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Genetic Code</label>
+                    <select id="alignGeneticCode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
+                        <option value="1">Standard (NCBI 1)</option>
+                        <option value="2" selected>Vertebrate mitochondrial (NCBI 2)</option>
+                        <option value="3">Yeast mitochondrial (NCBI 3)</option>
+                        <option value="4">Mold mitochondrial (NCBI 4)</option>
+                        <option value="5">Invertebrate mitochondrial (NCBI 5)</option>
+                        <option value="6">Ciliate nuclear (NCBI 6)</option>
+                        <option value="9">Echinoderm mitochondrial (NCBI 9)</option>
+                        <option value="11">Bacterial, archaeal and plant plastid (NCBI 11)</option>
+                        <option value="13">Ascidian mitochondrial (NCBI 13)</option>
+                        <option value="14">Alternative flatworm mitochondrial (NCBI 14)</option>
+                        <option value="16">Chlorophycean mitochondrial (NCBI 16)</option>
+                        <option value="21">Trematode mitochondrial (NCBI 21)</option>
+                        <option value="24">Pterobranchia mitochondrial (NCBI 24)</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1.5"><i class="fa-solid fa-circle-info mr-1"></i>Sequences are translated before alignment. MAFFT runs in <code class="bg-white border border-gray-200 px-1 rounded">--amino</code> mode.</p>
+                </div>
             </div>
 
             <div id="panel6b" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
@@ -900,6 +964,13 @@
 
                 <div id="concatMissingWarning" class="hidden text-sm rounded-lg px-3 py-2 border"></div>
 
+                <div id="codonPartitionOption" class="hidden bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-splace-blue-900">
+                        <input type="checkbox" id="codonPartitionByPosition" class="accent-splace-blue-600 rounded">
+                        <span><strong>Partition by codon position</strong> &mdash; generate separate charsets for positions 1, 2 and 3 per gene</span>
+                    </label>
+                </div>
+
                 <button onclick="generateNexus()"
                     class="w-full bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-base font-semibold transition-colors" type="button">
                     <i class="fa-solid fa-table-cells-large mr-2"></i>Generate NEXUS &amp; Partition Table
@@ -1086,11 +1157,13 @@
                     </div>
                 </div>
 
+                <div id="analysisModalBadges" class="hidden flex flex-wrap gap-1.5 mb-3"></div>
+
                 <div class="analysis-modal-marker-panel">
                     <div class="analysis-modal-section-head">
                         <div>
                             <h4 class="analysis-modal-section-title">Markers in queue</h4>
-                            <p class="analysis-modal-section-copy">Track each marker while MAFFT runs.</p>
+                            <p id="analysisModalSectionCopy" class="analysis-modal-section-copy">Track each marker while it runs.</p>
                         </div>
                     </div>
                     <div id="analysisModalMarkerList" class="analysis-modal-marker-list"></div>

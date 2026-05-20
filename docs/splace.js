@@ -2732,6 +2732,193 @@ function generateFastaFiles() {
     return fastaMap;
 }
 
+// -----------------------------------------------------------------------
+// Codon-aware helpers: CDS validation + JS translation
+// -----------------------------------------------------------------------
+
+/**
+ * Validate a single CDS DNA sequence and translate it to protein.
+ * Returns { validDna, protein } where validDna has the terminal stop codon
+ * removed (if present), so protein length * 3 === validDna.length.
+ * Returns null if validation fails.
+ */
+function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, logFn) {
+    if (!dna || dna.length === 0) {
+        logFn(`[${geneName}] SKIP "${seqHeader}": empty sequence`);
+        return null;
+    }
+    const tableKey = String(translTable || 1);
+    const table = GENETIC_CODE_TABLES[tableKey] || GENETIC_CODE_TABLES["1"];
+    if (!GENETIC_CODE_TABLES[tableKey]) {
+        logFn(`[${geneName}] WARN "${seqHeader}": unknown transl_table ${translTable}, using Standard (1)`);
+    }
+
+    let workDna = dna.toUpperCase().replace(/U/g, "T");
+    let normalized = false;
+
+    // Normalize incomplete terminal stop codon fragments common in mitochondrial
+    // genes where the stop is completed by polyadenylation: T→TAA, TA→TAA.
+    if (workDna.length % 3 !== 0) {
+        const remainder = workDna.length % 3;
+        const terminal = workDna.slice(-remainder);
+        if (remainder === 1 && terminal === "T") {
+            logFn(`[${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment T (${dna.length} bp → ${dna.length - 1} bp)`);
+            workDna = workDna.slice(0, -1);
+            normalized = true;
+        } else if (remainder === 2 && terminal === "TA") {
+            logFn(`[${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment TA (${dna.length} bp → ${dna.length - 2} bp)`);
+            workDna = workDna.slice(0, -2);
+            normalized = true;
+        } else {
+            logFn(`[${geneName}] SKIP "${seqHeader}": length ${dna.length} bp is not a multiple of 3 (terminal "${terminal}" is not a recognizable incomplete stop fragment)`);
+            return null;
+        }
+    }
+
+    if (workDna.length === 0) {
+        logFn(`[${geneName}] SKIP "${seqHeader}": sequence empty after normalization`);
+        return null;
+    }
+
+    let protein = "";
+    let internalStops = 0;
+
+    // Translate all codons except the last (check for internal stops)
+    for (let i = 0; i < workDna.length - 3; i += 3) {
+        const codon = workDna.slice(i, i + 3);
+        const aa = table[codon] || "X";
+        if (aa === "*") internalStops++;
+        protein += aa;
+    }
+
+    // Last codon — check if it's a terminal stop and remove it from the DNA
+    const lastCodon = workDna.slice(-3);
+    const lastAa = table[lastCodon] || "X";
+    let validDna;
+
+    if (lastAa === "*") {
+        validDna = workDna.slice(0, -3);  // remove terminal stop codon from DNA
+        logFn(`[${geneName}] "${seqHeader}": removed terminal stop codon ${lastCodon} (${workDna.length / 3} codons, code ${translTable})`);
+        // protein already excludes the last codon
+    } else {
+        protein += lastAa;
+        validDna = workDna;
+        logFn(`[${geneName}] "${seqHeader}": ${workDna.length / 3} codons, no terminal stop (code ${translTable})`);
+    }
+
+    if (internalStops > 0) {
+        logFn(`[${geneName}] WARN "${seqHeader}": ${internalStops} internal stop codon(s) — verify genetic code`);
+    }
+
+    return { validDna, protein, normalized, terminalStopRemoved: lastAa === "*", internalStops };
+}
+
+/**
+ * Collect CDS sequences from state.records, validate each one and translate
+ * to protein using the per-feature /transl_table (fallback: defaultGeneticCode).
+ * Returns Map<geneName, { cdsDnaFasta: string, proteinFasta: string }>
+ * Both FASTAs use IDENTICAL sequence headers, ensuring trimAl -backtrans works.
+ * Terminal stop codons are removed so protein.length * 3 === cdsDna.length.
+ */
+function generateCodonFastaPair(defaultGeneticCode, logFn) {
+    const dataType = state.detectedDataType;
+    // geneName -> [{header, seq, translTable}]
+    const perGeneCandidates = new Map();
+
+    for (const record of state.records) {
+        const candidatesPerGene = new Map();
+        const tax = extractTaxonomy(record);
+        const headerName = buildHeader(record, tax);
+        const recordKey = record.accession || headerName;
+
+        for (const feat of record.features) {
+            if (feat.type !== "CDS") continue;
+            const rawGene = feat.qualifiers.gene || null;
+            const rawProduct = feat.qualifiers.product || null;
+            const geneName = standardizeGeneName(rawGene, rawProduct, dataType);
+            if (!geneName || !state.selectedGenes.has(geneName)) continue;
+
+            const rawSeq = extractSequence(record.sequence, feat.locationStr);
+            if (!rawSeq) continue;
+
+            // Apply /codon_start offset (skip partial first codon)
+            const codonStart = parseInt(feat.qualifiers.codon_start) || 1;
+            const offset = Math.max(0, codonStart - 1);
+            const seq = offset > 0 ? rawSeq.slice(offset) : rawSeq;
+            if (offset > 0) {
+                logFn(`[${geneName}] "${headerName}": /codon_start=${codonStart}, trimmed ${offset} bp`);
+            }
+
+            // /transl_table overrides the UI genetic code selection
+            const translTable = parseInt(feat.qualifiers.transl_table) || parseInt(defaultGeneticCode) || 2;
+
+            const existing = candidatesPerGene.get(geneName) || [];
+            existing.push({ header: headerName, seq, translTable, len: seq.length });
+            candidatesPerGene.set(geneName, existing);
+        }
+
+        for (const [geneName, candidates] of candidatesPerGene) {
+            const choiceKey = getDuplicateChoiceKey(recordKey, geneName);
+            const longestIndex = candidates.reduce((bi, c, i, all) => c.len > all[bi].len ? i : bi, 0);
+            const selectedIndex = state.duplicateGeneChoices.has(choiceKey)
+                ? state.duplicateGeneChoices.get(choiceKey)
+                : longestIndex;
+            const chosen = candidates[selectedIndex] || candidates[longestIndex];
+            if (!chosen) continue;
+
+            const byGene = perGeneCandidates.get(geneName) || [];
+            byGene.push(chosen);
+            perGeneCandidates.set(geneName, byGene);
+        }
+    }
+
+    const result = new Map();
+
+    for (const [geneName, seqs] of perGeneCandidates) {
+        // Warn about duplicate sequence headers within this gene
+        const headerCounts = {};
+        for (const s of seqs) headerCounts[s.header] = (headerCounts[s.header] || 0) + 1;
+        const dupHeaders = Object.entries(headerCounts).filter(([, c]) => c > 1).map(([h]) => h);
+        if (dupHeaders.length) {
+            logFn(`[${geneName}] WARN: duplicate headers detected — ${dupHeaders.join("; ")}`);
+        }
+
+        // Report unique genetic codes used for this gene
+        const codesUsed = [...new Set(seqs.map(s => s.translTable))];
+        logFn(`[${geneName}] genetic code(s): ${codesUsed.join(", ")} (${seqs.length} seq)`);
+
+        let cdsDnaFasta = "";
+        let proteinFasta = "";
+        let validCount = 0, skipCount = 0, normalizedCount = 0;
+        let terminalStopsRemoved = 0, incompleteStopFragmentsRemoved = 0, internalStopsDetected = 0;
+
+        for (const s of seqs) {
+            const validated = validateAndTranslateCdsForCodon(geneName, s.header, s.seq, s.translTable, logFn);
+            if (!validated) { skipCount++; continue; }
+            if (validated.normalized) { normalizedCount++; incompleteStopFragmentsRemoved++; }
+            if (validated.terminalStopRemoved) terminalStopsRemoved++;
+            internalStopsDetected += validated.internalStops || 0;
+            cdsDnaFasta += `>${s.header}\n${validated.validDna}\n`;
+            proteinFasta += `>${s.header}\n${validated.protein}\n`;
+            validCount++;
+        }
+
+        const rawCount = seqs.length;
+        if (validCount === 0) {
+            logFn(`[${geneName}] SKIP: ${rawCount} raw | 0 valid | ${skipCount} skipped | ${normalizedCount} normalized`);
+            continue;
+        }
+        if (validCount < 2) {
+            logFn(`[${geneName}] SKIP: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized (minimum 2 required)`);
+            continue;
+        }
+        logFn(`[${geneName}] OK: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized`);
+        result.set(geneName, { cdsDnaFasta, proteinFasta, stats: { terminalStopsRemoved, incompleteStopFragmentsRemoved, internalStopsDetected } });
+    }
+
+    return result;
+}
+
 function downloadIndividualFasta() {
     const files = generateFastaFiles();
     if (files.size === 0) {
@@ -3251,6 +3438,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("headerModal").classList.add("hidden");
         if (window.isElectron) {
             updateHeaderPreviewInline();
+            document.getElementById("panel6seq").classList.remove("hidden");
             document.getElementById("panel6b").classList.remove("hidden");
             document.getElementById("panel6c").classList.remove("hidden");
             enableRunButton();
@@ -3263,6 +3451,29 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             downloadZip();
         }
+    });
+
+    // Sequence-type radio toggle (Nucleotide / Amino Acid / Codon Aware)
+    document.querySelectorAll('input[name="alignSeqType"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+            const isAa = document.getElementById("alignSeqAa")?.checked;
+            const isCodon = document.getElementById("alignSeqCodon")?.checked;
+            const isNt = !isAa && !isCodon;
+            const codeSection = document.getElementById("alignGeneticCodeSection");
+            const codonWarning = document.getElementById("codonModeWarning");
+            if (codeSection) codeSection.classList.toggle("hidden", !(isAa || isCodon));
+            if (codonWarning) codonWarning.classList.toggle("hidden", !isCodon);
+            // Visual highlight on the label cards
+            const ntLabel = document.getElementById("alignSeqNtLabel");
+            const aaLabel = document.getElementById("alignSeqAaLabel");
+            const codonLabel = document.getElementById("alignSeqCodonLabel");
+            [[ntLabel, isNt], [aaLabel, isAa], [codonLabel, isCodon]].forEach(([el, active]) => {
+                if (!el) return;
+                el.classList.toggle("border-splace-blue-400", !!active);
+                el.classList.toggle("bg-splace-blue-50", !!active);
+                el.classList.toggle("border-gray-200", !active);
+            });
+        });
     });
 
     // Re-render header builder when separator changes
@@ -3289,18 +3500,18 @@ document.addEventListener("DOMContentLoaded", () => {
         // Open header builder
         document.getElementById("openHeaderBuilderBtn").addEventListener("click", openHeaderBuilder);
 
-        // Ask main process for CPU count; set default threads to all CPUs
+        // Ask main process for CPU count; set default threads to 4
         window.electronAPI.getCpuCount().then(cpus => {
-            const threads = cpus;
+            const threads = 4;
             document.getElementById("mafftThreads").value = threads;
-            const concurrent = Math.max(1, Math.floor(cpus / threads));
+            const concurrent = Math.max(1, Math.floor((cpus - 2) / threads));
             document.getElementById("mafftConcurrencyInfo").textContent =
                 `${cpus} logical CPUs — using ${threads} threads (${concurrent} job${concurrent !== 1 ? 's' : ''} in parallel)`;
         });
         document.getElementById("mafftThreads").addEventListener("input", () => {
             window.electronAPI.getCpuCount().then(cpus => {
                 const threads = Math.max(1, parseInt(document.getElementById("mafftThreads").value) || 1);
-                const concurrent = Math.max(1, Math.floor(cpus / threads));
+                const concurrent = Math.max(1, Math.floor((cpus - 2) / threads));
                 document.getElementById("mafftConcurrencyInfo").textContent =
                     `${cpus} logical CPUs — ${concurrent} job${concurrent !== 1 ? 's' : ''} × ${threads} thread${threads !== 1 ? 's' : ''}`;
             });
@@ -3349,9 +3560,23 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (extra) params.push(...extra.split(/\s+/).filter(Boolean));
 
-            const markers = [...state.selectedGenes];
-            openAnalysisModal("trimAl", markers);
-            window.electronAPI.runTrimal({ markers, params });
+            const isCodonMode = window._codonMode === true;
+            const markers = isCodonMode
+                ? Object.keys(window._codonOriginalDna || {})
+                : [...state.selectedGenes];
+            openAnalysisModal("trimAl", markers, {
+                alignMode: window._alignmentMode || (isCodonMode ? "codon" : "nt"),
+                isTranslated: isCodonMode || window._alignmentMode === "aa",
+                mafftMode: null,
+                postProcess: isCodonMode ? "trimAl -backtrans" : "trimAl",
+            });
+            window.electronAPI.runTrimal({
+                markers,
+                params,
+                alignmentMode: window._alignmentMode || (isCodonMode ? "codon" : "nt"),
+                codonMode: isCodonMode,
+                cdsFastas: isCodonMode ? window._codonOriginalDna : undefined,
+            });
         });
 
         // Analysis progress events
@@ -3369,11 +3594,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         // Run alignment button
-        document.getElementById("runAlignmentBtn").addEventListener("click", () => {
+        document.getElementById("runAlignmentBtn").addEventListener("click", async () => {
             if (state.selectedGenes.size === 0) { alert("No markers selected."); return; }
-            const fastaFiles = generateFastaFiles();
-            if (fastaFiles.size === 0) { alert("No sequences to align. Check records and gene selection."); return; }
 
+            const isCodonMode = document.getElementById("alignSeqCodon")?.checked === true;
+            const isAaMode = !isCodonMode && document.getElementById("alignSeqAa")?.checked === true;
+            const geneticCode = document.getElementById("alignGeneticCode")?.value || "2";
+
+            // Guard: AA mode requires translateFasta IPC (codon mode uses JS translation)
+            if (isAaMode && !window.electronAPI?.translateFasta) {
+                alert("Protein translation is not available in this build. Cannot run amino acid alignment.");
+                return;
+            }
+
+            // Track alignment mode for downstream steps (set early so modal can read it)
+            window._codonMode = isCodonMode;
+            window._alignmentMode = isCodonMode ? "codon" : isAaMode ? "aa" : "nt";
+
+            // Get human-readable genetic code name from the select element
+            const geneticCodeName = (() => {
+                const sel = document.getElementById("alignGeneticCode");
+                const opt = sel?.querySelector(`option[value="${geneticCode}"]`);
+                return opt ? opt.textContent.trim() : `NCBI ${geneticCode}`;
+            })();
+
+            // Save alignment metadata globally for pipeline tracking
+            window._alignmentGeneticCode = geneticCode;
+            window._alignmentGeneticCodeName = geneticCodeName;
+
+            // Build MAFFT params
             const method = document.getElementById("mafftMethod").value;
             const threads = parseInt(document.getElementById("mafftThreads").value) || 4;
             const maxIterate = parseInt(document.getElementById("mafftMaxIterate").value) || 0;
@@ -3392,13 +3641,149 @@ document.addEventListener("DOMContentLoaded", () => {
             if (reorder) params.push("--reorder");
             if (preserveCase) params.push("--preservecase");
             if (extra) params.push(...extra.split(/\s+/).filter(Boolean));
+            if (isAaMode || isCodonMode) params.push("--amino");
 
-            const files = {};
-            for (const [name, content] of fastaFiles) files[name] = content;
+            // ── Codon-aware: validate CDS + translate in JS (sync, exact header matching) ──
+            if (isCodonMode) {
+                const validationLogs = [];
+                const logFn = (msg) => { validationLogs.push(msg); console.log("[codon]", msg); };
 
-            const markers = Object.keys(files);
-            openAnalysisModal("mafft", markers);
-            window.electronAPI.runAnalysis({ files, params, threads });
+                const codonPairs = generateCodonFastaPair(geneticCode, logFn);
+
+                if (codonPairs.size === 0) {
+                    alert("No valid CDS sequences found for codon-aware alignment.\nCheck the browser console for details.");
+                    window._codonMode = false;
+                    window._alignmentMode = "nt";
+                    return;
+                }
+
+                window._codonOriginalDna = {};
+                window._codonPipelineStats = {};
+                window._codonValidationLogs = validationLogs;
+
+                const files = {};
+                for (const [geneName, pair] of codonPairs) {
+                    window._codonOriginalDna[geneName] = pair.cdsDnaFasta;   // DNA (no stop)
+                    window._codonPipelineStats[geneName] = pair.stats || {}; // stop codon stats
+                    files[geneName] = pair.proteinFasta;                     // protein → MAFFT
+                }
+
+                const skippedGenes = [...state.selectedGenes].filter(g => !codonPairs.has(g));
+                if (skippedGenes.length) logFn(`Genes skipped (no valid CDS): ${skippedGenes.join(", ")}`);
+                logFn(`Sending ${codonPairs.size} gene(s) to MAFFT (--amino)`);
+
+                const markers = Object.keys(files);
+                openAnalysisModal("mafft", markers, {
+                    alignMode: "codon",
+                    isTranslated: true,
+                    geneticCode,
+                    geneticCodeName,
+                    mafftMode: "--amino",
+                    postProcess: "trimAl -backtrans",
+                });
+                window.electronAPI.runAnalysis({ files, params, threads });
+                return;
+            }
+
+            // ── Nucleotide / Amino-acid: generate raw FASTAs ─────────────────────────────
+            const rawFastaFiles = generateFastaFiles();
+            if (rawFastaFiles.size === 0) {
+                alert("No sequences to align. Check records and gene selection.");
+                return;
+            }
+
+            // Partition markers: valid (>= 2 seqs) vs. skipped (< 2 seqs)
+            const validRaw = {};    // name -> { content, rawCount }
+            const skippedRaw = []; // { name, count }
+            for (const [name, content] of rawFastaFiles) {
+                const rawCount = countFastaSequences(content);
+                if (rawCount < 2) {
+                    skippedRaw.push({ name, count: rawCount });
+                } else {
+                    validRaw[name] = { content, rawCount };
+                }
+            }
+
+            if (Object.keys(validRaw).length === 0) {
+                const detail = skippedRaw.map(s => `• ${s.name}: ${s.count} sequence(s)`).join("\n");
+                alert(`No markers have enough sequences (minimum 2 required):\n${detail}`);
+                return;
+            }
+
+            window._codonOriginalDna = null;
+            window._codonValidationLogs = null;
+
+            const markers = Object.keys(validRaw);
+
+            if (isAaMode) {
+                // Open modal BEFORE translation so the user can follow progress
+                openAnalysisModal("mafft", markers, {
+                    alignMode: "aa",
+                    isTranslated: true,
+                    geneticCode,
+                    geneticCodeName,
+                    mafftMode: "--amino",
+                    postProcess: null,
+                });
+
+                const logEl = document.getElementById("analysisModalLog");
+                const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+
+                // Report skipped markers immediately
+                for (const { name, count } of skippedRaw) {
+                    appendLog(`${name}: skipped, only ${count} sequence${count !== 1 ? 's' : ''}`);
+                }
+
+                appendLog(`Preparing FASTA files for ${markers.length} marker(s)\u2026`);
+                appendLog(`Using genetic code: ${geneticCodeName}`);
+                appendLog("Translating sequences with seqkit\u2026");
+
+                try {
+                    let files = {};
+                    for (const [name, { content, rawCount }] of Object.entries(validRaw)) {
+                        appendLog(`  Translating ${name} (${rawCount} sequences)\u2026`);
+                        const result = await window.electronAPI.translateFasta({ content, code: geneticCode });
+                        const translatedContent = result || content;
+                        const translatedCount = countFastaSequences(translatedContent);
+                        if (translatedCount !== rawCount) {
+                            throw new Error(`${name}: translation changed sequence count from ${rawCount} to ${translatedCount}`);
+                        }
+                        files[name] = translatedContent;
+                        appendLog(`${name}: ${rawCount} raw sequences \u2192 ${translatedCount} translated sequences \u2192 MAFFT`);
+                    }
+                    appendLog("Running MAFFT with --amino\u2026");
+                    window.electronAPI.runAnalysis({ files, params, threads });
+                } catch (e) {
+                    appendLog(`\nTranslation failed: ${e.message || e}`);
+                    document.getElementById("analysisModalClose").classList.remove("hidden");
+                    document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
+                    document.getElementById("analysisModalTitle").textContent = "Translation Failed";
+                    return;
+                }
+            } else {
+                // Nucleotide mode: open modal then log per-marker counts
+                const files = {};
+                for (const [name, { content }] of Object.entries(validRaw)) files[name] = content;
+
+                openAnalysisModal("mafft", markers, {
+                    alignMode: "nt",
+                    isTranslated: false,
+                    geneticCode: null,
+                    geneticCodeName: null,
+                    mafftMode: "nucleotide mode",
+                    postProcess: null,
+                });
+
+                const logEl = document.getElementById("analysisModalLog");
+                const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+                for (const { name, count } of skippedRaw) {
+                    appendLog(`${name}: skipped, only ${count} sequence${count !== 1 ? 's' : ''}`);
+                }
+                for (const [name, { rawCount }] of Object.entries(validRaw)) {
+                    appendLog(`${name}: ${rawCount} sequences \u2192 MAFFT`);
+                }
+                window.electronAPI.runAnalysis({ files, params, threads });
+            }
         });
     }
 });
@@ -3409,7 +3794,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let _analysisMarkers = [];
 
-function openAnalysisModal(phase, markers) {
+function openAnalysisModal(phase, markers, options) {
+    const opts = options || {};
     _analysisMarkers = markers;
     const modal = document.getElementById("analysisModal");
     const icon = document.getElementById("analysisModalIcon");
@@ -3421,10 +3807,89 @@ function openAnalysisModal(phase, markers) {
     const log = document.getElementById("analysisModalLog");
     const list = document.getElementById("analysisModalMarkerList");
     const close = document.getElementById("analysisModalClose");
+    const badges = document.getElementById("analysisModalBadges");
+    const sectionCopy = document.getElementById("analysisModalSectionCopy");
 
     icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg";
-    title.textContent = phase === "mafft" ? "Running MAFFT Alignment…" : "Running trimAl…";
-    sub.textContent = `${markers.length} marker${markers.length !== 1 ? 's' : ''} queued`;
+
+    // Title
+    if (phase === "mafft") {
+        title.textContent = opts.alignMode === "codon"
+            ? "Running Codon-Aware Alignment…"
+            : "Running MAFFT Alignment…";
+    } else if (phase === "trimAl") {
+        title.textContent = "Running trimAl…";
+    } else {
+        title.textContent = "Running…";
+    }
+
+    // Subtitle
+    if (phase === "mafft") {
+        if (opts.alignMode === "codon") {
+            sub.textContent = "CDS to protein · MAFFT --amino · back-translation to DNA codons";
+        } else if (opts.alignMode === "aa") {
+            sub.textContent = "Amino Acid mode · Translation ON · MAFFT --amino";
+        } else {
+            sub.textContent = `Nucleotide mode · Translation OFF · ${markers.length} marker${markers.length !== 1 ? 's' : ''} queued`;
+        }
+    } else {
+        sub.textContent = `${markers.length} marker${markers.length !== 1 ? 's' : ''} queued`;
+    }
+
+    // Section copy
+    if (sectionCopy) {
+        if (opts.alignMode === "codon") {
+            sectionCopy.textContent = "CDS sequences are translated, aligned as proteins, then back-translated to codon-preserving DNA.";
+        } else if (opts.alignMode === "aa") {
+            sectionCopy.textContent = opts.geneticCodeName
+                ? `Sequences are being translated before alignment using genetic code ${opts.geneticCodeName}.`
+                : "Sequences are being translated before alignment.";
+        } else {
+            sectionCopy.textContent = "DNA/RNA sequences are aligned directly.";
+        }
+    }
+
+    // Mode badges
+    if (badges) {
+        if (opts.alignMode) {
+            const modeLabel = { codon: "CDS", aa: "Amino Acid", nt: "Nucleotide" }[opts.alignMode] || opts.alignMode;
+            const modeColor = { codon: "violet", aa: "blue", nt: "green" }[opts.alignMode] || "slate";
+            const tranLabel = opts.isTranslated ? (opts.alignMode === "codon" ? "ON · CDS to protein" : "ON") : "OFF";
+            const tranColor = opts.isTranslated ? "amber" : "slate";
+            const mafftVal = opts.mafftMode || "auto";
+            const mafftColor = (opts.mafftMode === "--amino") ? "indigo" : "teal";
+
+            const items = [
+                { label: "Sequence type", value: modeLabel, color: modeColor },
+                { label: "Translation", value: tranLabel, color: tranColor },
+                ...(opts.isTranslated && opts.geneticCodeName
+                    ? [{ label: "Genetic code", value: opts.geneticCodeName, color: "teal" }]
+                    : []),
+                { label: "MAFFT mode", value: mafftVal, color: mafftColor },
+                ...(opts.postProcess ? [{ label: "Post-processing", value: opts.postProcess, color: "orange" }] : []),
+            ];
+
+            const colorMap = {
+                violet: "bg-violet-100 text-violet-700 border-violet-200",
+                blue: "bg-blue-100 text-blue-700 border-blue-200",
+                green: "bg-green-100 text-green-700 border-green-200",
+                amber: "bg-amber-100 text-amber-700 border-amber-200",
+                slate: "bg-slate-100 text-slate-600 border-slate-200",
+                indigo: "bg-indigo-100 text-indigo-700 border-indigo-200",
+                teal: "bg-teal-100 text-teal-700 border-teal-200",
+                orange: "bg-orange-100 text-orange-700 border-orange-200",
+            };
+
+            badges.innerHTML = items.map(b => {
+                const cls = colorMap[b.color] || colorMap.slate;
+                return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cls}"><span class="font-semibold opacity-75">${b.label}:</span><span>${b.value}</span></span>`;
+            }).join("");
+            badges.classList.remove("hidden");
+        } else {
+            badges.classList.add("hidden");
+        }
+    }
+
     bar.style.width = "0%";
     lbl.textContent = `0 / ${markers.length} markers`;
     pct.textContent = "0%";
@@ -3439,6 +3904,14 @@ function openAnalysisModal(phase, markers) {
     ).join("");
 
     modal.classList.remove("hidden");
+
+    // Codon mode: show CDS validation logs collected before modal opened
+    if (window._codonMode && window._codonValidationLogs?.length) {
+        log.textContent = "=== CDS Validation ===\n" +
+            window._codonValidationLogs.join("\n") +
+            "\n=== MAFFT ===\n";
+        log.scrollTop = log.scrollHeight;
+    }
 }
 
 window.toggleTaxonomyImportCandidate = toggleTaxonomyImportCandidate;
@@ -3486,6 +3959,81 @@ function updateAnalysisModal(data) {
     }
 }
 
+function attachPipelineToResults(markerResults, mode) {
+    const isAa = mode === "aa";
+    for (const mr of markerResults) {
+        mr.pipeline = {
+            mode,
+            rawDataType: "nucleotide",
+            mafftInputType: isAa ? "protein" : "nucleotide",
+            mafftMode: isAa ? "--amino" : "nucleotide",
+            alignedDataType: isAa ? "protein" : "nucleotide",
+            finalMatrixType: isAa ? "protein" : "nucleotide",
+            geneticCode: isAa ? (window._alignmentGeneticCode || null) : null,
+            geneticCodeName: isAa ? (window._alignmentGeneticCodeName || null) : null,
+            stopCodonPolicy: null,
+            backtranslation: { status: "not applicable", method: "none" },
+            trimming: { status: "not run", inputType: null, outputType: null, strategy: null, codonPreserving: false },
+            codonIntegrity: { checked: false },
+        };
+    }
+}
+
+function updatePipelineForTrimming(markerResults) {
+    const isCodon = window._alignmentMode === "codon";
+    for (const mr of markerResults) {
+        // Restore pipeline from the MAFFT phase (main.js re-creates result objects as shallow copies)
+        const savedPipeline = window._markerPipelines?.[mr.marker];
+        if (savedPipeline) {
+            mr.pipeline = { ...savedPipeline };
+        } else if (!mr.pipeline) {
+            // Fallback: build minimal pipeline from current mode
+            const mode = window._alignmentMode || "nt";
+            const isAa = mode === "aa";
+            mr.pipeline = {
+                mode,
+                rawDataType: "nucleotide",
+                mafftInputType: isAa ? "protein" : "nucleotide",
+                mafftMode: isAa ? "--amino" : "nucleotide",
+                alignedDataType: isAa ? "protein" : "nucleotide",
+                finalMatrixType: isAa ? "protein" : "nucleotide",
+                geneticCode: window._alignmentGeneticCode || null,
+                geneticCodeName: window._alignmentGeneticCodeName || null,
+                stopCodonPolicy: null,
+                backtranslation: { status: "not applicable", method: "none" },
+                codonIntegrity: { checked: false },
+            };
+        }
+        const inputType = mr.pipeline.mafftInputType === "protein" ? "protein" : "nucleotide";
+        const outputType = isCodon ? "codon-dna" : (mr.pipeline.alignedDataType || "nucleotide");
+        mr.pipeline.trimming = {
+            status: "done",
+            inputType,
+            outputType,
+            strategy: isCodon ? "protein-guided codon block trimming" : "column trimming",
+            codonPreserving: isCodon,
+        };
+        if (isCodon && mr.trimMethod) {
+            mr.pipeline.backtranslation = {
+                status: "done",
+                method: mr.trimMethod === "trimal-backtrans" ? "trimAl -backtrans" : "javascript fallback",
+            };
+        }
+        if (isCodon && mr.trimmedContent) {
+            const trimSeqs = parseFasta(mr.trimmedContent);
+            const allMult3 = trimSeqs.every(s => s.seq.length % 3 === 0);
+            const gapTrip = trimSeqs.every(s =>
+                (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0)
+            );
+            mr.pipeline.codonIntegrity = {
+                allLengthsMultipleOf3: allMult3,
+                gapBlocksAreTriplets: gapTrip,
+                checked: true,
+            };
+        }
+    }
+}
+
 function finalizeAnalysisModal(result) {
     const icon = document.getElementById("analysisModalIcon");
     const title = document.getElementById("analysisModalTitle");
@@ -3507,6 +4055,18 @@ function finalizeAnalysisModal(result) {
             document.getElementById("analysisModal").classList.add("hidden");
             if (result.markerResults) {
                 window._alignmentOutputDir = result.outputDir;
+                // In codon mode: back-translate protein alignments to DNA (also attaches pipeline)
+                if (window._codonMode) {
+                    applyBacktranslationToResults(result.markerResults);
+                } else {
+                    // NT/AA mode: attach pipeline metadata
+                    attachPipelineToResults(result.markerResults, window._alignmentMode || "nt");
+                }
+                // Save pipeline state for post-trimAl restoration
+                window._markerPipelines = {};
+                for (const mr of result.markerResults) {
+                    if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
+                }
                 renderAlignmentResults(result.markerResults, false);
                 renderConcatSection(result.markerResults, false);
             }
@@ -3522,6 +4082,12 @@ function finalizeAnalysisModal(result) {
         close.onclick = () => {
             document.getElementById("analysisModal").classList.add("hidden");
             if (result.markerResults) {
+                // For codon mode: re-apply back-translation so alignedContent is DNA, not protein
+                if (window._codonMode) {
+                    applyBacktranslationToResults(result.markerResults);
+                }
+                // Update trimming metadata in pipeline for all modes
+                updatePipelineForTrimming(result.markerResults);
                 renderAlignmentResults(result.markerResults, true);
                 renderConcatSection(result.markerResults, true);
             }
@@ -3552,6 +4118,115 @@ function parseFasta(text) {
     return seqs;
 }
 
+// Build a { header -> seq } lookup from a FASTA string.
+function parseFastaToMap(fastaText) {
+    const map = {};
+    for (const s of parseFasta(fastaText)) map[s.name] = s.seq;
+    return map;
+}
+
+// Count FASTA sequences by counting '>' header lines.
+function countFastaSequences(fasta) {
+    return (fasta.match(/^>/gm) || []).length;
+}
+
+// Back-translate one aligned protein sequence to DNA using the original
+// (unaligned) CDS codons.  Each '-' in the protein → '---' in the DNA.
+function backTranslateProteinAlignment(alignedProteinSeq, originalDna) {
+    const dna = originalDna.toUpperCase().replace(/U/g, "T").replace(/[^ACGTNRYSWKMBDHV]/g, "");
+    const codons = [];
+    for (let i = 0; i + 2 < dna.length; i += 3) codons.push(dna.slice(i, i + 3));
+    let idx = 0, output = "";
+    for (const aa of alignedProteinSeq) {
+        if (aa === "-" || aa === ".") output += "---";
+        else { output += codons[idx] || "NNN"; idx++; }
+    }
+    return output;
+}
+
+// After MAFFT returns protein alignments, back-translate every marker's
+// alignedContent to DNA in-place using the stored original CDS sequences.
+function applyBacktranslationToResults(markerResults) {
+    const logEl = document.getElementById("analysisModalLog");
+    const log = (msg) => {
+        if (logEl) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+        console.log("[codon]", msg);
+    };
+    for (const mr of markerResults) {
+        const dnaCdsContent = window._codonOriginalDna?.[mr.marker];
+        if (!dnaCdsContent || !mr.alignedContent) continue;
+
+        const dnaMap = parseFastaToMap(dnaCdsContent);
+        const protSeqs = parseFasta(mr.alignedContent);
+        let dnaFasta = "", warnings = 0;
+
+        for (const ps of protSeqs) {
+            const dna = dnaMap[ps.name];
+            if (!dna) {
+                log(`[${mr.marker}] WARNING: no DNA for header "${ps.name}"`);
+                warnings++;
+                continue;
+            }
+            dnaFasta += `>${ps.name}\n${backTranslateProteinAlignment(ps.seq, dna.replace(/-/g, ""))}\n`;
+        }
+        if (!dnaFasta) { log(`[${mr.marker}] ERROR: back-translation produced no sequences`); continue; }
+
+        mr.proteinAlignedContent = mr.alignedContent;  // keep protein copy
+        mr.alignedContent = dnaFasta;                   // replace with DNA
+        mr.rawContent = dnaCdsContent;                  // show raw CDS in Raw tab
+
+        const seqs = parseFasta(dnaFasta);
+        const dnaLen = seqs[0]?.seq.length || 0;
+        const gapCount = seqs.reduce((a, s) => a + (s.seq.match(/-/g) || []).length, 0);
+        const totalChars = seqs.reduce((a, s) => a + s.seq.length, 0);
+        mr.alignedStats = {
+            numSeqs: seqs.length, length: dnaLen, avgLen: dnaLen,
+            gapPct: totalChars > 0 ? ((gapCount / totalChars) * 100).toFixed(1) : "0.0",
+        };
+        // Codon integrity check
+        const allLengthsMult3 = seqs.every(s => s.seq.length % 3 === 0);
+        const gapBlocksAreTrip = seqs.every(s =>
+            (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0)
+        );
+        if (!mr.pipeline) {
+            const pipelineStats = window._codonPipelineStats?.[mr.marker] || {};
+            mr.pipeline = {
+                mode: "codon",
+                rawDataType: "cds-dna",
+                mafftInputType: "protein",
+                mafftMode: "--amino",
+                alignedDataType: "codon-dna",
+                finalMatrixType: "codon-preserving DNA",
+                geneticCode: window._alignmentGeneticCode || "2",
+                geneticCodeName: window._alignmentGeneticCodeName || "",
+                stopCodonPolicy: {
+                    terminalStopsRemoved: pipelineStats.terminalStopsRemoved || 0,
+                    incompleteStopFragmentsRemoved: pipelineStats.incompleteStopFragmentsRemoved || 0,
+                    internalStopsDetected: pipelineStats.internalStopsDetected || 0,
+                },
+                backtranslation: {
+                    status: "done",
+                    method: "javascript fallback",
+                },
+                trimming: {
+                    status: "not run",
+                    inputType: null,
+                    outputType: null,
+                    strategy: null,
+                    codonPreserving: null,
+                },
+                codonIntegrity: {
+                    allLengthsMultipleOf3: allLengthsMult3,
+                    gapBlocksAreTriplets: gapBlocksAreTrip,
+                    checked: true,
+                },
+            };
+        }
+        log(`[${mr.marker}] \u2713 Back-translation: ${seqs.length} seq \u00d7 ${dnaLen} bp${dnaLen % 3 !== 0 ? " \u26a0 not multiple of 3" : ""}${!allLengthsMult3 || !gapBlocksAreTrip ? " | \u26a0 codon integrity issues" : ""}`);
+        if (warnings > 0) log(`[${mr.marker}] \u26a0 ${warnings} sequences skipped (header mismatch)`);
+    }
+}
+
 const NT_COLORS = { A: "#1AC253", T: "#E11218", U: "#E11218", G: "#ECA918", C: "#4272EE", "-": "#d1d5db" };
 const AA_COLORS = {
     A: "#8dd3c7", C: "#ffffb3", D: "#fb8072", E: "#fb8072", F: "#80b1d3",
@@ -3573,8 +4248,17 @@ const CODON_TABLE = {
 const GENETIC_CODE_TABLES = {
     "1": CODON_TABLE,
     "2": { ...CODON_TABLE, ATA: "M", TGA: "W", AGA: "*", AGG: "*" },
+    "3": { ...CODON_TABLE, ATA: "M", TGA: "W", CTT: "T", CTC: "T", CTA: "T", CTG: "T" },
+    "4": { ...CODON_TABLE, TGA: "W" },
     "5": { ...CODON_TABLE, ATA: "M", TGA: "W", AGA: "S", AGG: "S" },
+    "6": { ...CODON_TABLE, TAA: "Q", TAG: "Q" },
+    "9": { ...CODON_TABLE, AAA: "N", AGA: "S", TGA: "W" },
     "11": CODON_TABLE,
+    "13": { ...CODON_TABLE, AGA: "G", AGG: "G", ATA: "M", TGA: "W" },
+    "14": { ...CODON_TABLE, AAA: "N", AGA: "S", TAA: "Y", TGA: "W" },
+    "16": { ...CODON_TABLE, TAG: "L" },
+    "21": { ...CODON_TABLE, ATA: "M", TGA: "W", AGA: "S", AGG: "S", AAA: "N" },
+    "24": { ...CODON_TABLE, AGA: "S", AGG: "K", TGA: "W" },
 };
 
 function hexToRgb(hex) {
@@ -3631,7 +4315,7 @@ function buildSequenceSnippet(sequence, palette, maxChars = 72) {
     return html.join("");
 }
 
-function renderAlignmentPreview(container, sequences, mode) {
+function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
     if (!container) return;
     const rows = sequences || [];
     if (!rows.length) {
@@ -3639,26 +4323,70 @@ function renderAlignmentPreview(container, sequences, mode) {
         return;
     }
 
-    const palette = mode === "aa" ? AA_COLORS : NT_COLORS;
     const totalStops = mode === "aa" ? rows.reduce((acc, seq) => acc + (seq.stopCount || 0), 0) : 0;
     const summaryKey = mode === "aa" ? "step5.results.preview.summaryStops" : "step5.results.preview.summary";
     const summaryFallback = mode === "aa"
         ? "{seqs} sequences rendered; {stops} possible stop codon(s)"
         : "{seqs} sequences rendered";
     const summary = i18nText(summaryKey, summaryFallback, { seqs: rows.length, stops: totalStops });
-    const previewRows = rows.slice(0, 12).map((seq) => {
+
+    // Helper: extract start or stop codon (first/last 3 non-gap bases) from a raw DNA sequence
+    function getDnaCodon(rawSeq, fromEnd) {
+        if (!rawSeq || !rawSeq.seq) return "---";
+        const dna = rawSeq.seq.replace(/-/g, "").toUpperCase();
+        if (!dna) return "---";
+        return fromEnd ? dna.slice(-3).padStart(3, "-") : dna.slice(0, 3).padEnd(3, "-");
+    }
+
+    // Helper: render a 3-base codon as colored spans using NT_COLORS
+    function renderCodon(codon) {
+        return Array.from(codon).map(ch => {
+            const col = NT_COLORS[ch] || "#e2e8f0";
+            const fg = (ch === "-") ? "#94a3b8" : "rgba(0,0,0,0.72)";
+            return `<span class="alignment-residue" style="background:${col};color:${fg};">${ch}</span>`;
+        }).join("");
+    }
+
+    const previewRows = rows.slice(0, 12).map((seq, i) => {
         const length = seq.seq.length;
         const stopDisplay = mode === "aa"
             ? String(seq.stopCount || 0)
             : i18nText("step5.results.preview.none", "none");
+        const rawSeq = rawSeqs ? rawSeqs[i] : seq;
+        const startCodon = getDnaCodon(rawSeq, false);
+        const stopCodon = getDnaCodon(rawSeq, true);
         return `
             <div class="alignment-preview-row">
                 <div class="alignment-preview-name" title="${seq.name}">${seq.name}</div>
                 <div class="alignment-preview-metric">${length}</div>
                 <div class="alignment-preview-metric">${stopDisplay}</div>
-                <div class="alignment-preview-seq">${buildSequenceSnippet(seq.seq, palette)}</div>
+                <div class="alignment-preview-codon">${renderCodon(startCodon)}</div>
+                <div class="alignment-preview-codon">${renderCodon(stopCodon)}</div>
             </div>`;
     }).join("");
+
+    const alignedNames = new Set(rows.map(s => s.name));
+    const missing = [];
+    if (geneName && state.records && state.records.length > 0) {
+        for (const record of state.records) {
+            const tax = extractTaxonomy(record);
+            const header = buildHeader(record, tax);
+            if (!alignedNames.has(header)) {
+                missing.push({
+                    name: header,
+                    organism: record.editedOrganism || record.organism || record.accession || ""
+                });
+            }
+        }
+    }
+
+    const missingHtml = missing.length > 0 ? `
+        <div class="alignment-preview-missing">
+            <div class="alignment-preview-missing-title">Missing (${missing.length})</div>
+            <div class="alignment-preview-missing-list">
+                ${missing.map(m => `<div class="alignment-preview-missing-row" title="${m.name}">${m.organism || m.name}</div>`).join("")}
+            </div>
+        </div>` : "";
 
     container.innerHTML = `
         <div class="alignment-preview">
@@ -3670,10 +4398,12 @@ function renderAlignmentPreview(container, sequences, mode) {
                     <div>${i18nText("step5.results.preview.name", "Sequence")}</div>
                     <div>${i18nText("step5.results.preview.length", "Length")}</div>
                     <div>${i18nText("step5.results.preview.stops", "Stops")}</div>
-                    <div>${i18nText("step5.results.preview.snippet", "Preview")}</div>
+                    <div style="text-transform:none;">Start codon</div>
+                    <div style="text-transform:none;">Stop codon</div>
                 </div>
                 ${previewRows}
             </div>
+            ${missingHtml}
         </div>`;
 }
 
@@ -3681,6 +4411,7 @@ function getAlignmentViewOptions(mode) {
     if (mode === "aa") {
         return {
             colors: AA_COLORS,
+            isProtein: true,
             labels: {
                 zoom: i18nText("step5.results.zoom", "ZOOM"),
                 consensus: i18nText("step5.results.consensus", "CONSENSUS"),
@@ -3705,21 +4436,61 @@ function getAlignmentViewOptions(mode) {
     };
 }
 
-function renderAlignmentTab(markerData, tab, mode) {
+async function renderAlignmentTab(markerData, tab, mode) {
     const contentMap = {
         raw: markerData.rawContent,
         aligned: markerData.alignedContent,
         trimmed: markerData.trimmedContent,
     };
-    const content = contentMap[tab];
+    // For codon mode "protein-guide" view: show protein alignment in the aligned tab
+    let content;
+    if (mode === "protein-guide" && tab === "aligned" && markerData.proteinAlignedContent) {
+        content = markerData.proteinAlignedContent;
+    } else {
+        content = contentMap[tab];
+    }
     const wrap = document.getElementById(`vizwrap-${markerData.id}-${tab}`);
     const preview = document.getElementById(`preview-${markerData.id}-${tab}`);
     if (!wrap || !preview || !content) return;
     const sequences = parseFasta(content);
-    const geneticCode = document.getElementById(`genetic-code-${markerData.id}-${tab}`)?.value || "1";
-    const displaySequences = mode === "aa" ? translateAlignmentSequences(sequences, geneticCode) : sequences;
+    const geneticCode = document.getElementById(`genetic-code-${markerData.id}-${tab}`)?.value || "2";
+
+    let displaySequences;
+    if (mode === "protein-guide") {
+        // Content is already a protein alignment — render with AA colors directly
+        renderAlignmentPlotly(wrap, sequences, getAlignmentViewOptions("aa"));
+        renderAlignmentPreview(preview, sequences, "aa", sequences, markerData.id);
+        wrap.dataset.rendered = "1";
+        wrap.dataset.view = mode;
+        return;
+    }
+    if (mode === "aa") {
+        if (window.isElectron && window.electronAPI?.translateFasta) {
+            // Strip alignment gaps; seqkit translate handles the rest
+            const strippedFasta = sequences
+                .filter(s => s.seq.replace(/-/g, "").length > 0)
+                .map(s => `>${s.name}\n${s.seq.replace(/-/g, "")}`).
+                join("\n");
+            try {
+                const proteinFasta = await window.electronAPI.translateFasta({ content: strippedFasta, code: geneticCode });
+                const proteinSeqs = parseFasta(proteinFasta || "");
+                displaySequences = proteinSeqs.map(s => ({
+                    name: s.name,
+                    seq: s.seq,
+                    stopCount: (s.seq.match(/\*/g) || []).length,
+                }));
+            } catch (e) {
+                displaySequences = translateAlignmentSequences(sequences, geneticCode);
+            }
+        } else {
+            displaySequences = translateAlignmentSequences(sequences, geneticCode);
+        }
+    } else {
+        displaySequences = sequences;
+    }
+
     renderAlignmentPlotly(wrap, displaySequences, getAlignmentViewOptions(mode));
-    renderAlignmentPreview(preview, displaySequences, mode);
+    renderAlignmentPreview(preview, displaySequences, mode, sequences, markerData.id);
     wrap.dataset.rendered = "1";
     wrap.dataset.view = mode;
 }
@@ -3780,7 +4551,8 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const RULER_H = 24;
     const CONS_SEQ_H = Math.max(14, Math.min(22, Math.floor(480 / nSeq)));
     const CONS_BAR_H = 52;
-    const NAME_W = 190;
+    const BASE_COMP_H = 44;
+    let nameW = 190;
     const cellH = Math.max(14, Math.min(22, Math.floor(480 / nSeq)));
 
     const palette = options.colors || {
@@ -3808,7 +4580,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     }
 
     // ── mutable zoom state ─────────────────────────────────────────────────
-    let cellW = seqLen <= 100 ? 14 : seqLen <= 400 ? 10 : seqLen <= 1000 ? 6 : seqLen <= 3000 ? 3 : 2;
+    let cellW = 20;
 
     // ── outer container ────────────────────────────────────────────────────
     const container = document.createElement("div");
@@ -3841,7 +4613,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const zoomOutBtn = makeBtn("−", "Zoom out (or Ctrl+scroll)", () => { if (cellW > 1) { cellW = Math.max(1, Math.floor(cellW * 0.65)); redraw(); } });
     const zoomInBtn = makeBtn("+", "Zoom in (or Ctrl+scroll)", () => { cellW = Math.min(28, Math.ceil(cellW * 1.55)); redraw(); });
     const zoomFitBtn = makeBtn("Fit", "Fit to view", () => {
-        const avail = seqOuter.clientWidth || container.clientWidth - NAME_W;
+        const avail = seqOuter.clientWidth || container.clientWidth - nameW;
         cellW = Math.max(1, Math.floor(avail / seqLen));
         redraw();
     });
@@ -3868,7 +4640,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     container.appendChild(rulerRow);
 
     const rulerSpacer = document.createElement("div");
-    rulerSpacer.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${RULER_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;`;
+    rulerSpacer.style.cssText = `width:${nameW}px;flex-shrink:0;height:${RULER_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;`;
     rulerRow.appendChild(rulerSpacer);
 
     const rulerOuter = document.createElement("div");
@@ -3886,13 +4658,19 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     container.appendChild(bodyRow);
 
     const nameDiv = document.createElement("div");
-    nameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;overflow:hidden;background:#f3f4f6;border-right:2px solid #d1d5db;`;
+    nameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;overflow:hidden;background:#f3f4f6;border-right:2px solid #d1d5db;`;
     bodyRow.appendChild(nameDiv);
 
     const nameCanvas = document.createElement("canvas");
-    nameCanvas.width = NAME_W;
+    nameCanvas.width = nameW;
     nameCanvas.style.cssText = "display:block;";
     nameDiv.appendChild(nameCanvas);
+
+    // ── resize handle ──────────────────────────────────────────────────────
+    const resizeHandle = document.createElement("div");
+    resizeHandle.style.cssText = "width:5px;flex-shrink:0;background:transparent;cursor:col-resize;position:relative;z-index:2;";
+    resizeHandle.title = "Drag to resize sequence name column";
+    bodyRow.appendChild(resizeHandle);
 
     const seqOuter = document.createElement("div");
     seqOuter.style.cssText = "overflow-x:auto;overflow-y:hidden;flex:1;cursor:grab;";
@@ -3908,7 +4686,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     container.appendChild(consSeqRow);
 
     const consSeqNameDiv = document.createElement("div");
-    consSeqNameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${CONS_SEQ_H}px;background:#dbeafe;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
+    consSeqNameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;height:${CONS_SEQ_H}px;background:#dbeafe;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
     consSeqNameDiv.innerHTML = `<span style="font-size:10px;color:#1e40af;font-weight:700;letter-spacing:.05em;">${labels.consensus}</span>`;
     consSeqRow.appendChild(consSeqNameDiv);
 
@@ -3927,7 +4705,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     container.appendChild(consBarRow);
 
     const consBarNameDiv = document.createElement("div");
-    consBarNameDiv.style.cssText = `width:${NAME_W}px;flex-shrink:0;height:${CONS_BAR_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
+    consBarNameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;height:${CONS_BAR_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
     consBarNameDiv.innerHTML = `<span style="font-size:10px;color:#6b7280;font-weight:600;letter-spacing:.04em;">${labels.conservation}</span>`;
     consBarRow.appendChild(consBarNameDiv);
 
@@ -3939,6 +4717,35 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     consBarCanvas.height = CONS_BAR_H;
     consBarCanvas.style.cssText = "display:block;";
     consBarOuter.appendChild(consBarCanvas);
+
+    // ── base composition row ───────────────────────────────────────────────
+    const baseCompRow = document.createElement("div");
+    baseCompRow.style.cssText = "display:flex;flex-shrink:0;border-top:1px solid #e5e7eb;";
+    container.appendChild(baseCompRow);
+
+    const baseCompNameDiv = document.createElement("div");
+    baseCompNameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;height:${BASE_COMP_H}px;background:#f3f4f6;border-right:2px solid #d1d5db;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;`;
+    baseCompNameDiv.innerHTML = `<span style="font-size:10px;color:#6b7280;font-weight:600;letter-spacing:.04em;">COMPOSITION</span>`;
+    baseCompRow.appendChild(baseCompNameDiv);
+
+    const baseCompOuter = document.createElement("div");
+    baseCompOuter.style.cssText = "overflow:hidden;flex:1;";
+    baseCompRow.appendChild(baseCompOuter);
+
+    const baseCompCanvas = document.createElement("canvas");
+    baseCompCanvas.height = BASE_COMP_H;
+    baseCompCanvas.style.cssText = "display:block;";
+    baseCompOuter.appendChild(baseCompCanvas);
+
+    // ── helper: sync all name-column widths after resize ──────────────────
+    function updateNameWidth() {
+        nameDiv.style.width = nameW + "px";
+        nameCanvas.width = nameW;
+        rulerSpacer.style.width = nameW + "px";
+        consSeqNameDiv.style.width = nameW + "px";
+        consBarNameDiv.style.width = nameW + "px";
+        baseCompNameDiv.style.width = nameW + "px";
+    }
 
     // ── redraw function ────────────────────────────────────────────────────
     function redraw() {
@@ -3957,18 +4764,19 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         rCtx.fillStyle = "#f3f4f6";
         rCtx.fillRect(0, 0, W, RULER_H);
         rCtx.font = "10px monospace";
-        // choose tick interval so labels don't overlap (each label ~30px)
+        rCtx.textAlign = "center";
+        // tick interval: minimum every 2 positions, then nice steps
         const minTickPx = 35;
         const rawStep = Math.ceil(minTickPx / cellW);
-        const niceSteps = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
+        const niceSteps = [2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
         const tickStep = niceSteps.find(s => s >= rawStep) || rawStep;
         for (let p = 0; p < seqLen; p++) {
             if (p === 0 || (p + 1) % tickStep === 0) {
-                const x = p * cellW;
+                const x = p * cellW + cellW / 2;
                 rCtx.fillStyle = "#9ca3af";
-                rCtx.fillRect(x, RULER_H - 6, 1, 6);
+                rCtx.fillRect(p * cellW + cellW / 2 - 0.5, RULER_H - 6, 1, 6);
                 rCtx.fillStyle = "#374151";
-                rCtx.fillText(p + 1, x + 2, RULER_H - 9);
+                rCtx.fillText(p + 1, x, RULER_H - 9);
             }
         }
 
@@ -3976,18 +4784,18 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         nameCanvas.height = H;
         const nCtx = nameCanvas.getContext("2d");
         nCtx.fillStyle = "#f3f4f6";
-        nCtx.fillRect(0, 0, NAME_W, H);
+        nCtx.fillRect(0, 0, nameW, H);
         const nameFontSize = Math.min(12, cellH - 2);
         nCtx.font = `${nameFontSize}px system-ui,sans-serif`;
         nCtx.textBaseline = "middle";
         nCtx.textAlign = "right";
         for (let si = 0; si < nSeq; si++) {
             const y = si * cellH;
-            if (si % 2 === 0) { nCtx.fillStyle = "#eef0f5"; nCtx.fillRect(0, y, NAME_W, cellH); }
+            if (si % 2 === 0) { nCtx.fillStyle = "#eef0f5"; nCtx.fillRect(0, y, nameW, cellH); }
             nCtx.fillStyle = "#374151";
             const name = sequences[si].name;
-            const maxChars = Math.floor((NAME_W - 10) / (nameFontSize * 0.58));
-            nCtx.fillText(name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name, NAME_W - 6, y + cellH / 2);
+            const maxChars = Math.floor((nameW - 10) / (nameFontSize * 0.58));
+            nCtx.fillText(name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name, nameW - 6, y + cellH / 2);
         }
 
         // --- Sequences ---
@@ -4047,6 +4855,59 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
             cbCtx.fillStyle = score >= 0.8 ? "#16a34a" : score >= 0.5 ? "#d97706" : "#dc2626";
             cbCtx.fillRect(pi * cellW, CONS_BAR_H - barH - 2, Math.max(1, cellW - gapX), barH);
         }
+
+        // --- Base composition: sequence logo (letters scaled by frequency) ---
+        baseCompCanvas.width = W;
+        const bcCtx = baseCompCanvas.getContext("2d");
+        bcCtx.fillStyle = "#f9fafb";
+        bcCtx.fillRect(0, 0, W, BASE_COMP_H);
+        const refSize = BASE_COMP_H;
+        const isProtein = !!options.isProtein;
+        // Nucleotide-specific vivid colors; proteins use palette
+        const ntCompColors = { A: "#1AC253", T: "#E11218", G: "#ECA918", C: "#4272EE" };
+        const compOrder = isProtein
+            ? ["L", "A", "G", "V", "E", "S", "I", "K", "R", "D", "T", "P", "N", "F", "Q", "Y", "M", "H", "C", "W", "*"]
+            : ["A", "T", "G", "C"];
+        const compColors = isProtein ? palette : ntCompColors;
+        for (let pi = 0; pi < seqLen; pi++) {
+            const counts = {};
+            for (const k of compOrder) counts[k] = 0;
+            for (let si = 0; si < nSeq; si++) {
+                const ch = (sequences[si].seq[pi] || "-").toUpperCase();
+                const mapped = (!isProtein && ch === "U") ? "T" : ch;
+                if (mapped in counts) counts[mapped]++;
+            }
+            const total = compOrder.reduce((s, k) => s + counts[k], 0);
+            if (total === 0) continue;
+            // Sort: most frequent drawn first (bottom)
+            const sorted = compOrder.map(k => [k, counts[k]]).filter(([, v]) => v > 0)
+                .sort((a, b) => b[1] - a[1]);
+            let yPos = BASE_COMP_H;
+            for (const [res, count] of sorted) {
+                const frac = count / total;
+                const bh = Math.max(1, Math.round(frac * BASE_COMP_H));
+                // Only draw letter if tall enough to be legible (≥6px)
+                if (cellW >= 4 && bh >= 6) {
+                    bcCtx.save();
+                    const cx = pi * cellW + cellW / 2;
+                    const cy = yPos - bh / 2;
+                    const yScale = bh / refSize;
+                    const xScale = Math.min(1.2, (cellW - gapX) / (refSize * 0.65));
+                    bcCtx.translate(cx, cy);
+                    bcCtx.scale(xScale, yScale);
+                    bcCtx.fillStyle = compColors[res] || "#cbd5e1";
+                    bcCtx.font = `bold ${refSize}px monospace`;
+                    bcCtx.textAlign = "center";
+                    bcCtx.textBaseline = "middle";
+                    bcCtx.fillText(res, 0, 0);
+                    bcCtx.restore();
+                } else {
+                    bcCtx.fillStyle = compColors[res] || "#cbd5e1";
+                    bcCtx.fillRect(pi * cellW, yPos - bh, Math.max(1, cellW - gapX), bh);
+                }
+                yPos -= bh;
+            }
+        }
     }
 
     // Initial draw
@@ -4057,9 +4918,31 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         rulerOuter.scrollLeft = seqOuter.scrollLeft;
         consSeqOuter.scrollLeft = seqOuter.scrollLeft;
         consBarOuter.scrollLeft = seqOuter.scrollLeft;
+        baseCompOuter.scrollLeft = seqOuter.scrollLeft;
     });
     bodyRow.addEventListener("scroll", () => {
         nameDiv.scrollTop = bodyRow.scrollTop;
+    });
+
+    // ── resize handle drag ─────────────────────────────────────────────────
+    let isResizing = false, resizeStartX = 0, resizeStartW = nameW;
+    resizeHandle.addEventListener("mousedown", (e) => {
+        isResizing = true; resizeStartX = e.clientX; resizeStartW = nameW;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+        nameW = Math.max(80, Math.min(420, resizeStartW + (e.clientX - resizeStartX)));
+        updateNameWidth();
+        redraw();
+    });
+    document.addEventListener("mouseup", () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
     });
 
     // ── Ctrl+wheel zoom ────────────────────────────────────────────────────
@@ -4307,6 +5190,62 @@ function renderAlignmentCanvasEnhanced(wrapper, sequences) {
     main.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
 }
 
+// ── Pipeline display helpers ──────────────────────────────────────────────
+
+function buildPipelineBadgesHtml(pipeline) {
+    if (!pipeline) return "";
+    const badges = [];
+    // Mode
+    const modeColors = { codon: ["Codon-aware", "violet"], aa: ["Amino acid", "blue"], nt: ["Nucleotide", "teal"] };
+    const [modeLabel, modeColor] = modeColors[pipeline.mode] || ["Unknown", "gray"];
+    badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-${modeColor}-100 text-${modeColor}-800"><i class="fa-solid fa-dna text-[0.6rem]"></i>${modeLabel}</span>`);
+    // Input type
+    const inputLabel = pipeline.rawDataType === "cds-dna" ? "CDS DNA" : "DNA";
+    badges.push(`<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">Input: ${inputLabel}</span>`);
+    // MAFFT mode
+    const mafftLabel = pipeline.mafftMode === "--amino" ? "MAFFT --amino" : "MAFFT DNA";
+    badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700"><i class="fa-solid fa-align-left text-[0.6rem]"></i>${mafftLabel}</span>`);
+    // Genetic code
+    if (pipeline.geneticCodeName) {
+        badges.push(`<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-teal-50 text-teal-700 border border-teal-200">${pipeline.geneticCodeName}</span>`);
+    }
+    // Back-translation
+    if (pipeline.backtranslation?.status === "done") {
+        badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700"><i class="fa-solid fa-right-left text-[0.6rem]"></i>${pipeline.backtranslation.method}</span>`);
+    }
+    // Stop codons
+    const pol = pipeline.stopCodonPolicy;
+    if (pol) {
+        if (pol.terminalStopsRemoved > 0) {
+            badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700"><i class="fa-solid fa-stop text-[0.6rem]"></i>${pol.terminalStopsRemoved} terminal stop${pol.terminalStopsRemoved !== 1 ? "s" : ""} removed</span>`);
+        }
+        if (pol.incompleteStopFragmentsRemoved > 0) {
+            badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700"><i class="fa-solid fa-scissors text-[0.6rem]"></i>${pol.incompleteStopFragmentsRemoved} T/TA fragment${pol.incompleteStopFragmentsRemoved !== 1 ? "s" : ""} removed</span>`);
+        }
+    }
+    // Final matrix type
+    const finalColors = { "codon-preserving DNA": "green", protein: "blue", nucleotide: "cyan" };
+    const fColor = finalColors[pipeline.finalMatrixType] || "gray";
+    badges.push(`<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-${fColor}-100 text-${fColor}-800">Matrix: ${pipeline.finalMatrixType}</span>`);
+    // Trimming
+    if (pipeline.trimming?.status === "done") {
+        badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700"><i class="fa-solid fa-scissors text-[0.6rem]"></i>${pipeline.trimming.strategy || "trimAl"}${pipeline.trimming.codonPreserving ? " · frame-safe" : ""}</span>`);
+    }
+    // Codon integrity
+    if (pipeline.codonIntegrity?.checked) {
+        const ok = pipeline.codonIntegrity.allLengthsMultipleOf3 !== false && pipeline.codonIntegrity.gapBlocksAreTriplets !== false;
+        if (ok) {
+            badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700"><i class="fa-solid fa-check text-[0.6rem]"></i>Frame OK</span>`);
+        } else {
+            const issues = [];
+            if (!pipeline.codonIntegrity.allLengthsMultipleOf3) issues.push("length ÷ 3 ≠ 0");
+            if (!pipeline.codonIntegrity.gapBlocksAreTriplets) issues.push("gaps not in triplets");
+            badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700"><i class="fa-solid fa-triangle-exclamation text-[0.6rem]"></i>Frame: ${issues.join(", ")}</span>`);
+        }
+    }
+    return badges.join("");
+}
+
 function renderAlignmentResults(markerResults, hasTrimal) {
     state.alignmentResultsData = { markerResults, hasTrimal };
     const accordion = document.getElementById("alignmentResultsAccordion");
@@ -4316,9 +5255,82 @@ function renderAlignmentResults(markerResults, hasTrimal) {
 
     for (const r of markerResults) {
         const id = "marker-result-" + r.marker.replace(/[^a-zA-Z0-9]/g, "_");
+        // ── Per-mode metadata for display ──────────────────────────────────
+        const pMode = r.pipeline?.mode || window._alignmentMode || "nt";
+        const isCodon = pMode === "codon";
+        const isAa = pMode === "aa";
+        const alignUnit = isAa ? "aa" : "bp";
+        const rawUnit = isCodon ? "bp CDS" : isAa ? "aa" : "bp";
+
+        // Smart aligned header stat
+        const aLen = r.alignedStats?.length ?? "?";
+        const aSeqs = r.alignedStats?.numSeqs ?? "?";
+        let headerStat;
+        if (isCodon && typeof aLen === "number") {
+            headerStat = `${aSeqs} seq \u00b7 ${aLen} bp${aLen % 3 === 0 ? ` \u00b7 ${aLen / 3} codons` : " \u26a0"}`;
+        } else {
+            headerStat = `${aSeqs} seq \u00b7 ${aLen} ${alignUnit}`;
+        }
+
+        // Smart trimStat
         const trimStat = r.trimmedStats
-            ? `<div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.trimmed", "Trimmed")}</div><div class="text-xs font-semibold text-gray-700">${r.trimmedStats.numSeqs} seq · ${r.trimmedStats.length} bp</div><div class="text-xs text-gray-400">${r.trimmedStats.gapPct}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>`
+            ? (() => {
+                const tLen = r.trimmedStats.length;
+                let statStr;
+                if (isCodon && typeof tLen === "number") {
+                    statStr = `${r.trimmedStats.numSeqs} seq \u00b7 ${tLen} bp${tLen % 3 === 0 ? ` \u00b7 ${tLen / 3} codons` : " \u26a0"}`;
+                } else {
+                    statStr = `${r.trimmedStats.numSeqs} seq \u00b7 ${tLen} ${alignUnit}`;
+                }
+                return `<div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.trimmed", "Trimmed")}</div><div class="text-xs font-semibold text-gray-700">${statStr}</div><div class="text-xs text-gray-400">${r.trimmedStats.gapPct}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>`;
+            })()
             : `<div class="text-center text-xs text-gray-300 italic">${i18nText("step5.results.stats.noTrimming", "No trimming")}</div>`;
+
+        // Codon integrity alert
+        let integrityAlert = "";
+        if (r.pipeline?.codonIntegrity?.checked) {
+            const ci = r.pipeline.codonIntegrity;
+            const issues = [];
+            if (!ci.allLengthsMultipleOf3) issues.push("alignment length not multiple of 3");
+            if (!ci.gapBlocksAreTriplets) issues.push("gaps not in triplets");
+            if (issues.length > 0) {
+                integrityAlert = `<div class="mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2"><i class="fa-solid fa-triangle-exclamation text-red-500 mt-0.5 text-xs flex-shrink-0"></i><span class="text-xs text-red-700 font-medium">Frame warning: ${issues.join("; ")}</span></div>`;
+            }
+        }
+
+        // Pipeline badges
+        const pipelineBadgesHtml = buildPipelineBadgesHtml(r.pipeline);
+
+        // Mode-aware view buttons per tab
+        const buildViewBtns = (tabKey) => {
+            if (isCodon && tabKey === "aligned") {
+                return `<div class="alignment-view-toggle">
+                    <button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="nt">Codon DNA</button>
+                    ${r.proteinAlignedContent ? `<button class="alignment-view-btn" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="protein-guide">Protein guide</button>` : ""}
+                </div>`;
+            }
+            if (isCodon) {
+                return `<div class="alignment-view-toggle"><button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="nt">Codon DNA</button></div>`;
+            }
+            if (isAa) {
+                return `<div class="alignment-view-toggle"><button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="aa">${i18nText("step5.results.view.aa", "Protein view")}</button></div>`;
+            }
+            return `<div class="alignment-view-toggle">
+                <button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="nt">${i18nText("step5.results.view.nt", "DNA view")}</button>
+                <button class="alignment-view-btn" type="button" data-marker="${r.marker}" data-tab="${tabKey}" data-view="aa">${i18nText("step5.results.view.aa", "Translate to amino acids")}</button>
+            </div>`;
+        };
+
+        // Default initial view per mode
+        const defaultView = isAa ? "aa" : "nt";
+
+        // Aligned stat for grid cell
+        let alignedStatStr;
+        if (isCodon && typeof aLen === "number") {
+            alignedStatStr = `${aSeqs} seq \u00b7 ${aLen} bp${aLen % 3 === 0 ? ` \u00b7 ${aLen / 3} codons` : " \u26a0"}`;
+        } else {
+            alignedStatStr = `${aSeqs} seq \u00b7 ${aLen} ${alignUnit}`;
+        }
 
         const tabs = [
             { key: "raw", label: i18nText("step5.results.tabs.raw", "Raw"), icon: "fa-dna" },
@@ -4337,24 +5349,30 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             return `<div id="${id}-${t.key}" class="result-tab-panel ${i !== 0 ? 'hidden' : ''}">
                 <div class="alignment-view-shell">
                     <div class="alignment-view-toolbar">
-                        <div class="alignment-view-toggle">
-                            <button class="alignment-view-btn active" type="button" data-marker="${r.marker}" data-tab="${t.key}" data-view="nt">${i18nText("step5.results.view.nt", "DNA view")}</button>
-                            <button class="alignment-view-btn" type="button" data-marker="${r.marker}" data-tab="${t.key}" data-view="aa">${i18nText("step5.results.view.aa", "Translate to amino acids")}</button>
-                        </div>
+                        ${buildViewBtns(t.key)}
                         <div class="alignment-toolbar-meta">
                             <span class="alignment-view-hint">${i18nText("step5.results.view.hint", "Use translated mode to spot possible stop codons in the alignment.")}</span>
                             <div class="alignment-genetic-code">
                                 <label for="genetic-code-${id}-${t.key}">${i18nText("step5.results.view.geneticCode", "Genetic code")}</label>
                                 <select id="genetic-code-${id}-${t.key}" class="alignment-genetic-code-select" data-marker="${r.marker}" data-tab="${t.key}">
                                     <option value="1">${i18nText("step5.results.view.code.standard", "Standard (NCBI 1)")}</option>
-                                    <option value="2">${i18nText("step5.results.view.code.vertMito", "Vertebrate mitochondrial (NCBI 2)")}</option>
+                                    <option value="2" selected>${i18nText("step5.results.view.code.vertMito", "Vertebrate mitochondrial (NCBI 2)")}</option>
+                                    <option value="3">Yeast mitochondrial (NCBI 3)</option>
+                                    <option value="4">Mold mitochondrial (NCBI 4)</option>
                                     <option value="5">${i18nText("step5.results.view.code.invMito", "Invertebrate mitochondrial (NCBI 5)")}</option>
+                                    <option value="6">Ciliate nuclear (NCBI 6)</option>
+                                    <option value="9">Echinoderm mitochondrial (NCBI 9)</option>
                                     <option value="11">${i18nText("step5.results.view.code.bacterial", "Bacterial, archaeal and plant plastid (NCBI 11)")}</option>
+                                    <option value="13">Ascidian mitochondrial (NCBI 13)</option>
+                                    <option value="14">Alternative flatworm mitochondrial (NCBI 14)</option>
+                                    <option value="16">Chlorophycean mitochondrial (NCBI 16)</option>
+                                    <option value="21">Trematode mitochondrial (NCBI 21)</option>
+                                    <option value="24">Pterobranchia mitochondrial (NCBI 24)</option>
                                 </select>
                             </div>
                         </div>
                     </div>
-                    <div id="vizwrap-${id}-${t.key}"></div>
+                    <div id="vizwrap-${id}-${t.key}" data-view="${defaultView}"></div>
                     <div id="preview-${id}-${t.key}"></div>
                 </div>
             </div>`;
@@ -4364,17 +5382,19 @@ function renderAlignmentResults(markerResults, hasTrimal) {
         panel.className = "bg-white rounded-xl border border-gray-200 overflow-hidden";
         panel.innerHTML = `
             <button class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors" onclick="toggleMarkerResult('${id}')">
-                <div class="flex items-center gap-3">
-                    <span class="step-badge badge-done" style="font-size:0.55rem;width:1rem;height:1rem;">✓</span>
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="step-badge badge-done flex-shrink-0" style="font-size:0.55rem;width:1rem;height:1rem;">\u2713</span>
                     <span class="font-semibold text-sm text-gray-800">${r.marker}</span>
-                    <span class="text-xs text-gray-400">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"} bp ${i18nText("step5.results.stats.alignedSuffix", "aligned")}</span>
+                    <span class="text-xs text-gray-400">${headerStat} ${i18nText("step5.results.stats.alignedSuffix", "aligned")}</span>
                 </div>
-                <i id="${id}-chevron" class="fa-solid fa-chevron-down text-gray-400 text-xs transition-transform"></i>
+                <i id="${id}-chevron" class="fa-solid fa-chevron-down text-gray-400 text-xs transition-transform flex-shrink-0"></i>
             </button>
             <div id="${id}-body" class="hidden px-5 pb-5">
+                ${pipelineBadgesHtml ? `<div class="flex flex-wrap gap-1.5 pt-3 pb-1">${pipelineBadgesHtml}</div>` : ""}
+                ${integrityAlert}
                 <div class="grid grid-cols-3 gap-3 mb-4 pt-2">
-                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.raw", "Raw")}</div><div class="text-xs font-semibold text-gray-700">${r.rawStats?.numSeqs ?? "?"} seq · ${r.rawStats?.avgLen ?? "?"} bp ${i18nText("step5.results.stats.avg", "avg")}</div></div>
-                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.aligned", "Aligned")}</div><div class="text-xs font-semibold text-gray-700">${r.alignedStats?.numSeqs ?? "?"} seq · ${r.alignedStats?.length ?? "?"} bp</div><div class="text-xs text-gray-400">${r.alignedStats?.gapPct ?? "?"}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>
+                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.raw", "Raw")}</div><div class="text-xs font-semibold text-gray-700">${r.rawStats?.numSeqs ?? "?"} seq \u00b7 ${r.rawStats?.avgLen ?? "?"} ${rawUnit} ${i18nText("step5.results.stats.avg", "avg")}</div></div>
+                    <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.aligned", "Aligned")}</div><div class="text-xs font-semibold text-gray-700">${alignedStatStr}</div><div class="text-xs text-gray-400">${r.alignedStats?.gapPct ?? "?"}% ${i18nText("step5.results.stats.gaps", "gaps")}</div></div>
                     ${trimStat}
                 </div>
                 <div class="flex gap-2 mb-3">${tabBtns}</div>
@@ -4382,17 +5402,19 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             </div>`;
         accordion.appendChild(panel);
 
-        // Store sequences on wrappers for lazy rendering
         // Render raw tab immediately (it's visible by default)
         requestAnimationFrame(() => {
-            if (r.rawContent) renderAlignmentTab({ id, rawContent: r.rawContent, alignedContent: r.alignedContent, trimmedContent: r.trimmedContent }, "raw", "nt");
+            if (r.rawContent) renderAlignmentTab({ id, rawContent: r.rawContent, alignedContent: r.alignedContent, trimmedContent: r.trimmedContent, proteinAlignedContent: r.proteinAlignedContent, pipeline: r.pipeline }, "raw", defaultView);
         });
 
         // Store content references for lazy rendering on tab switch / accordion open
         panel._markerData = {
-            id, rawContent: r.rawContent,
+            id,
+            rawContent: r.rawContent,
             alignedContent: r.alignedContent,
             trimmedContent: r.trimmedContent,
+            proteinAlignedContent: r.proteinAlignedContent,
+            pipeline: r.pipeline,
         };
     }
 
@@ -4419,7 +5441,8 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             if (content) {
                 const wrap = document.getElementById(`vizwrap-${data.id}-${tab}`);
                 if (wrap && !wrap.dataset.rendered) {
-                    requestAnimationFrame(() => renderAlignmentTab(data, tab, wrap.dataset.view || "nt"));
+                    const defView = wrap.dataset.view || (data.pipeline?.mode === "aa" ? "aa" : "nt");
+                    requestAnimationFrame(() => renderAlignmentTab(data, tab, defView));
                 }
             }
         });
@@ -4539,10 +5562,11 @@ function buildConcat(markerResults, useTrimmed, allowMissing) {
         pos += len;
     }
 
-    return { alignedSeqs, partitions, totalLen: pos - 1, species: finalSpecies, missingReport, removedCount: allowMissing ? 0 : missingReport.length };
+    return { alignedSeqs, partitions, totalLen: pos - 1, species: finalSpecies, missingReport, removedCount: allowMissing ? 0 : missingReport.length, geneSeqs, geneLens, geneOrder, allSpecies };
 }
 
-function buildNexusString(alignedSeqs, partitions, outgroups) {
+function buildNexusString(alignedSeqs, partitions, outgroups, datatype, codonPositions) {
+    const dtStr = ((datatype || "dna")).toLowerCase();
     const ntax = alignedSeqs.length;
     const nchar = alignedSeqs[0]?.seq.length || 0;
     // Pad names for alignment
@@ -4551,9 +5575,25 @@ function buildNexusString(alignedSeqs, partitions, outgroups) {
         `    ${s.name.padEnd(maxNameLen + 2)}${s.seq}`
     ).join("\n");
 
-    const charsets = partitions.map(p =>
-        `    charset ${p.gene} = ${p.start}-${p.end};`
-    ).join("\n");
+    let charsets;
+    if (codonPositions) {
+        charsets = partitions.flatMap(p => {
+            const geneLen = p.end - p.start + 1;
+            if (geneLen % 3 !== 0) {
+                // Gene length not divisible by 3 — skip codon partition, use full gene
+                return [`    charset ${p.gene} = ${p.start}-${p.end}; [WARNING: length ${geneLen} bp not divisible by 3, codon positions skipped]`];
+            }
+            return [
+                `    charset ${p.gene}_pos1 = ${p.start}-${p.end}\\3;`,
+                `    charset ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\3;`,
+                `    charset ${p.gene}_pos3 = ${p.start + 2}-${p.end}\\3;`,
+            ];
+        }).join("\n");
+    } else {
+        charsets = partitions.map(p =>
+            `    charset ${p.gene} = ${p.start}-${p.end};`
+        ).join("\n");
+    }
 
     const outgroupBlock = outgroups && outgroups.length
         ? `\nbegin assumptions;\n    outgroup ${outgroups.join(" ")};\nend;\n`
@@ -4563,7 +5603,7 @@ function buildNexusString(alignedSeqs, partitions, outgroups) {
 
 begin data;
     dimensions ntax=${ntax} nchar=${nchar};
-    format datatype=dna missing=? gap=-;
+    format datatype=${dtStr} missing=? gap=-;
     matrix
 ${matrix}
     ;
@@ -4575,8 +5615,23 @@ end;
 ${outgroupBlock}`;
 }
 
-function buildPartitionString(partitions) {
-    return partitions.map(p => `DNA, ${p.gene} = ${p.start}-${p.end}`).join("\n");
+function buildPartitionString(partitions, codonPositions, datatype) {
+    const prefix = (datatype === "protein") ? "AA" : "DNA";
+    if (codonPositions) {
+        return partitions.flatMap(p => {
+            const geneLen = p.end - p.start + 1;
+            if (geneLen % 3 !== 0) {
+                // Fallback to full gene partition with a comment
+                return [`${prefix}, ${p.gene} = ${p.start}-${p.end}  # WARNING: length ${geneLen} bp not divisible by 3`];
+            }
+            return [
+                `${prefix}, ${p.gene}_pos1 = ${p.start}-${p.end}\\3`,
+                `${prefix}, ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\3`,
+                `${prefix}, ${p.gene}_pos3 = ${p.start + 2}-${p.end}\\3`,
+            ];
+        }).join("\n");
+    }
+    return partitions.map(p => `${prefix}, ${p.gene} = ${p.start}-${p.end}`).join("\n");
 }
 
 function renderConcatSection(markerResults, hasTrimal) {
@@ -4594,6 +5649,10 @@ function renderConcatSection(markerResults, hasTrimal) {
         const noRadio = document.getElementById("concatUseTrimmedNo");
         if (noRadio) noRadio.checked = true;
     }
+
+    // Show codon partition option only when in codon mode
+    const codonPartitionOpt = document.getElementById("codonPartitionOption");
+    if (codonPartitionOpt) codonPartitionOpt.classList.toggle("hidden", !window._codonMode);
 
     // Populate outgroup list from all species across markers
     const speciesSet = new Set();
@@ -4683,6 +5742,12 @@ window.generateNexus = function () {
     const allowMissing = document.getElementById("concatAllowMissing")?.checked ?? false;
     const outgroups = [...document.querySelectorAll(".outgroup-cb:checked")].map(c => c.value);
 
+    // Detect alignment mode for NEXUS datatype and codon partitions
+    const isCodonMode = window._codonMode === true;
+    const isAaMode = window._alignmentMode === "aa";
+    const datatype = isAaMode ? "protein" : "dna";
+    const codonPositions = isCodonMode && (document.getElementById("codonPartitionByPosition")?.checked ?? false);
+
     const result = buildConcat(_lastMarkerResultsUI, useTrimmed, allowMissing);
 
     const warn = document.getElementById("concatMissingWarning");
@@ -4701,39 +5766,55 @@ window.generateNexus = function () {
         warn.classList.remove("hidden");
     }
 
-    const nexus = buildNexusString(result.alignedSeqs, result.partitions, outgroups);
-    const partition = buildPartitionString(result.partitions);
+    const nexus = buildNexusString(result.alignedSeqs, result.partitions, outgroups, datatype, codonPositions);
+    const partition = buildPartitionString(result.partitions, codonPositions, datatype);
 
     // Store for IQ-TREE section
     window._nexusData = { nexus, partition, result, outgroups };
 
-    // Show partition table
+    // Show sequence × marker heatmap table
     const tbl = document.getElementById("partitionTable");
     if (tbl) {
+        const markers = result.partitions.map(p => p.gene);
+        const allSp = result.allSpecies || [];
+        const heatColor = (cov) => {
+            const r = Math.round(254 - 34 * cov);
+            const g = Math.round(226 + 26 * cov);
+            const b = Math.round(226 + 5 * cov);
+            return `rgb(${r},${g},${b})`;
+        };
+        const heatRows = allSp.map(sp => {
+            const nameTd = `<td style="position:sticky;left:0;z-index:1;background:#f8fafc;font-weight:600;padding:4px 10px;border:1px solid #e5e7eb;white-space:nowrap;">${escHtml(sp)}</td>`;
+            const dataTds = markers.map(gene => {
+                const seq = result.geneSeqs[gene]?.[sp];
+                if (!seq) return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:#f3f4f6;color:#9ca3af;text-align:center;">-</td>`;
+                const nonGap = seq.replace(/-/g, "").length;
+                const gaps = seq.length - nonGap;
+                const cov = result.geneLens[gene] > 0 ? nonGap / result.geneLens[gene] : 0;
+                return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:${heatColor(cov)};text-align:center;color:#1f2937;">${nonGap} (${gaps})</td>`;
+            }).join("");
+            return `<tr>${nameTd}${dataTds}</tr>`;
+        }).join("");
         tbl.innerHTML = `
-            <table class="w-full text-xs border-collapse">
-                <thead><tr class="bg-gray-100">
-                    <th class="text-left px-3 py-2 font-semibold text-gray-600">Gene</th>
-                    <th class="text-right px-3 py-2 font-semibold text-gray-600">Start</th>
-                    <th class="text-right px-3 py-2 font-semibold text-gray-600">End</th>
-                    <th class="text-right px-3 py-2 font-semibold text-gray-600">Length (bp)</th>
-                </tr></thead>
-                <tbody>
-                    ${result.partitions.map((p, i) => `
-                        <tr class="${i % 2 === 0 ? '' : 'bg-gray-50'}">
-                            <td class="px-3 py-1.5 font-medium text-splace-blue-700">${p.gene}</td>
-                            <td class="px-3 py-1.5 text-right text-gray-600">${p.start}</td>
-                            <td class="px-3 py-1.5 text-right text-gray-600">${p.end}</td>
-                            <td class="px-3 py-1.5 text-right text-gray-600">${p.len}</td>
-                        </tr>`).join("")}
-                    <tr class="border-t border-gray-200 font-semibold">
-                        <td class="px-3 py-1.5 text-gray-700">Total</td>
-                        <td class="px-3 py-1.5 text-right text-gray-500">—</td>
-                        <td class="px-3 py-1.5 text-right text-gray-500">—</td>
-                        <td class="px-3 py-1.5 text-right text-gray-700">${result.totalLen}</td>
-                    </tr>
-                </tbody>
-            </table>`;
+            <div style="margin-bottom:6px;font-size:0.72rem;color:#6b7280;display:flex;align-items:center;gap:6px;">
+                Cells: <strong>bp (gaps)</strong>
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="display:inline-block;width:60px;height:8px;background:linear-gradient(to right,#fee2e2,#dcfce7);border-radius:2px;"></span>
+                    <span>low → high coverage</span>
+                    <span style="background:#f3f4f6;color:#9ca3af;padding:1px 6px;border-radius:3px;">-</span><span>missing</span>
+                </span>
+            </div>
+            <div style="overflow:auto;max-height:420px;">
+                <table style="border-collapse:collapse;font-size:0.72rem;white-space:nowrap;">
+                    <thead>
+                        <tr>
+                            <th style="position:sticky;left:0;top:0;z-index:3;background:#f3f4f6;padding:6px 10px;border:1px solid #e5e7eb;font-weight:700;text-align:left;">Sequence</th>
+                            ${markers.map(g => `<th style="position:sticky;top:0;z-index:2;background:#f3f4f6;padding:6px 8px;border:1px solid #e5e7eb;font-weight:700;text-align:center;" title="${escHtml(g)}">${escHtml(g)}</th>`).join("")}
+                        </tr>
+                    </thead>
+                    <tbody>${heatRows}</tbody>
+                </table>
+            </div>`;
         tbl.classList.remove("hidden");
     }
 

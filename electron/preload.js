@@ -25,5 +25,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
 
     saveZip: (params) => ipcRenderer.invoke("save-zip", params),
+    translateFasta: (params) => ipcRenderer.invoke("translate-fasta", params),
 });
 

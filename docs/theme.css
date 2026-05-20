@@ -1286,7 +1286,7 @@ section.step-section.locked::after {
 
 .alignment-preview-row {
     display: grid;
-    grid-template-columns: minmax(160px, 1.2fr) 80px 110px minmax(260px, 2fr);
+    grid-template-columns: minmax(160px, 1.2fr) 70px 80px 72px 72px;
     gap: 0.75rem;
     align-items: center;
     padding: 0.7rem 0.9rem;
@@ -1329,6 +1329,47 @@ section.step-section.locked::after {
     text-overflow: ellipsis;
 }
 
+.alignment-preview-codon {
+    display: flex;
+    gap: 1px;
+    align-items: center;
+}
+
+.alignment-preview-missing {
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+}
+
+.alignment-preview-missing-title {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 4px;
+}
+
+.alignment-preview-missing-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.alignment-preview-missing-row {
+    font-size: .75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--surface-alt, #f1f5f9);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+    cursor: default;
+}
+
 .alignment-residue {
     display: inline-flex;
     align-items: center;
@@ -1361,7 +1402,7 @@ body.splash-open {
 
 @media (max-width: 860px) {
     .alignment-preview-row {
-        grid-template-columns: minmax(140px, 1fr) 70px 90px minmax(200px, 1.6fr);
+        grid-template-columns: minmax(140px, 1fr) 60px 70px 60px 60px;
     }
 }
 

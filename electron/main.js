@@ -171,8 +171,8 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
     let done = 0, aligned = 0;
     const markerResults = new Array(markers.length).fill(null);
 
-    // Parallel pool — at most `threads` MAFFT jobs running simultaneously
-    const concurrency = Math.max(1, threads);
+    // Parallel pool — jobs limited to leave 2 threads free for the OS
+    const concurrency = Math.max(1, Math.floor((os.cpus().length - 2) / Math.max(1, threads)));
     let nextIdx = 0;
 
     async function worker() {
@@ -241,7 +241,7 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
 // -----------------------------------------------------------------------
 let _lastMarkerResults = [];
 
-ipcMain.on("run-trimal", async (event, { markers, params }) => {
+ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, alignmentMode }) => {
     const sender = event.sender;
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
@@ -265,6 +265,117 @@ ipcMain.on("run-trimal", async (event, { markers, params }) => {
             const inputFile = mr.outputFile;
             const trimmedFile = inputFile.replace(/_aligned\.fasta$/, "_trimmed.fasta");
 
+            // ── Codon-aware trimming (back-translation) ─────────────────────────
+            if (codonMode && cdsFastas && cdsFastas[name]) {
+                send("analysis-progress", {
+                    marker: name, status: "running",
+                    message: `[${name}] Running codon-aware trimming…`,
+                    done, total: markers.length,
+                });
+
+                const dnaCdsContent = cdsFastas[name];
+                let dnaResult = null;
+
+                // Try trimAl -backtrans (Linux/macOS only; Windows binary has DLL issues)
+                const trimalBin = resolveBin("trimal");
+                if (!IS_WIN && trimalBin !== "trimal") {
+                    const tmpCdsFile = path.join(os.tmpdir(), `splace-cds-${Date.now()}.fasta`);
+                    const tmpOutFile = path.join(os.tmpdir(), `splace-bt-${Date.now()}.fasta`);
+                    try {
+                        fs.writeFileSync(tmpCdsFile, dnaCdsContent, "utf8");
+                        const btArgs = ["-in", inputFile, "-backtrans", tmpCdsFile, "-out", tmpOutFile, "-fasta", ...params];
+                        const btRes = await new Promise((resolve) => {
+                            const proc = spawn(trimalBin, btArgs, { shell: false });
+                            let stderr = "";
+                            proc.stderr.on("data", d => {
+                                stderr += d.toString();
+                                const m = d.toString().trim();
+                                if (m) send("analysis-progress", { message: `[${name}] ${m}` });
+                            });
+                            proc.on("close", code => {
+                                if (code === 0 && fs.existsSync(tmpOutFile)) {
+                                    resolve({ success: true, content: fs.readFileSync(tmpOutFile, "utf8") });
+                                } else {
+                                    resolve({ success: false, error: stderr.trim() || `Exit code ${code}` });
+                                }
+                            });
+                            proc.on("error", err => resolve({ success: false, error: err.message }));
+                        });
+                        if (btRes.success) {
+                            dnaResult = { content: btRes.content, method: "trimal-backtrans" };
+                            send("analysis-progress", { message: `[${name}] ✓ trimAl -backtrans succeeded` });
+                        } else {
+                            send("analysis-progress", { message: `[${name}] trimAl -backtrans failed (${btRes.error}), using JS fallback` });
+                        }
+                    } catch (e) {
+                        send("analysis-progress", { message: `[${name}] trimAl -backtrans error: ${e.message}, using JS fallback` });
+                    } finally {
+                        try { fs.unlinkSync(tmpCdsFile); } catch { }
+                        try { fs.unlinkSync(tmpOutFile); } catch { }
+                    }
+                }
+
+                if (!dnaResult) {
+                    // JS fallback: trim protein alignment, then back-translate to DNA
+                    send("analysis-progress", { message: `[${name}] Using JS codon-aware fallback` });
+                    const protContent = fs.existsSync(inputFile) ? fs.readFileSync(inputFile, "utf8") : (mr.alignedContent || "");
+                    const trimResult = trimAlignmentJS(protContent, params);
+                    if (!trimResult.success) {
+                        done++;
+                        send("analysis-progress", {
+                            marker: name, status: "error",
+                            message: `[${name}] Trimming failed: ${trimResult.error}`,
+                            done, total: markers.length,
+                        });
+                        continue;
+                    }
+                    const protSeqs = parseFastaArr(trimResult.trimmedContent);
+                    const dnaSeqs = parseFastaArr(dnaCdsContent);
+                    const dnaMap = {};
+                    for (const s of dnaSeqs) dnaMap[s.name] = s.seq.replace(/-/g, "");
+
+                    let dnaFasta = "";
+                    let skipped = 0;
+                    for (const ps of protSeqs) {
+                        const dna = dnaMap[ps.name];
+                        if (!dna) {
+                            send("analysis-progress", { message: `[${name}] WARNING: no DNA found for "${ps.name}"` });
+                            skipped++;
+                            continue;
+                        }
+                        dnaFasta += `>${ps.name}\n${backTranslateJS(ps.seq, dna)}\n`;
+                    }
+                    if (!dnaFasta) {
+                        done++;
+                        send("analysis-progress", {
+                            marker: name, status: "error",
+                            message: `[${name}] Back-translation produced no output`,
+                            done, total: markers.length,
+                        });
+                        continue;
+                    }
+                    if (skipped > 0) send("analysis-progress", { message: `[${name}] ⚠ ${skipped} sequences skipped (header mismatch)` });
+                    dnaResult = { content: dnaFasta, method: "js-fallback" };
+                    send("analysis-progress", { message: `[${name}] ✓ JS back-translation complete` });
+                }
+
+                done++;
+                trimmed++;
+                mr.trimmedContent = dnaResult.content;
+                mr.trimMethod = dnaResult.method;
+                mr.trimmedStats = parseFastaStats(dnaResult.content);
+                const dnaLen = mr.trimmedStats.length;
+                const isDiv3 = dnaLen % 3 === 0;
+                send("analysis-progress", {
+                    marker: name, status: "done",
+                    info: `${mr.trimmedStats.numSeqs} seq · ${dnaLen} bp (DNA codon${isDiv3 ? "" : " ⚠"})`,
+                    message: `[${name}] ✓ Codon alignment (${dnaResult.method}) → ${mr.trimmedStats.numSeqs} seq · ${dnaLen} bp${!isDiv3 ? " ⚠ length not multiple of 3" : ""}`,
+                    done, total: markers.length,
+                });
+                continue;
+            }
+
+            // ── Standard trimAl flow ────────────────────────────────────────────
             send("analysis-progress", {
                 marker: name, status: "running",
                 message: `[${name}] Running trimAl…`,
@@ -280,6 +391,7 @@ ipcMain.on("run-trimal", async (event, { markers, params }) => {
             if (success) {
                 trimmed++;
                 mr.trimmedContent = trimmedContent;
+                mr.trimMethod = "standard";
                 mr.trimmedStats = parseFastaStats(trimmedContent);
             }
 
@@ -321,8 +433,11 @@ function runMafft(inputFile, outputFile, params, threads, onLog) {
 
         proc.stdout.on("data", (d) => { stdout += d.toString(); });
         proc.stderr.on("data", (d) => {
-            const msg = d.toString().trim();
-            if (msg) onLog(msg);
+            const msg = d.toString("utf8").trim();
+            if (!msg) return;
+            // Filter known Windows setup noise from mafft.bat (chcp, env messages)
+            if (/65001|Preparing environment|anti.virus|could not find \/tmp/i.test(msg)) return;
+            onLog(msg);
         });
 
         proc.on("close", (code) => {
@@ -471,12 +586,54 @@ function trimAlignmentJS(alignedContent, params) {
 }
 
 // -----------------------------------------------------------------------
+// Helper: parse FASTA text into an array of { name, seq } objects
+// -----------------------------------------------------------------------
+function parseFastaArr(text) {
+    const seqs = [];
+    let cur = null;
+    for (const line of (text || "").split(/\r?\n/)) {
+        if (line.startsWith(">")) {
+            if (cur) seqs.push(cur);
+            cur = { name: line.slice(1).trim(), seq: "" };
+        } else if (cur) {
+            cur.seq += line.trim();
+        }
+    }
+    if (cur) seqs.push(cur);
+    return seqs;
+}
+
+// -----------------------------------------------------------------------
+// Helper: back-translate an aligned protein sequence to DNA using the
+// original CDS codons.  Each '-' gap in the protein → '---' in DNA.
+// -----------------------------------------------------------------------
+function backTranslateJS(alignedProteinSeq, originalDna) {
+    const dna = originalDna.toUpperCase().replace(/U/g, "T").replace(/[^ACGTNRYSWKMBDHV]/g, "");
+    const codons = [];
+    for (let i = 0; i + 2 < dna.length; i += 3) {
+        codons.push(dna.slice(i, i + 3));
+    }
+    let idx = 0;
+    let output = "";
+    for (const aa of alignedProteinSeq) {
+        if (aa === "-" || aa === ".") {
+            output += "---";
+        } else {
+            output += codons[idx] || "NNN";
+            idx++;
+        }
+    }
+    return output;
+}
+
+// -----------------------------------------------------------------------
 // Helper: run trimAl — native binary on Linux/macOS, JS fallback on Windows
 // -----------------------------------------------------------------------
 function runTrimal(inputFile, outputFile, params, onLog) {
-    // Use the bundled native binary when available (Linux/macOS)
+    // Use the bundled native binary only on Linux/macOS — on Windows the exe
+    // has missing DLL dependencies, so always fall through to the JS fallback.
     const bin = resolveBin("trimal");
-    if (bin !== "trimal") {
+    if (!IS_WIN && bin !== "trimal") {
         return new Promise((resolve) => {
             const proc = spawn(bin, ["-in", inputFile, "-out", outputFile, ...params], { shell: false });
             proc.stderr.on("data", (d) => { const m = d.toString().trim(); if (m) onLog(m); });
@@ -648,6 +805,30 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
 // IPC: save ZIP with organised folder structure
 // { alignmentDir, iqtreeDir, rawFastas, suggestedName }
 //   raw/          — raw per-gene FASTAs (from memory, not disk)
+// -----------------------------------------------------------------------
+// seqkit translate: nucleotide FASTA content → protein FASTA content
+// -----------------------------------------------------------------------
+ipcMain.handle("translate-fasta", async (event, { content, code }) => {
+    const seqkitBin = resolveBin("seqkit");
+    const ts = Date.now();
+    const tmpIn = path.join(os.tmpdir(), `splace-tx-in-${ts}.fasta`);
+    const tmpOut = path.join(os.tmpdir(), `splace-tx-out-${ts}.fasta`);
+    try {
+        fs.writeFileSync(tmpIn, content, "utf8");
+        const result = spawnSync(seqkitBin, ["translate", "-T", String(code || 1), "-o", tmpOut, tmpIn], {
+            encoding: "utf8",
+            timeout: 30000,
+        });
+        if (result.status !== 0) {
+            throw new Error(result.stderr || "seqkit translate failed");
+        }
+        return fs.readFileSync(tmpOut, "utf8");
+    } finally {
+        try { fs.unlinkSync(tmpIn); } catch { }
+        try { fs.unlinkSync(tmpOut); } catch { }
+    }
+});
+
 //   aligned/      — *_aligned.fasta files from alignmentDir
 //   trimmed/      — *_aligned_trimmed.fasta files from alignmentDir (if any)
 //   concatenated/ — concatenated.nex + partitions.txt from iqtreeDir

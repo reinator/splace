@@ -16,6 +16,23 @@
     color: var(--text);
 }
 
+[data-platform="desktop"] .gene-chip {
+    font-size: 1rem;
+    padding: 7px 14px;
+}
+
+[data-platform="desktop"] .gene-name {
+    font-size: 1rem;
+}
+
+[data-platform="desktop"] .gene-count {
+    font-size: .8rem;
+}
+
+[data-platform="desktop"] .gene-len {
+    font-size: .75rem;
+}
+
 .gene-chip:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, .08);
