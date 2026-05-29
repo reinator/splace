@@ -13,6 +13,8 @@ const state = {
     taxonomyImportCandidates: [],
     taxonomyImportResolver: null,
     duplicateGeneChoices: new Map(),
+    geneNameOverrides: new Map(),
+    unknownGenesChecked: false,
     progressUi: {
         mode: "generic",
         showMeta: false,
@@ -165,7 +167,18 @@ const ChloroplastGenes = {
 // ========================================================================
 // Gene Name Standardization
 // ========================================================================
+function isKnownGeneName(name) {
+    if (!name) return false;
+    return (name in MitochondrialGenes) || (name in ChloroplastGenes);
+}
+
 function standardizeGeneName(rawName, product, dataType) {
+    // Check user-supplied overrides first
+    const overrideKey = rawName || product;
+    if (overrideKey && state.geneNameOverrides.has(overrideKey)) {
+        return state.geneNameOverrides.get(overrideKey);
+    }
+
     const dict = dataType === "cp" ? ChloroplastGenes : MitochondrialGenes;
     const altDict = dataType === "cp" ? MitochondrialGenes : ChloroplastGenes;
 
@@ -218,6 +231,275 @@ function standardizeGeneName(rawName, product, dataType) {
     // Fallback: return raw name
     return rawName || product || null;
 }
+
+// ========================================================================
+// Unknown Gene Names — collect & modal
+// ========================================================================
+function collectUnknownGenes() {
+    const dataType = state.detectedDataType;
+    // Map from rawKey → { rawKey, featureType, occurrences: [{species, accession}] }
+    const unknownMap = new Map();
+
+    for (const record of state.records) {
+        for (const feat of record.features) {
+            if (feat.type !== "CDS" && feat.type !== "rRNA") continue;
+            const rawGene = feat.qualifiers.gene || null;
+            const rawProduct = feat.qualifiers.product || null;
+            if (!rawGene && !rawProduct) continue;
+
+            const standardized = standardizeGeneName(rawGene, rawProduct, dataType);
+            if (!standardized || isKnownGeneName(standardized)) continue;
+
+            // standardizeGeneName fell back to the raw name — not in the dictionary
+            const rawKey = standardized;
+            if (!unknownMap.has(rawKey)) {
+                unknownMap.set(rawKey, { rawKey, featureType: feat.type, occurrences: [] });
+            }
+            unknownMap.get(rawKey).occurrences.push({
+                species: record.organism || "—",
+                accession: record.accession || "—",
+                source: record.source || "ncbi",
+                fileName: record.fileName || null,
+            });
+        }
+    }
+    return Array.from(unknownMap.values());
+}
+
+function buildGeneOptions(dataType) {
+    const primaryDict = dataType === "cp" ? ChloroplastGenes : MitochondrialGenes;
+    const secondaryDict = dataType === "cp" ? MitochondrialGenes : ChloroplastGenes;
+    const primaryLabel = dataType === "cp" ? "Chloroplast" : "Mitochondrial";
+    const secondaryLabel = dataType === "cp" ? "Mitochondrial" : "Chloroplast";
+    const skipLabel = i18nText("modal.unknowngenes.select.skip", "(skip)");
+    const opts = [{ value: "", label: skipLabel, group: null }];
+    for (const k of Object.keys(primaryDict).sort()) opts.push({ value: k, label: k, group: primaryLabel });
+    for (const k of Object.keys(secondaryDict).sort()) opts.push({ value: k, label: k, group: secondaryLabel });
+    return opts;
+}
+
+function buildSearchableSelect(geneOptions) {
+    const skipLabel = geneOptions.find(o => o.value === "")?.label || "(skip)";
+    const searchPlaceholder = i18nText("modal.unknowngenes.search", "Search gene…");
+    const optItems = geneOptions.map(o => {
+        if (!o.value) {
+            return `<div class="gene-opt px-3 py-1.5 cursor-pointer hover:bg-gray-50 text-sm text-gray-400 italic border-b border-gray-100" data-value="" data-label="${escHtml(o.label)}">${escHtml(o.label)}</div>`;
+        }
+        return `<div class="gene-opt px-3 py-1.5 cursor-pointer hover:bg-splace-blue-50 text-sm text-gray-800 font-normal" data-value="${escHtml(o.value)}" data-label="${escHtml(o.label)}" data-group="${escHtml(o.group || "")}">${escHtml(o.label)}</div>`;
+    }).join("");
+    return `<div class="gene-combobox relative">
+        <input type="hidden" class="gene-value" value="">
+        <button type="button" class="gene-trigger w-full flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white hover:border-splace-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-splace-blue-200 text-left">
+            <span class="gene-display text-sm text-gray-400 truncate flex-1">${escHtml(skipLabel)}</span>
+            <i class="fa-solid fa-chevron-down text-xs text-gray-400 flex-shrink-0 transition-transform duration-150"></i>
+        </button>
+        <div class="gene-dropdown hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden" style="min-width:180px;">
+            <div class="p-2 border-b border-gray-100">
+                <input type="text" class="gene-search w-full text-sm px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-splace-blue-400 bg-white placeholder-gray-400 transition-colors" placeholder="${escHtml(searchPlaceholder)}">
+            </div>
+            <div class="gene-opts-list overflow-y-auto" style="max-height:200px;">${optItems}</div>
+        </div>
+    </div>`;
+}
+
+function openUnknownGenesModal(entries) {
+    const modal = document.getElementById("unknownGenesModal");
+    if (!modal) return;
+
+    const dataType = state.detectedDataType;
+    const geneOptions = buildGeneOptions(dataType);
+
+    const colSpecies = i18nText("modal.unknowngenes.col.species", "Species");
+    const colSource = i18nText("modal.unknowngenes.col.source", "File / Accession");
+    const colFound = i18nText("modal.unknowngenes.col.found", "Gene Not Found");
+    const colCorrect = i18nText("modal.unknowngenes.col.correct", "Correct Name");
+    const moreLabel = i18nText("modal.unknowngenes.more", "more");
+
+    const tooltipData = [];
+    const rows = entries.map((entry, idx) => {
+        const first = entry.occurrences[0];
+        const extra = entry.occurrences.length - 1;
+        const speciesCell = `<span class="italic text-gray-700 text-sm">${escHtml(first.species)}</span>` +
+            (extra > 0 ? ` <span class="text-sm text-gray-400 whitespace-nowrap">+${extra} ${moreLabel}</span>` : "");
+        const isFile = first.source === "file" && first.fileName;
+        const sourceCell = isFile
+            ? `<span class="inline-flex items-center gap-1 text-sm text-gray-600"><i class="fa-regular fa-file-lines text-gray-400 flex-shrink-0"></i><span class="truncate">${escHtml(first.fileName)}</span></span>`
+            : `<span class="font-mono text-sm text-gray-500">${escHtml(first.accession)}</span>`;
+        const tipLines = entry.occurrences.map(o =>
+            o.source === "file" && o.fileName
+                ? `<em>${escHtml(o.species)}</em> &mdash; <code>${escHtml(o.fileName)}</code>`
+                : `<em>${escHtml(o.species)}</em> &mdash; <code>${escHtml(o.accession)}</code>`
+        ).join("<br>");
+        tooltipData.push(tipLines);
+        const stripeClass = idx % 2 === 1 ? "bg-gray-50/60" : "";
+        return `<tr data-rawkey="${escHtml(entry.rawKey)}" class="border-t border-gray-100 hover:bg-amber-50/40 transition-colors ${stripeClass}">
+            <td class="px-4 py-3">${speciesCell}</td>
+            <td class="px-4 py-3 max-w-[200px] cursor-help" data-occ-idx="${idx}">${sourceCell}</td>
+            <td class="px-4 py-3">
+                <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 text-sm font-semibold px-2.5 py-1 leading-none">
+                    <i class="fa-solid fa-circle-exclamation text-amber-500 text-xs"></i>
+                    ${escHtml(entry.rawKey)}
+                </span>
+            </td>
+            <td class="px-4 py-3" style="min-width:240px;">${buildSearchableSelect(geneOptions)}</td>
+        </tr>`;
+    }).join("");
+
+    document.getElementById("unknownGenesTableHead").innerHTML =
+        `<tr class="bg-amber-50 border-b border-amber-100">
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-amber-800 uppercase tracking-wider">${escHtml(colSpecies)}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-amber-800 uppercase tracking-wider">${escHtml(colSource)}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-amber-800 uppercase tracking-wider">${escHtml(colFound)}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-amber-800 uppercase tracking-wider" style="min-width:240px;">${escHtml(colCorrect)}</th>
+        </tr>`;
+
+    document.getElementById("unknownGenesTableBody").innerHTML = rows;
+
+    if (typeof tippy !== "undefined") {
+        document.querySelectorAll("#unknownGenesTableBody td[data-occ-idx]").forEach(td => {
+            const occIdx = parseInt(td.dataset.occIdx);
+            if (tooltipData[occIdx]) {
+                tippy(td, { ...TIPPY_DEFAULTS, content: tooltipData[occIdx], placement: "right" });
+            }
+        });
+    }
+
+    const count = entries.length;
+    document.getElementById("unknownGenesCount").textContent =
+        i18nText("modal.unknowngenes.count", `${count} gene(s) not found in dictionary`, { count });
+
+    modal.classList.remove("hidden");
+    initGeneComboboxes();
+}
+
+window.closeUnknownGenesModal = function () {
+    document.getElementById("unknownGenesModal").classList.add("hidden");
+};
+
+let _geneComboboxCloseHandler = null;
+
+function initGeneComboboxes() {
+    const tbody = document.getElementById("unknownGenesTableBody");
+    if (!tbody) return;
+
+    tbody.querySelectorAll(".gene-combobox").forEach(combobox => {
+        const trigger = combobox.querySelector(".gene-trigger");
+        const dropdown = combobox.querySelector(".gene-dropdown");
+        const search = combobox.querySelector(".gene-search");
+        const hidden = combobox.querySelector(".gene-value");
+        const display = combobox.querySelector(".gene-display");
+        const chevron = combobox.querySelector(".fa-chevron-down");
+
+        function openDropdown() {
+            document.querySelectorAll(".gene-dropdown:not(.hidden)").forEach(d => {
+                if (d !== dropdown) {
+                    d.classList.add("hidden");
+                    d.style.cssText = "";
+                    d.closest(".gene-combobox")?.querySelector(".fa-chevron-down")?.classList.remove("rotate-180");
+                }
+            });
+            const rect = trigger.getBoundingClientRect();
+            Object.assign(dropdown.style, {
+                position: "fixed",
+                top: (rect.bottom + 4) + "px",
+                left: rect.left + "px",
+                width: Math.max(rect.width, 240) + "px",
+                zIndex: "9999",
+            });
+            dropdown.classList.remove("hidden");
+            chevron.classList.add("rotate-180");
+            search.value = "";
+            combobox.querySelectorAll(".gene-opt").forEach(o => {
+                o.style.display = "";
+                o.textContent = o.dataset.label;
+            });
+            search.focus();
+        }
+
+        function closeDropdown() {
+            dropdown.classList.add("hidden");
+            dropdown.style.cssText = "";
+            chevron.classList.remove("rotate-180");
+        }
+
+        trigger.addEventListener("click", e => {
+            e.stopPropagation();
+            dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
+        });
+
+        search.addEventListener("input", () => {
+            const q = search.value;
+            const ql = q.toLowerCase();
+            combobox.querySelectorAll(".gene-opt").forEach(opt => {
+                const label = opt.dataset.label;
+                const value = opt.dataset.value;
+                const match = !ql || value.toLowerCase().includes(ql) || label.toLowerCase().includes(ql);
+                opt.style.display = match ? "" : "none";
+                if (match && ql) {
+                    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+                    opt.innerHTML = escHtml(label).replace(re, '<mark class="bg-yellow-100 text-amber-900 rounded-sm not-italic">$1</mark>');
+                } else {
+                    opt.textContent = label;
+                }
+            });
+        });
+
+        combobox.querySelectorAll(".gene-opt").forEach(opt => {
+            opt.addEventListener("click", e => {
+                e.stopPropagation();
+                hidden.value = opt.dataset.value;
+                display.textContent = opt.dataset.label;
+                if (opt.dataset.value) {
+                    display.classList.remove("text-gray-400");
+                    display.classList.add("text-gray-800", "font-medium");
+                } else {
+                    display.classList.remove("text-gray-800", "font-medium");
+                    display.classList.add("text-gray-400");
+                }
+                closeDropdown();
+            });
+        });
+
+        dropdown.addEventListener("click", e => e.stopPropagation());
+    });
+
+    if (_geneComboboxCloseHandler) {
+        document.removeEventListener("click", _geneComboboxCloseHandler);
+    }
+    _geneComboboxCloseHandler = () => {
+        document.querySelectorAll(".gene-dropdown").forEach(d => {
+            d.classList.add("hidden");
+            d.style.cssText = "";
+            d.closest(".gene-combobox")?.querySelector(".fa-chevron-down")?.classList.remove("rotate-180");
+        });
+    };
+    document.addEventListener("click", _geneComboboxCloseHandler);
+
+    const scrollEl = document.querySelector("#unknownGenesModal .overflow-y-auto");
+    if (scrollEl && !scrollEl._geneScrollHandler) {
+        scrollEl._geneScrollHandler = () => {
+            document.querySelectorAll(".gene-dropdown:not(.hidden)").forEach(d => {
+                d.classList.add("hidden");
+                d.style.cssText = "";
+                d.closest(".gene-combobox")?.querySelector(".fa-chevron-down")?.classList.remove("rotate-180");
+            });
+        };
+        scrollEl.addEventListener("scroll", scrollEl._geneScrollHandler, { passive: true });
+    }
+}
+
+window.applyGeneNameOverrides = function () {
+    const rows = document.querySelectorAll("#unknownGenesTableBody tr[data-rawkey]");
+    rows.forEach(row => {
+        const rawKey = row.dataset.rawkey;
+        const valInput = row.querySelector(".gene-value");
+        if (valInput && valInput.value) {
+            state.geneNameOverrides.set(rawKey, valInput.value);
+        }
+    });
+    window.closeUnknownGenesModal();
+    renderGeneSelection();
+};
 
 // ========================================================================
 // tRNA Name Standardization (Leu1/Leu2, Ser1/Ser2)
@@ -1503,6 +1785,15 @@ function renderGeneSelection() {
 
     // Init Tippy on feature switches and record buttons
     window.initTooltips && window.initTooltips();
+
+    // Check for unrecognized gene names (only once per load cycle)
+    if (!state.unknownGenesChecked) {
+        state.unknownGenesChecked = true;
+        const unknowns = collectUnknownGenes();
+        if (unknowns.length > 0) {
+            openUnknownGenesModal(unknowns);
+        }
+    }
 }
 
 function renderGenes(genesByType) {
@@ -2171,11 +2462,17 @@ function validateTaxonomySearchInput() {
 
 function mergeRecords(records) {
     const seen = new Set(state.records.map((record) => (record.accession || "").trim()).filter(Boolean));
+    let added = 0;
     for (const record of records) {
         const accession = (record.accession || "").trim();
         if (accession && seen.has(accession)) continue;
         state.records.push(record);
         if (accession) seen.add(accession);
+        added++;
+    }
+    if (added > 0) {
+        // New records may introduce unknown gene names — re-trigger modal check
+        state.unknownGenesChecked = false;
     }
 }
 
@@ -2813,16 +3110,9 @@ function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, 
     return { validDna, protein, normalized, terminalStopRemoved: lastAa === "*", internalStops };
 }
 
-/**
- * Collect CDS sequences from state.records, validate each one and translate
- * to protein using the per-feature /transl_table (fallback: defaultGeneticCode).
- * Returns Map<geneName, { cdsDnaFasta: string, proteinFasta: string }>
- * Both FASTAs use IDENTICAL sequence headers, ensuring trimAl -backtrans works.
- * Terminal stop codons are removed so protein.length * 3 === cdsDna.length.
- */
-function generateCodonFastaPair(defaultGeneticCode, logFn) {
+// Build perGeneCandidates Map from state.records (first phase of codon validation).
+function buildCodonCandidates(defaultGeneticCode, logFn) {
     const dataType = state.detectedDataType;
-    // geneName -> [{header, seq, translTable}]
     const perGeneCandidates = new Map();
 
     for (const record of state.records) {
@@ -2841,7 +3131,6 @@ function generateCodonFastaPair(defaultGeneticCode, logFn) {
             const rawSeq = extractSequence(record.sequence, feat.locationStr);
             if (!rawSeq) continue;
 
-            // Apply /codon_start offset (skip partial first codon)
             const codonStart = parseInt(feat.qualifiers.codon_start) || 1;
             const offset = Math.max(0, codonStart - 1);
             const seq = offset > 0 ? rawSeq.slice(offset) : rawSeq;
@@ -2849,9 +3138,7 @@ function generateCodonFastaPair(defaultGeneticCode, logFn) {
                 logFn(`[${geneName}] "${headerName}": /codon_start=${codonStart}, trimmed ${offset} bp`);
             }
 
-            // /transl_table overrides the UI genetic code selection
             const translTable = parseInt(feat.qualifiers.transl_table) || parseInt(defaultGeneticCode) || 2;
-
             const existing = candidatesPerGene.get(geneName) || [];
             existing.push({ header: headerName, seq, translTable, len: seq.length });
             candidatesPerGene.set(geneName, existing);
@@ -2872,50 +3159,51 @@ function generateCodonFastaPair(defaultGeneticCode, logFn) {
         }
     }
 
-    const result = new Map();
+    return perGeneCandidates;
+}
 
-    for (const [geneName, seqs] of perGeneCandidates) {
-        // Warn about duplicate sequence headers within this gene
-        const headerCounts = {};
-        for (const s of seqs) headerCounts[s.header] = (headerCounts[s.header] || 0) + 1;
-        const dupHeaders = Object.entries(headerCounts).filter(([, c]) => c > 1).map(([h]) => h);
-        if (dupHeaders.length) {
-            logFn(`[${geneName}] WARN: duplicate headers detected — ${dupHeaders.join("; ")}`);
-        }
+// Validate and translate one gene entry from perGeneCandidates.
+// Returns { cdsDnaFasta, proteinFasta, stats } or null if not enough valid seqs.
+function processCodonGeneEntry(geneName, seqs, logFn) {
+    const headerCounts = {};
+    for (const s of seqs) headerCounts[s.header] = (headerCounts[s.header] || 0) + 1;
+    const dupHeaders = Object.entries(headerCounts).filter(([, c]) => c > 1).map(([h]) => h);
+    if (dupHeaders.length) logFn(`[${geneName}] WARN: duplicate headers detected — ${dupHeaders.join("; ")}`);
 
-        // Report unique genetic codes used for this gene
-        const codesUsed = [...new Set(seqs.map(s => s.translTable))];
-        logFn(`[${geneName}] genetic code(s): ${codesUsed.join(", ")} (${seqs.length} seq)`);
+    const codesUsed = [...new Set(seqs.map(s => s.translTable))];
+    logFn(`[${geneName}] genetic code(s): ${codesUsed.join(", ")} (${seqs.length} seq)`);
 
-        let cdsDnaFasta = "";
-        let proteinFasta = "";
-        let validCount = 0, skipCount = 0, normalizedCount = 0;
-        let terminalStopsRemoved = 0, incompleteStopFragmentsRemoved = 0, internalStopsDetected = 0;
+    let cdsDnaFasta = "", proteinFasta = "";
+    let validCount = 0, skipCount = 0, normalizedCount = 0;
+    let terminalStopsRemoved = 0, incompleteStopFragmentsRemoved = 0, internalStopsDetected = 0;
 
-        for (const s of seqs) {
-            const validated = validateAndTranslateCdsForCodon(geneName, s.header, s.seq, s.translTable, logFn);
-            if (!validated) { skipCount++; continue; }
-            if (validated.normalized) { normalizedCount++; incompleteStopFragmentsRemoved++; }
-            if (validated.terminalStopRemoved) terminalStopsRemoved++;
-            internalStopsDetected += validated.internalStops || 0;
-            cdsDnaFasta += `>${s.header}\n${validated.validDna}\n`;
-            proteinFasta += `>${s.header}\n${validated.protein}\n`;
-            validCount++;
-        }
-
-        const rawCount = seqs.length;
-        if (validCount === 0) {
-            logFn(`[${geneName}] SKIP: ${rawCount} raw | 0 valid | ${skipCount} skipped | ${normalizedCount} normalized`);
-            continue;
-        }
-        if (validCount < 2) {
-            logFn(`[${geneName}] SKIP: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized (minimum 2 required)`);
-            continue;
-        }
-        logFn(`[${geneName}] OK: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized`);
-        result.set(geneName, { cdsDnaFasta, proteinFasta, stats: { terminalStopsRemoved, incompleteStopFragmentsRemoved, internalStopsDetected } });
+    for (const s of seqs) {
+        const validated = validateAndTranslateCdsForCodon(geneName, s.header, s.seq, s.translTable, logFn);
+        if (!validated) { skipCount++; continue; }
+        if (validated.normalized) { normalizedCount++; incompleteStopFragmentsRemoved++; }
+        if (validated.terminalStopRemoved) terminalStopsRemoved++;
+        internalStopsDetected += validated.internalStops || 0;
+        cdsDnaFasta += `>${s.header}\n${validated.validDna}\n`;
+        proteinFasta += `>${s.header}\n${validated.protein}\n`;
+        validCount++;
     }
 
+    const rawCount = seqs.length;
+    if (validCount < 2) {
+        logFn(`[${geneName}] SKIP: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized${validCount < 2 ? " (minimum 2 required)" : ""}`);
+        return null;
+    }
+    logFn(`[${geneName}] OK: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized`);
+    return { cdsDnaFasta, proteinFasta, stats: { terminalStopsRemoved, incompleteStopFragmentsRemoved, internalStopsDetected } };
+}
+
+function generateCodonFastaPair(defaultGeneticCode, logFn) {
+    const perGeneCandidates = buildCodonCandidates(defaultGeneticCode, logFn);
+    const result = new Map();
+    for (const [geneName, seqs] of perGeneCandidates) {
+        const pair = processCodonGeneEntry(geneName, seqs, logFn);
+        if (pair) result.set(geneName, pair);
+    }
     return result;
 }
 
@@ -3284,6 +3572,8 @@ document.addEventListener("DOMContentLoaded", () => {
         state.records = [];
         state.selectedGenes.clear();
         state.duplicateGeneChoices.clear();
+        state.geneNameOverrides.clear();
+        state.unknownGenesChecked = false;
         renderRecords();
     });
 
@@ -3643,37 +3933,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (extra) params.push(...extra.split(/\s+/).filter(Boolean));
             if (isAaMode || isCodonMode) params.push("--amino");
 
-            // ── Codon-aware: validate CDS + translate in JS (sync, exact header matching) ──
+            // ── Codon-aware: open modal first, validate genes async with progress bar ──
             if (isCodonMode) {
-                const validationLogs = [];
-                const logFn = (msg) => { validationLogs.push(msg); console.log("[codon]", msg); };
-
-                const codonPairs = generateCodonFastaPair(geneticCode, logFn);
-
-                if (codonPairs.size === 0) {
-                    alert("No valid CDS sequences found for codon-aware alignment.\nCheck the browser console for details.");
-                    window._codonMode = false;
-                    window._alignmentMode = "nt";
-                    return;
-                }
-
-                window._codonOriginalDna = {};
-                window._codonPipelineStats = {};
-                window._codonValidationLogs = validationLogs;
-
-                const files = {};
-                for (const [geneName, pair] of codonPairs) {
-                    window._codonOriginalDna[geneName] = pair.cdsDnaFasta;   // DNA (no stop)
-                    window._codonPipelineStats[geneName] = pair.stats || {}; // stop codon stats
-                    files[geneName] = pair.proteinFasta;                     // protein → MAFFT
-                }
-
-                const skippedGenes = [...state.selectedGenes].filter(g => !codonPairs.has(g));
-                if (skippedGenes.length) logFn(`Genes skipped (no valid CDS): ${skippedGenes.join(", ")}`);
-                logFn(`Sending ${codonPairs.size} gene(s) to MAFFT (--amino)`);
-
-                const markers = Object.keys(files);
-                openAnalysisModal("mafft", markers, {
+                openAnalysisModal("mafft", [...state.selectedGenes], {
                     alignMode: "codon",
                     isTranslated: true,
                     geneticCode,
@@ -3681,109 +3943,167 @@ document.addEventListener("DOMContentLoaded", () => {
                     mafftMode: "--amino",
                     postProcess: "trimAl -backtrans",
                 });
-                window.electronAPI.runAnalysis({ files, params, threads });
+                const logEl = document.getElementById("analysisModalLog");
+                const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+                const bar = document.getElementById("analysisModalProgressBar");
+                const lbl = document.getElementById("analysisModalProgressLabel");
+                const pct = document.getElementById("analysisModalProgressPct");
+
+                setTimeout(() => {
+                    const validationLogs = [];
+                    const logFn = (msg) => { validationLogs.push(msg); appendLog(msg); console.log("[codon]", msg); };
+
+                    const perGeneCandidates = buildCodonCandidates(geneticCode, logFn);
+                    const geneEntries = [...perGeneCandidates.entries()];
+                    const totalGenes = geneEntries.length;
+
+                    if (totalGenes === 0) {
+                        appendLog("No CDS features found for selected genes.");
+                        document.getElementById("analysisModalClose").classList.remove("hidden");
+                        document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
+                        document.getElementById("analysisModalTitle").textContent = "No CDS sequences found";
+                        window._codonMode = false;
+                        window._alignmentMode = "nt";
+                        return;
+                    }
+
+                    appendLog(`Validating ${totalGenes} gene(s)\u2026`);
+
+                    const codonPairs = new Map();
+                    let gIdx = 0;
+
+                    function validateNext() {
+                        if (gIdx >= totalGenes) {
+                            if (codonPairs.size === 0) {
+                                appendLog("No valid CDS sequences found for codon-aware alignment.");
+                                document.getElementById("analysisModalClose").classList.remove("hidden");
+                                document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
+                                document.getElementById("analysisModalTitle").textContent = "No valid CDS sequences";
+                                window._codonMode = false;
+                                window._alignmentMode = "nt";
+                                return;
+                            }
+
+                            window._codonOriginalDna = {};
+                            window._codonPipelineStats = {};
+                            window._codonValidationLogs = validationLogs;
+                            const files = {};
+                            for (const [geneName, pair] of codonPairs) {
+                                window._codonOriginalDna[geneName] = pair.cdsDnaFasta;
+                                window._codonPipelineStats[geneName] = pair.stats || {};
+                                files[geneName] = pair.proteinFasta;
+                            }
+                            const skippedGenes = [...state.selectedGenes].filter(g => !codonPairs.has(g));
+                            if (skippedGenes.length) logFn(`Genes skipped (no valid CDS): ${skippedGenes.join(", ")}`);
+                            logFn(`Sending ${codonPairs.size} gene(s) to MAFFT (--amino)`);
+
+                            if (window._phaseTracker) {
+                                window._phaseTracker.complete("validation", `${totalGenes} / ${totalGenes} genes validated`);
+                                window._phaseTracker.activate("mafft");
+                            }
+                            document.getElementById("analysisModalTitle").textContent = "Running MAFFT\u2026";
+
+                            window.electronAPI.runAnalysis({ files, params, threads });
+                            return;
+                        }
+
+                        const [geneName, seqs] = geneEntries[gIdx++];
+                        const pair = processCodonGeneEntry(geneName, seqs, logFn);
+                        if (pair) codonPairs.set(geneName, pair);
+
+                        const pctVal = Math.round(gIdx / totalGenes * 100);
+                        if (window._phaseTracker) window._phaseTracker.update("validation", pctVal, `${gIdx} / ${totalGenes} genes validated`);
+
+                        setTimeout(validateNext, 0);
+                    }
+
+                    setTimeout(validateNext, 0);
+                }, 50);
                 return;
             }
 
-            // ── Nucleotide / Amino-acid: generate raw FASTAs ─────────────────────────────
-            const rawFastaFiles = generateFastaFiles();
-            if (rawFastaFiles.size === 0) {
-                alert("No sequences to align. Check records and gene selection.");
-                return;
-            }
-
-            // Partition markers: valid (>= 2 seqs) vs. skipped (< 2 seqs)
-            const validRaw = {};    // name -> { content, rawCount }
-            const skippedRaw = []; // { name, count }
-            for (const [name, content] of rawFastaFiles) {
-                const rawCount = countFastaSequences(content);
-                if (rawCount < 2) {
-                    skippedRaw.push({ name, count: rawCount });
-                } else {
-                    validRaw[name] = { content, rawCount };
-                }
-            }
-
-            if (Object.keys(validRaw).length === 0) {
-                const detail = skippedRaw.map(s => `• ${s.name}: ${s.count} sequence(s)`).join("\n");
-                alert(`No markers have enough sequences (minimum 2 required):\n${detail}`);
-                return;
-            }
-
+            // ── Nucleotide / Amino-acid: open modal first, then generate FASTAs ──────────
             window._codonOriginalDna = null;
             window._codonValidationLogs = null;
 
-            const markers = Object.keys(validRaw);
+            openAnalysisModal("mafft", [...state.selectedGenes], {
+                alignMode: isAaMode ? "aa" : "nt",
+                isTranslated: isAaMode,
+                geneticCode: isAaMode ? geneticCode : null,
+                geneticCodeName: isAaMode ? geneticCodeName : null,
+                mafftMode: isAaMode ? "--amino" : "nucleotide mode",
+                postProcess: null,
+            });
 
-            if (isAaMode) {
-                // Open modal BEFORE translation so the user can follow progress
-                openAnalysisModal("mafft", markers, {
-                    alignMode: "aa",
-                    isTranslated: true,
-                    geneticCode,
-                    geneticCodeName,
-                    mafftMode: "--amino",
-                    postProcess: null,
-                });
+            const logEl = document.getElementById("analysisModalLog");
+            const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+            appendLog("Preparing FASTA files\u2026");
+            if (isAaMode) appendLog(`Using genetic code: ${geneticCodeName}`);
 
-                const logEl = document.getElementById("analysisModalLog");
-                const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
-
-                // Report skipped markers immediately
-                for (const { name, count } of skippedRaw) {
-                    appendLog(`${name}: skipped, only ${count} sequence${count !== 1 ? 's' : ''}`);
-                }
-
-                appendLog(`Preparing FASTA files for ${markers.length} marker(s)\u2026`);
-                appendLog(`Using genetic code: ${geneticCodeName}`);
-                appendLog("Translating sequences with seqkit\u2026");
-
-                try {
-                    let files = {};
-                    for (const [name, { content, rawCount }] of Object.entries(validRaw)) {
-                        appendLog(`  Translating ${name} (${rawCount} sequences)\u2026`);
-                        const result = await window.electronAPI.translateFasta({ content, code: geneticCode });
-                        const translatedContent = result || content;
-                        const translatedCount = countFastaSequences(translatedContent);
-                        if (translatedCount !== rawCount) {
-                            throw new Error(`${name}: translation changed sequence count from ${rawCount} to ${translatedCount}`);
-                        }
-                        files[name] = translatedContent;
-                        appendLog(`${name}: ${rawCount} raw sequences \u2192 ${translatedCount} translated sequences \u2192 MAFFT`);
-                    }
-                    appendLog("Running MAFFT with --amino\u2026");
-                    window.electronAPI.runAnalysis({ files, params, threads });
-                } catch (e) {
-                    appendLog(`\nTranslation failed: ${e.message || e}`);
+            setTimeout(async () => {
+                const rawFastaFiles = generateFastaFiles();
+                if (rawFastaFiles.size === 0) {
+                    appendLog("No sequences to align. Check records and gene selection.");
                     document.getElementById("analysisModalClose").classList.remove("hidden");
                     document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
-                    document.getElementById("analysisModalTitle").textContent = "Translation Failed";
+                    document.getElementById("analysisModalTitle").textContent = "No sequences to align";
                     return;
                 }
-            } else {
-                // Nucleotide mode: open modal then log per-marker counts
-                const files = {};
-                for (const [name, { content }] of Object.entries(validRaw)) files[name] = content;
 
-                openAnalysisModal("mafft", markers, {
-                    alignMode: "nt",
-                    isTranslated: false,
-                    geneticCode: null,
-                    geneticCodeName: null,
-                    mafftMode: "nucleotide mode",
-                    postProcess: null,
-                });
+                const validRaw = {};
+                const skippedRaw = [];
+                for (const [name, content] of rawFastaFiles) {
+                    const rawCount = countFastaSequences(content);
+                    if (rawCount < 2) skippedRaw.push({ name, count: rawCount });
+                    else validRaw[name] = { content, rawCount };
+                }
 
-                const logEl = document.getElementById("analysisModalLog");
-                const appendLog = (msg) => { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+                if (Object.keys(validRaw).length === 0) {
+                    const detail = skippedRaw.map(s => `\u2022 ${s.name}: ${s.count} sequence(s)`).join("\n");
+                    appendLog(`No markers have enough sequences (minimum 2 required):\n${detail}`);
+                    document.getElementById("analysisModalClose").classList.remove("hidden");
+                    document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
+                    document.getElementById("analysisModalTitle").textContent = "Not enough sequences";
+                    return;
+                }
+
                 for (const { name, count } of skippedRaw) {
-                    appendLog(`${name}: skipped, only ${count} sequence${count !== 1 ? 's' : ''}`);
+                    appendLog(`${name}: skipped, only ${count} sequence${count !== 1 ? "s" : ""}`);
                 }
-                for (const [name, { rawCount }] of Object.entries(validRaw)) {
-                    appendLog(`${name}: ${rawCount} sequences \u2192 MAFFT`);
+
+                if (isAaMode) {
+                    appendLog(`Preparing FASTA files for ${Object.keys(validRaw).length} marker(s)\u2026`);
+                    appendLog("Translating sequences with seqkit\u2026");
+                    try {
+                        const files = {};
+                        for (const [name, { content, rawCount }] of Object.entries(validRaw)) {
+                            appendLog(`  Translating ${name} (${rawCount} sequences)\u2026`);
+                            const result = await window.electronAPI.translateFasta({ content, code: geneticCode });
+                            const translatedContent = result || content;
+                            const translatedCount = countFastaSequences(translatedContent);
+                            if (translatedCount !== rawCount) {
+                                throw new Error(`${name}: translation changed sequence count from ${rawCount} to ${translatedCount}`);
+                            }
+                            files[name] = translatedContent;
+                            appendLog(`${name}: ${rawCount} raw sequences \u2192 ${translatedCount} translated \u2192 MAFFT`);
+                        }
+                        appendLog("Running MAFFT with --amino\u2026");
+                        window.electronAPI.runAnalysis({ files, params, threads });
+                    } catch (e) {
+                        appendLog(`\nTranslation failed: ${e.message || e}`);
+                        document.getElementById("analysisModalClose").classList.remove("hidden");
+                        document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
+                        document.getElementById("analysisModalTitle").textContent = "Translation Failed";
+                    }
+                } else {
+                    const files = {};
+                    for (const [name, { content, rawCount }] of Object.entries(validRaw)) {
+                        files[name] = content;
+                        appendLog(`${name}: ${rawCount} sequences \u2192 MAFFT`);
+                    }
+                    window.electronAPI.runAnalysis({ files, params, threads });
                 }
-                window.electronAPI.runAnalysis({ files, params, threads });
-            }
+            }, 50);
         });
     }
 });
@@ -3793,6 +4113,63 @@ document.addEventListener("DOMContentLoaded", () => {
 // ========================================================================
 
 let _analysisMarkers = [];
+
+// Add a completed full-size phase bar to the stack and reset the active bar.
+function createPhaseTracker(phases) {
+    const stack = document.getElementById("analysisProgressStack");
+    if (!stack) return null;
+    stack.innerHTML = "";
+    const tracker = { phases: {} };
+    for (const { id, label } of phases) {
+        const row = document.createElement("div");
+        row.className = "mb-2.5";
+        row.innerHTML = `<div class="flex justify-between text-sm mb-1">`
+            + `<span class="flex items-center gap-1.5 text-gray-400">`
+            + `<i class="fa-regular fa-circle text-gray-300 text-xs" data-phase-icon></i>`
+            + `<span data-phase-text>${label}</span></span>`
+            + `<span class="text-gray-400 tabular-nums" data-phase-pct>\u2014</span></div>`
+            + `<div class="w-full bg-gray-100 rounded-full h-2">`
+            + `<div class="bg-gray-200 h-2 rounded-full" data-phase-bar style="width:0%"></div></div>`;
+        stack.appendChild(row);
+        const spanEl = row.querySelector("[data-phase-icon]").parentElement;
+        tracker.phases[id] = {
+            iconEl: row.querySelector("[data-phase-icon]"),
+            spanEl,
+            textEl: row.querySelector("[data-phase-text]"),
+            pctEl: row.querySelector("[data-phase-pct]"),
+            barEl: row.querySelector("[data-phase-bar]"),
+        };
+    }
+    tracker.activate = function(id) {
+        const p = this.phases[id];
+        if (!p) return;
+        p.iconEl.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-xs";
+        p.spanEl.className = "flex items-center gap-1.5 text-splace-blue-700";
+        p.pctEl.className = "text-splace-blue-600 tabular-nums";
+        p.pctEl.textContent = "0%";
+        p.barEl.className = "bg-splace-blue-600 h-2 rounded-full";
+        p.barEl.style.width = "0%";
+    };
+    tracker.update = function(id, pctVal, text) {
+        const p = this.phases[id];
+        if (!p) return;
+        p.barEl.style.width = pctVal + "%";
+        p.pctEl.textContent = pctVal + "%";
+        if (text !== undefined) p.textEl.textContent = text;
+    };
+    tracker.complete = function(id, text) {
+        const p = this.phases[id];
+        if (!p) return;
+        p.iconEl.className = "fa-solid fa-check text-green-500 text-xs";
+        p.spanEl.className = "flex items-center gap-1.5 text-green-700 font-medium";
+        p.pctEl.className = "text-green-600 font-medium tabular-nums";
+        p.pctEl.textContent = "100%";
+        p.barEl.className = "bg-green-500 h-2 rounded-full";
+        p.barEl.style.width = "100%";
+        if (text !== undefined) p.textEl.textContent = text;
+    };
+    return tracker;
+}
 
 function openAnalysisModal(phase, markers, options) {
     const opts = options || {};
@@ -3815,30 +4192,38 @@ function openAnalysisModal(phase, markers, options) {
     // Title
     if (phase === "mafft") {
         title.textContent = opts.alignMode === "codon"
-            ? "Running Codon-Aware Alignment…"
-            : "Running MAFFT Alignment…";
+            ? "Running Codon-Aware Alignment\u2026"
+            : "Running MAFFT Alignment\u2026";
     } else if (phase === "trimAl") {
-        title.textContent = "Running trimAl…";
+        title.textContent = opts.alignMode === "codon"
+            ? "Running trimAl (protein-guided)\u2026"
+            : "Running trimAl\u2026";
     } else {
-        title.textContent = "Running…";
+        title.textContent = "Running\u2026";
     }
 
     // Subtitle
     if (phase === "mafft") {
         if (opts.alignMode === "codon") {
-            sub.textContent = "CDS to protein · MAFFT --amino · back-translation to DNA codons";
+            sub.textContent = "CDS to protein \u00b7 MAFFT --amino \u00b7 back-translation to DNA codons";
         } else if (opts.alignMode === "aa") {
-            sub.textContent = "Amino Acid mode · Translation ON · MAFFT --amino";
+            sub.textContent = "Amino Acid mode \u00b7 Translation ON \u00b7 MAFFT --amino";
         } else {
             sub.textContent = `Nucleotide mode · Translation OFF · ${markers.length} marker${markers.length !== 1 ? 's' : ''} queued`;
         }
     } else {
-        sub.textContent = `${markers.length} marker${markers.length !== 1 ? 's' : ''} queued`;
+        if (phase === "trimAl" && opts.alignMode === "codon") {
+            sub.textContent = "Protein alignment \u2192 trimAl -backtrans \u2192 codon-preserving DNA";
+        } else {
+            sub.textContent = `${markers.length} marker${markers.length !== 1 ? "s" : ""} queued`;
+        }
     }
 
     // Section copy
     if (sectionCopy) {
-        if (opts.alignMode === "codon") {
+        if (phase === "trimAl" && opts.alignMode === "codon") {
+            sectionCopy.textContent = "trimAl receives the protein alignment from MAFFT and uses it to guide codon-block trimming. Output is back-translated to codon-preserving DNA.";
+        } else if (opts.alignMode === "codon") {
             sectionCopy.textContent = "CDS sequences are translated, aligned as proteins, then back-translated to codon-preserving DNA.";
         } else if (opts.alignMode === "aa") {
             sectionCopy.textContent = opts.geneticCodeName
@@ -3896,6 +4281,33 @@ function openAnalysisModal(phase, markers, options) {
     log.textContent = "";
     close.classList.add("hidden");
 
+    // Build all phase bars upfront so they all appear at once
+    const phaseList = [];
+    if (phase === "mafft") {
+        if (opts.alignMode === "codon") {
+            phaseList.push(
+                { id: "validation", label: "Validating CDS sequences" },
+                { id: "mafft", label: "MAFFT alignment (--amino)" },
+                { id: "reading", label: "Reading alignments" },
+                { id: "backtrans", label: "Back-translating to codon DNA" }
+            );
+        } else {
+            phaseList.push(
+                { id: "mafft", label: "MAFFT alignment" },
+                { id: "reading", label: "Reading alignments" }
+            );
+        }
+    } else if (phase === "trimAl") {
+        phaseList.push(
+            { id: "trimal", label: opts.alignMode === "codon" ? "trimAl -backtrans (codon-preserving)" : "trimAl trimming" }
+        );
+    }
+    window._phaseTracker = createPhaseTracker(phaseList);
+    if (window._phaseTracker && phaseList.length > 0) {
+        window._phaseTracker.activate(phaseList[0].id);
+    }
+    window._activeIpcPhase = phase === "trimAl" ? "trimal" : "mafft";
+
     list.innerHTML = markers.map(m =>
         `<div id="modal-marker-${CSS.escape(m)}" class="flex items-center gap-2 px-2 py-1 rounded text-xs text-gray-600">
             <i class="fa-solid fa-clock text-gray-300 w-3"></i>
@@ -3933,6 +4345,10 @@ function updateAnalysisModal(data) {
         bar.style.width = p + "%";
         lbl.textContent = `${data.done} / ${data.total} markers`;
         pct.textContent = p + "%";
+        if (window._phaseTracker) {
+            const ipcPhaseId = window._activeIpcPhase || "mafft";
+            window._phaseTracker.update(ipcPhaseId, p, `${data.done} / ${data.total} markers`);
+        }
     }
 
     // Update individual marker row
@@ -4041,61 +4457,196 @@ function finalizeAnalysisModal(result) {
     const bar = document.getElementById("analysisModalProgressBar");
     const lbl = document.getElementById("analysisModalProgressLabel");
     const pct = document.getElementById("analysisModalProgressPct");
+    const logEl = document.getElementById("analysisModalLog");
+    const log = (msg) => { if (logEl) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; } console.log("[codon]", msg); };
 
     bar.style.width = "100%";
     lbl.textContent = `${result.aligned} / ${result.total} markers`;
     pct.textContent = "100%";
 
+    // Async per-marker back-translation with progress bar phase.
+    function runBacktranslation(markers, onDone) {
+        icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-lg";
+        title.textContent = "Back-translating\u2026";
+        bar.style.width = "0%";
+        lbl.textContent = `0 / ${markers.length} markers`;
+        pct.textContent = "0%";
+        let bIdx = 0;
+        function next() {
+            if (bIdx >= markers.length) {
+                if (window._phaseTracker) window._phaseTracker.complete("backtrans", `${markers.length} / ${markers.length} markers back-translated`);
+                onDone(); return;
+            }
+            const mr = markers[bIdx++];
+            const dnaCdsContent = window._codonOriginalDna?.[mr.marker];
+            if (dnaCdsContent && mr.alignedContent) {
+                const dnaMap = parseFastaToMap(dnaCdsContent);
+                const protSeqs = parseFasta(mr.alignedContent);
+                let dnaFasta = "", warnings = 0;
+                for (const ps of protSeqs) {
+                    const dna = dnaMap[ps.name];
+                    if (!dna) { log(`[${mr.marker}] WARNING: no DNA for header "${ps.name}"`); warnings++; continue; }
+                    dnaFasta += `>${ps.name}\n${backTranslateProteinAlignment(ps.seq, dna.replace(/-/g, ""))}\n`;
+                }
+                if (!dnaFasta) { log(`[${mr.marker}] ERROR: back-translation produced no sequences`); }
+                else {
+                    mr.proteinAlignedContent = mr.alignedContent;
+                    mr.alignedContent = dnaFasta;
+                    mr.rawContent = dnaCdsContent;
+                    const seqs = parseFasta(dnaFasta);
+                    const dnaLen = seqs[0]?.seq.length || 0;
+                    const gapCount = seqs.reduce((a, s) => a + (s.seq.match(/-/g) || []).length, 0);
+                    const totalChars = seqs.reduce((a, s) => a + s.seq.length, 0);
+                    mr.alignedStats = {
+                        numSeqs: seqs.length, length: dnaLen, avgLen: dnaLen,
+                        gapPct: totalChars > 0 ? ((gapCount / totalChars) * 100).toFixed(1) : "0.0",
+                    };
+                    const allLengthsMult3 = seqs.every(s => s.seq.length % 3 === 0);
+                    const gapBlocksAreTrip = seqs.every(s => (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0));
+                    if (!mr.pipeline) {
+                        const pipelineStats = window._codonPipelineStats?.[mr.marker] || {};
+                        mr.pipeline = {
+                            mode: "codon", rawDataType: "cds-dna", mafftInputType: "protein",
+                            mafftMode: "--amino", alignedDataType: "codon-dna", finalMatrixType: "codon-preserving DNA",
+                            geneticCode: window._alignmentGeneticCode || "2",
+                            geneticCodeName: window._alignmentGeneticCodeName || "",
+                            stopCodonPolicy: {
+                                terminalStopsRemoved: pipelineStats.terminalStopsRemoved || 0,
+                                incompleteStopFragmentsRemoved: pipelineStats.incompleteStopFragmentsRemoved || 0,
+                                internalStopsDetected: pipelineStats.internalStopsDetected || 0,
+                            },
+                            backtranslation: { status: "done", method: "javascript fallback" },
+                            trimming: { status: "not run", inputType: null, outputType: null, strategy: null, codonPreserving: null },
+                            codonIntegrity: { allLengthsMultipleOf3: allLengthsMult3, gapBlocksAreTriplets: gapBlocksAreTrip, checked: true },
+                        };
+                    }
+                    log(`[${mr.marker}] \u2713 Back-translation: ${seqs.length} seq \u00d7 ${dnaLen} bp${dnaLen % 3 !== 0 ? " \u26a0 not multiple of 3" : ""}${!allLengthsMult3 || !gapBlocksAreTrip ? " | \u26a0 codon integrity issues" : ""}`);
+                    if (warnings > 0) log(`[${mr.marker}] \u26a0 ${warnings} sequences skipped (header mismatch)`);
+                }
+            }
+            const pctVal = Math.round(bIdx / markers.length * 100);
+            bar.style.width = pctVal + "%";
+            lbl.textContent = `${bIdx} / ${markers.length} markers`;
+            pct.textContent = pctVal + "%";
+            if (window._phaseTracker) window._phaseTracker.update("backtrans", pctVal, `${bIdx} / ${markers.length} markers`);
+            setTimeout(next, 0);
+        }
+        setTimeout(next, 0);
+    }
+
     if (result.phase === "mafft") {
-        icon.className = "fa-solid fa-check text-green-600 text-lg";
-        title.textContent = `Alignment complete — ${result.aligned}/${result.total} markers aligned`;
-        close.classList.remove("hidden");
-        // After modal is closed, show trimAl prompt and partial results
-        close.onclick = () => {
-            document.getElementById("analysisModal").classList.add("hidden");
-            if (result.markerResults) {
-                window._alignmentOutputDir = result.outputDir;
-                // In codon mode: back-translate protein alignments to DNA (also attaches pipeline)
-                if (window._codonMode) {
-                    applyBacktranslationToResults(result.markerResults);
-                } else {
-                    // NT/AA mode: attach pipeline metadata
-                    attachPipelineToResults(result.markerResults, window._alignmentMode || "nt");
-                }
-                // Save pipeline state for post-trimAl restoration
-                window._markerPipelines = {};
-                for (const mr of result.markerResults) {
-                    if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
-                }
-                renderAlignmentResults(result.markerResults, false);
-                renderConcatSection(result.markerResults, false);
+        if (result.markerResults) {
+            window._alignmentOutputDir = result.outputDir;
+            const markers = result.markerResults;
+
+            // Complete MAFFT phase, activate reading phase
+            if (window._phaseTracker) {
+                window._phaseTracker.complete("mafft", `${result.aligned} / ${result.total} markers aligned`);
+                window._phaseTracker.activate("reading");
             }
-            document.getElementById("trimalPromptCard").classList.remove("hidden");
-            document.getElementById("trimalPromptCard").scrollIntoView({ behavior: "smooth", block: "start" });
-            setBadge("step6c-badge", "done");
-            updateStepBadges();
-        };
+            icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-lg";
+            title.textContent = "Reading alignments\u2026";
+            lbl.textContent = `0 / ${markers.length} markers`;
+
+            let mIdx = 0;
+            function readNext() {
+                if (mIdx >= markers.length) {
+                    if (window._phaseTracker) {
+                        window._phaseTracker.complete("reading", `${markers.length} / ${markers.length} alignments read`);
+                    }
+                    if (!window._codonMode) {
+                        attachPipelineToResults(markers, window._alignmentMode || "nt");
+                        window._markerPipelines = {};
+                        for (const mr of markers) {
+                            if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
+                        }
+                        finishMafft();
+                    } else {
+                        if (window._phaseTracker) window._phaseTracker.activate("backtrans");
+                        runBacktranslation(markers, () => {
+                            window._markerPipelines = {};
+                            for (const mr of markers) {
+                                if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
+                            }
+                            finishMafft();
+                        });
+                    }
+                    return;
+                }
+                mIdx++;
+                const pctVal = Math.round(mIdx / markers.length * 100);
+                bar.style.width = pctVal + "%";
+                lbl.textContent = `${mIdx} / ${markers.length} markers`;
+                pct.textContent = pctVal + "%";
+                if (window._phaseTracker) window._phaseTracker.update("reading", pctVal, `${mIdx} / ${markers.length} markers`);
+                setTimeout(readNext, 0);
+            }
+
+            function finishMafft() {
+                renderAlignmentResults(markers, false);
+                renderConcatSection(markers, false);
+                const trimalCard = document.getElementById("trimalPromptCard");
+                trimalCard.classList.remove("hidden");
+                if (window._codonMode) {
+                    const body = trimalCard.querySelector("[data-i18n='step5.trimal.prompt.body']");
+                    if (body) body.textContent = "In codon-aware mode, trimAl runs on the protein alignment (not DNA), then back-translates to codon-preserving DNA. Gaps are always codon-aligned.";
+                }
+                setBadge("step6c-badge", "done");
+                updateStepBadges();
+                bar.style.width = "100%";
+                lbl.textContent = `${result.aligned} / ${result.total} markers`;
+                pct.textContent = "100%";
+                icon.className = "fa-solid fa-check text-green-600 text-lg";
+                title.textContent = `Alignment complete \u2014 ${result.aligned}/${result.total} markers aligned`;
+                close.classList.remove("hidden");
+                close.onclick = () => {
+                    document.getElementById("analysisModal").classList.add("hidden");
+                    document.getElementById("trimalPromptCard").scrollIntoView({ behavior: "smooth", block: "start" });
+                };
+            }
+
+            setTimeout(readNext, 50);
+        } else {
+            icon.className = "fa-solid fa-check text-green-600 text-lg";
+            title.textContent = `Alignment complete \u2014 ${result.aligned}/${result.total} markers aligned`;
+            close.classList.remove("hidden");
+            close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
+        }
     } else if (result.phase === "trimal") {
-        icon.className = "fa-solid fa-check text-green-600 text-lg";
-        title.textContent = `Trimming complete — ${result.aligned}/${result.total} markers trimmed`;
-        close.classList.remove("hidden");
-        close.onclick = () => {
-            document.getElementById("analysisModal").classList.add("hidden");
-            if (result.markerResults) {
-                // For codon mode: re-apply back-translation so alignedContent is DNA, not protein
-                if (window._codonMode) {
-                    applyBacktranslationToResults(result.markerResults);
-                }
-                // Update trimming metadata in pipeline for all modes
-                updatePipelineForTrimming(result.markerResults);
-                renderAlignmentResults(result.markerResults, true);
-                renderConcatSection(result.markerResults, true);
+        if (result.markerResults) {
+            const markers = result.markerResults;
+            icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-lg";
+            // Complete trimAl phase
+            if (window._phaseTracker) window._phaseTracker.complete("trimal", `${result.aligned} / ${result.total} markers trimmed`);
+
+            function finishTrimal() {
+                updatePipelineForTrimming(markers);
+                renderAlignmentResults(markers, true);
+                renderConcatSection(markers, true);
+                document.getElementById("alignmentResults").classList.remove("hidden");
+                setBadge("step6d-badge", "done");
+                updateStepBadges();
+                bar.style.width = "100%";
+                lbl.textContent = `${result.aligned} / ${result.total} markers`;
+                pct.textContent = "100%";
+                icon.className = "fa-solid fa-check text-green-600 text-lg";
+                title.textContent = `Trimming complete \u2014 ${result.aligned}/${result.total} markers trimmed`;
+                close.classList.remove("hidden");
+                close.onclick = () => {
+                    document.getElementById("analysisModal").classList.add("hidden");
+                    document.getElementById("alignmentResults").scrollIntoView({ behavior: "smooth", block: "start" });
+                };
             }
-            document.getElementById("alignmentResults").classList.remove("hidden");
-            document.getElementById("alignmentResults").scrollIntoView({ behavior: "smooth", block: "start" });
-            setBadge("step6d-badge", "done");
-            updateStepBadges();
-        };
+
+            // trimAl -backtrans already outputs codon-preserving DNA — no back-translation needed
+            title.textContent = "Processing results\u2026";
+            setTimeout(finishTrimal, 50);
+        } else {
+            icon.className = "fa-solid fa-check text-green-600 text-lg";
+            title.textContent = `Trimming complete \u2014 ${result.aligned}/${result.total} markers trimmed`;
+            close.classList.remove("hidden");
+            close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
+        }
     }
 }
 
@@ -4332,20 +4883,26 @@ function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
 
     // Helper: extract start or stop codon (first/last 3 non-gap bases) from a raw DNA sequence
     function getDnaCodon(rawSeq, fromEnd) {
-        if (!rawSeq || !rawSeq.seq) return "---";
+        if (!rawSeq || !rawSeq.seq) return { codon: "---", incomplete: false };
         const dna = rawSeq.seq.replace(/-/g, "").toUpperCase();
-        if (!dna) return "---";
-        return fromEnd ? dna.slice(-3).padStart(3, "-") : dna.slice(0, 3).padEnd(3, "-");
+        if (!dna) return { codon: "---", incomplete: false };
+        const raw = fromEnd ? dna.slice(-3) : dna.slice(0, 3);
+        const incomplete = raw.length < 3;
+        const codon = fromEnd ? raw.padStart(3, "-") : raw.padEnd(3, "-");
+        return { codon, incomplete };
     }
 
     // Helper: render a 3-base codon as colored spans using NT_COLORS
-    function renderCodon(codon) {
+    function renderCodon(codon, incomplete) {
+        const title = incomplete ? ' title="Incomplete codon"' : "";
         return Array.from(codon).map(ch => {
-            const col = NT_COLORS[ch] || "#e2e8f0";
-            const fg = (ch === "-") ? "#94a3b8" : "rgba(0,0,0,0.72)";
-            return `<span class="alignment-residue" style="background:${col};color:${fg};">${ch}</span>`;
+            const col = incomplete && ch === "-" ? "#fef3c7" : (NT_COLORS[ch] || "#e2e8f0");
+            const fg = (ch === "-") ? (incomplete ? "#d97706" : "#94a3b8") : "rgba(0,0,0,0.72)";
+            return `<span class="alignment-residue" style="background:${col};color:${fg};"${title}>${ch}</span>`;
         }).join("");
     }
+
+    const codonStats = window._codonPipelineStats?.[geneName];
 
     const previewRows = rows.slice(0, 12).map((seq, i) => {
         const length = seq.seq.length;
@@ -4353,15 +4910,20 @@ function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
             ? String(seq.stopCount || 0)
             : i18nText("step5.results.preview.none", "none");
         const rawSeq = rawSeqs ? rawSeqs[i] : seq;
-        const startCodon = getDnaCodon(rawSeq, false);
-        const stopCodon = getDnaCodon(rawSeq, true);
+        const { codon: startCodon, incomplete: startIncomplete } = getDnaCodon(rawSeq, false);
+        const { codon: stopCodon, incomplete: stopIncomplete } = getDnaCodon(rawSeq, true);
+
+        const stopCodonHtml = codonStats
+            ? `<span style="font-size:0.68rem;padding:1px 5px;background:#f1f5f9;border-radius:3px;color:#94a3b8;white-space:nowrap;" title="Stop codon removed during preprocessing">removed</span>`
+            : renderCodon(stopCodon, stopIncomplete);
+
         return `
             <div class="alignment-preview-row">
                 <div class="alignment-preview-name" title="${seq.name}">${seq.name}</div>
                 <div class="alignment-preview-metric">${length}</div>
                 <div class="alignment-preview-metric">${stopDisplay}</div>
-                <div class="alignment-preview-codon">${renderCodon(startCodon)}</div>
-                <div class="alignment-preview-codon">${renderCodon(stopCodon)}</div>
+                <div class="alignment-preview-codon">${renderCodon(startCodon, startIncomplete)}</div>
+                <div class="alignment-preview-codon">${stopCodonHtml}</div>
             </div>`;
     }).join("");
 
@@ -4398,8 +4960,8 @@ function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
                     <div>${i18nText("step5.results.preview.name", "Sequence")}</div>
                     <div>${i18nText("step5.results.preview.length", "Length")}</div>
                     <div>${i18nText("step5.results.preview.stops", "Stops")}</div>
-                    <div style="text-transform:none;">Start codon</div>
-                    <div style="text-transform:none;">Stop codon</div>
+                    <div>Start Codon</div>
+                    <div>Stop Codon</div>
                 </div>
                 ${previewRows}
             </div>
@@ -4654,11 +5216,11 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
 
     // ── body row ───────────────────────────────────────────────────────────
     const bodyRow = document.createElement("div");
-    bodyRow.style.cssText = "display:flex;flex:1;overflow-y:auto;min-height:0;";
+    bodyRow.style.cssText = "display:flex;flex:1;overflow-y:auto;min-height:0;align-items:flex-start;";
     container.appendChild(bodyRow);
 
     const nameDiv = document.createElement("div");
-    nameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;overflow:hidden;background:#f3f4f6;border-right:2px solid #d1d5db;`;
+    nameDiv.style.cssText = `width:${nameW}px;flex-shrink:0;overflow-x:hidden;overflow-y:visible;background:#f3f4f6;border-right:2px solid #d1d5db;`;
     bodyRow.appendChild(nameDiv);
 
     const nameCanvas = document.createElement("canvas");
@@ -4673,7 +5235,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     bodyRow.appendChild(resizeHandle);
 
     const seqOuter = document.createElement("div");
-    seqOuter.style.cssText = "overflow-x:auto;overflow-y:hidden;flex:1;cursor:grab;";
+    seqOuter.style.cssText = "overflow-x:auto;overflow-y:visible;flex:1;cursor:grab;";
     bodyRow.appendChild(seqOuter);
 
     const mainCanvas = document.createElement("canvas");
@@ -5192,6 +5754,64 @@ function renderAlignmentCanvasEnhanced(wrapper, sequences) {
 
 // ── Pipeline display helpers ──────────────────────────────────────────────
 
+function buildPipelineFlowHtml(pipeline, hasTrimmed) {
+    if (!pipeline) return "";
+    const mode = pipeline.mode || "nt";
+    const isCodon = mode === "codon";
+    const isAa = mode === "aa";
+
+    const node = (icon, label, color) => {
+        const cls = {
+            gray: "bg-gray-50 border-gray-200 text-gray-600",
+            blue: "bg-blue-50 border-blue-200 text-blue-700",
+            amber: "bg-amber-50 border-amber-200 text-amber-700",
+            violet: "bg-violet-50 border-violet-200 text-violet-700",
+            green: "bg-green-50 border-green-200 text-green-700",
+            teal: "bg-teal-50 border-teal-200 text-teal-700",
+        }[color] || "bg-gray-50 border-gray-200 text-gray-600";
+        return `<div class="flex-shrink-0 border rounded-lg px-2.5 py-1.5 text-xs font-medium ${cls}"><i class="fa-solid ${icon} mr-1"></i>${label}</div>`;
+    };
+    const arrow = `<div class="flex-shrink-0 text-gray-300 text-sm mx-1 self-center">→</div>`;
+
+    let steps = [];
+
+    if (isCodon) {
+        steps = [
+            node("fa-dna", "CDS (DNA)", "gray"), arrow,
+            node("fa-right-left", "Translate", "amber"), arrow,
+            node("fa-circle-dot", "Protein", "gray"), arrow,
+            node("fa-align-left", "MAFFT --amino", "blue"), arrow,
+            node("fa-align-justify", "Aligned protein", "gray"), arrow,
+            node("fa-rotate-left", "Back-translate", "violet"), arrow,
+            node("fa-dna", "Codon DNA", "green"),
+        ];
+        if (hasTrimmed) {
+            steps.push(arrow, node("fa-scissors", "trimAl -backtrans", "teal"), arrow, node("fa-dna", "Trimmed codon DNA", "green"));
+        }
+    } else if (isAa) {
+        steps = [
+            node("fa-dna", "DNA", "gray"), arrow,
+            node("fa-right-left", "Translate", "amber"), arrow,
+            node("fa-align-left", "MAFFT --amino", "blue"), arrow,
+            node("fa-align-justify", "Aligned protein", "green"),
+        ];
+        if (hasTrimmed) {
+            steps.push(arrow, node("fa-scissors", "trimAl", "teal"), arrow, node("fa-align-justify", "Trimmed protein", "green"));
+        }
+    } else {
+        steps = [
+            node("fa-dna", "DNA", "gray"), arrow,
+            node("fa-align-left", "MAFFT", "blue"), arrow,
+            node("fa-align-justify", "Aligned DNA", "green"),
+        ];
+        if (hasTrimmed) {
+            steps.push(arrow, node("fa-scissors", "trimAl", "teal"), arrow, node("fa-align-justify", "Trimmed DNA", "green"));
+        }
+    }
+
+    return `<div class="flex items-center flex-wrap gap-y-1 py-2 mb-3 overflow-x-auto">${steps.join("")}</div>`;
+}
+
 function buildPipelineBadgesHtml(pipeline) {
     if (!pipeline) return "";
     const badges = [];
@@ -5298,8 +5918,9 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             }
         }
 
-        // Pipeline badges
+        // Pipeline badges and flow
         const pipelineBadgesHtml = buildPipelineBadgesHtml(r.pipeline);
+        const pipelineFlowHtml = buildPipelineFlowHtml(r.pipeline, !!r.trimmedStats);
 
         // Mode-aware view buttons per tab
         const buildViewBtns = (tabKey) => {
@@ -5351,7 +5972,7 @@ function renderAlignmentResults(markerResults, hasTrimal) {
                     <div class="alignment-view-toolbar">
                         ${buildViewBtns(t.key)}
                         <div class="alignment-toolbar-meta">
-                            <span class="alignment-view-hint">${i18nText("step5.results.view.hint", "Use translated mode to spot possible stop codons in the alignment.")}</span>
+                            ${!isCodon ? `<span class="alignment-view-hint flex items-center gap-1 text-amber-600"><i class="fa-solid fa-lightbulb text-amber-500"></i>${i18nText("step5.results.view.hint", "Translate to amino acids to check for premature stop codons before phylogenetic inference.")}</span>` : ""}
                             <div class="alignment-genetic-code">
                                 <label for="genetic-code-${id}-${t.key}">${i18nText("step5.results.view.geneticCode", "Genetic code")}</label>
                                 <select id="genetic-code-${id}-${t.key}" class="alignment-genetic-code-select" data-marker="${r.marker}" data-tab="${t.key}">
@@ -5391,6 +6012,7 @@ function renderAlignmentResults(markerResults, hasTrimal) {
             </button>
             <div id="${id}-body" class="hidden px-5 pb-5">
                 ${pipelineBadgesHtml ? `<div class="flex flex-wrap gap-1.5 pt-3 pb-1">${pipelineBadgesHtml}</div>` : ""}
+                ${pipelineFlowHtml}
                 ${integrityAlert}
                 <div class="grid grid-cols-3 gap-3 mb-4 pt-2">
                     <div class="text-center"><div class="text-xs text-gray-400 mb-0.5">${i18nText("step5.results.stats.raw", "Raw")}</div><div class="text-xs font-semibold text-gray-700">${r.rawStats?.numSeqs ?? "?"} seq \u00b7 ${r.rawStats?.avgLen ?? "?"} ${rawUnit} ${i18nText("step5.results.stats.avg", "avg")}</div></div>

@@ -733,7 +733,7 @@
                     </label>
                 </div>
                 <div id="codonModeWarning" class="hidden mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p class="text-xs text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
+                    <p class="text-sm text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
                 </div>
                 <div id="alignGeneticCodeSection" class="hidden mt-3 bg-splace-blue-50 border border-splace-blue-100 rounded-lg p-3">
                     <label class="block text-sm font-medium text-gray-600 mb-1">Genetic Code</label>
@@ -1148,12 +1148,15 @@
             </div>
             <section class="analysis-modal-main">
                 <div class="mb-4">
-                    <div class="flex justify-between text-sm text-gray-500 mb-1">
-                        <span id="analysisModalProgressLabel">0 / 0 markers</span>
-                        <span id="analysisModalProgressPct">0%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2.5 rounded-full transition-all duration-300" style="width:0%"></div>
+                    <div id="analysisProgressStack" class="flex flex-col gap-1.5 mb-2 empty:hidden"></div>
+                    <div id="analysisModalProgressBarWrapper" style="display:none">
+                        <div class="flex justify-between text-sm text-gray-500 mb-1">
+                            <span id="analysisModalProgressLabel">0 / 0 markers</span>
+                            <span id="analysisModalProgressPct">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2 rounded-full" style="width:0%"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -1559,6 +1562,46 @@
             </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Unknown Gene Names Modal -->
+<div id="unknownGenesModal" class="fixed inset-0 z-50 hidden flex flex-col">
+    <div class="modal-header flex-shrink-0" style="border-radius:0;">
+        <div class="modal-header-icon">
+            <i class="fa-solid fa-circle-exclamation"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+            <h3 class="modal-header-title" data-i18n="modal.unknowngenes.title">Gene Names Not Found in SynGenes (Rabelo et al. 2025)</h3>
+            <p class="modal-header-subtitle" data-i18n="modal.unknowngenes.subtitle">Select the correct standardized name for each gene found in your files.</p>
+        </div>
+    </div>
+    <div class="bg-amber-50 border-b border-amber-100 flex-shrink-0">
+        <div class="px-4 py-4 flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm flex-shrink-0"></i>
+            <p id="unknownGenesCount" class="text-sm text-amber-700 font-medium"></p>
+        </div>
+        <div class="px-4 pb-4">
+            <div class="flex items-start gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2.5 text-sm text-gray-600">
+                <i class="fa-regular fa-lightbulb text-amber-400 mt-0.5 flex-shrink-0"></i>
+                <span data-i18n="modal.unknowngenes.howto">Select the standardized name from the dropdown in the <strong>Correct Name</strong> column. Choose <em>(skip)</em> to exclude the gene from analysis.</span>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-y-auto flex-1 bg-white">
+        <table class="w-full text-sm">
+            <thead id="unknownGenesTableHead" class="sticky top-0 z-10"></thead>
+            <tbody id="unknownGenesTableBody"></tbody>
+        </table>
+    </div>
+    <div class="px-6 py-4 flex gap-3 border-t border-gray-100 bg-white flex-shrink-0">
+        <button onclick="closeUnknownGenesModal()" class="flex-1 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-base font-medium transition-colors" type="button">
+            <span data-i18n="modal.unknowngenes.skip">Skip All</span>
+        </button>
+        <button onclick="applyGeneNameOverrides()" class="flex-1 px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button">
+            <i class="fa-solid fa-check mr-1"></i>
+            <span data-i18n="modal.unknowngenes.apply">Apply Corrections</span>
+        </button>
     </div>
 </div>
 

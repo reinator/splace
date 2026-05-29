@@ -276,9 +276,9 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
                 const dnaCdsContent = cdsFastas[name];
                 let dnaResult = null;
 
-                // Try trimAl -backtrans (Linux/macOS only; Windows binary has DLL issues)
+                // Try trimAl -backtrans
                 const trimalBin = resolveBin("trimal");
-                if (!IS_WIN && trimalBin !== "trimal") {
+                if (trimalBin !== "trimal") {
                     const tmpCdsFile = path.join(os.tmpdir(), `splace-cds-${Date.now()}.fasta`);
                     const tmpOutFile = path.join(os.tmpdir(), `splace-bt-${Date.now()}.fasta`);
                     try {

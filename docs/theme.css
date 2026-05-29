@@ -1302,12 +1302,13 @@ section.step-section.locked::after {
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
+    text-transform: capitalize;
     color: var(--text-muted);
 }
 
 .alignment-preview-name {
-    font-weight: 600;
+    font-size: 0.78rem;
+    font-weight: 400;
     color: var(--text);
     min-width: 0;
     overflow: hidden;

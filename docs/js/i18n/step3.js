@@ -1,14 +1,53 @@
 window.registerSplaceTranslations({
     en: {
         "step.3": "Feature Types",
-        "step3.intro": "Select the gene categories you want to include in your analysis. Toggle each category to activate or deactivate it."
+        "step3.intro": "Select the gene categories you want to include in your analysis. Toggle each category to activate or deactivate it.",
+        "modal.unknowngenes.title": "Gene Names Not Found in SynGenes (Rabelo et al. 2025)",
+        "modal.unknowngenes.subtitle": "Select the correct standardized name for each gene found in your files.",
+        "modal.unknowngenes.count": "{count} gene(s) could not be automatically standardized.",
+        "modal.unknowngenes.howto": "Select the standardized name from the dropdown in the <strong>Correct Name</strong> column. Choose <em>(skip)</em> to exclude the gene from analysis.",
+        "modal.unknowngenes.col.species": "Species",
+        "modal.unknowngenes.col.source": "File / Accession",
+        "modal.unknowngenes.col.found": "Gene Not Found",
+        "modal.unknowngenes.col.correct": "Correct Name",
+        "modal.unknowngenes.more": "more",
+        "modal.unknowngenes.select.skip": "(skip)",
+        "modal.unknowngenes.search": "Search gene…",
+        "modal.unknowngenes.skip": "Skip All",
+        "modal.unknowngenes.apply": "Apply Corrections"
     },
     pt: {
         "step.3": "Tipos de Feature",
-        "step3.intro": "Selecione as categorias de genes que deseja incluir na análise. Ative ou desative cada categoria com o botão."
+        "step3.intro": "Selecione as categorias de genes que deseja incluir na análise. Ative ou desative cada categoria com o botão.",
+        "modal.unknowngenes.title": "Genes Não Encontrados no SynGenes (Rabelo et al. 2025)",
+        "modal.unknowngenes.subtitle": "Selecione o nome padronizado correto para cada gene encontrado nos seus arquivos.",
+        "modal.unknowngenes.count": "{count} gene(s) não puderam ser padronizados automaticamente.",
+        "modal.unknowngenes.howto": "Selecione o nome padronizado no menu suspenso da coluna <strong>Nome Correto</strong>. Escolha <em>(ignorar)</em> para excluir o gene da análise.",
+        "modal.unknowngenes.col.species": "Espécie",
+        "modal.unknowngenes.col.source": "Arquivo / Acesso",
+        "modal.unknowngenes.col.found": "Gene Não Encontrado",
+        "modal.unknowngenes.col.correct": "Nome Correto",
+        "modal.unknowngenes.more": "mais",
+        "modal.unknowngenes.select.skip": "(ignorar)",
+        "modal.unknowngenes.search": "Buscar gene…",
+        "modal.unknowngenes.skip": "Ignorar Todos",
+        "modal.unknowngenes.apply": "Aplicar Correções"
     },
     es: {
         "step.3": "Tipos de feature",
-        "step3.intro": "Seleccione las categorías de genes que desea incluir en su análisis. Active o desactive cada categoría."
+        "step3.intro": "Seleccione las categorías de genes que desea incluir en su análisis. Active o desactive cada categoría.",
+        "modal.unknowngenes.title": "Genes No Encontrados en SynGenes (Rabelo et al. 2025)",
+        "modal.unknowngenes.subtitle": "Seleccione el nombre estandarizado correcto para cada gen encontrado en sus archivos.",
+        "modal.unknowngenes.count": "{count} gen(es) no pudieron ser estandarizados automáticamente.",
+        "modal.unknowngenes.howto": "Seleccione el nombre estandarizado en el menú desplegable de la columna <strong>Nombre Correcto</strong>. Elija <em>(omitir)</em> para excluir el gen del análisis.",
+        "modal.unknowngenes.col.species": "Especie",
+        "modal.unknowngenes.col.source": "Archivo / Accesión",
+        "modal.unknowngenes.col.found": "Gen No Encontrado",
+        "modal.unknowngenes.col.correct": "Nombre Correcto",
+        "modal.unknowngenes.more": "más",
+        "modal.unknowngenes.select.skip": "(omitir)",
+        "modal.unknowngenes.search": "Buscar gen…",
+        "modal.unknowngenes.skip": "Omitir Todos",
+        "modal.unknowngenes.apply": "Aplicar Correcciones"
     }
 });
