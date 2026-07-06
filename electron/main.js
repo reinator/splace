@@ -3,6 +3,144 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { spawn, spawnSync } = require("child_process");
+const { pathToFileURL } = require("url");
+
+
+// -----------------------------------------------------------------------
+// Desktop-only Highcharts assets
+// -----------------------------------------------------------------------
+function highchartsAssetCandidates(relativePath) {
+    return [
+        path.join(__dirname, "node_modules", "highcharts", relativePath),
+        path.join(__dirname, "..", "electron", "node_modules", "highcharts", relativePath),
+        path.join(process.resourcesPath || "", "node_modules", "highcharts", relativePath),
+        path.join(process.resourcesPath || "", "app.asar.unpacked", "node_modules", "highcharts", relativePath),
+        path.join(process.resourcesPath || "", "app.asar", "node_modules", "highcharts", relativePath),
+    ];
+}
+
+function findHighchartsAsset(relativePath) {
+    for (const candidate of highchartsAssetCandidates(relativePath)) {
+        try {
+            if (candidate && fs.existsSync(candidate)) return candidate;
+        } catch {
+            // Try the next location.
+        }
+    }
+    throw new Error(`Highcharts asset not found: ${relativePath}`);
+}
+
+function readHighchartsAsset(relativePath) {
+    return fs.readFileSync(findHighchartsAsset(relativePath), "utf8");
+}
+
+function getHighchartsAssetUrls() {
+    return {
+        highcharts: pathToFileURL(findHighchartsAsset("highcharts.js")).toString(),
+        heatmap: pathToFileURL(findHighchartsAsset(path.join("modules", "heatmap.js"))).toString(),
+        accessibility: pathToFileURL(findHighchartsAsset(path.join("modules", "accessibility.js"))).toString(),
+    };
+}
+
+function getHighchartsAssetCode() {
+    return {
+        highcharts: readHighchartsAsset("highcharts.js"),
+        heatmap: readHighchartsAsset(path.join("modules", "heatmap.js")),
+        accessibility: readHighchartsAsset(path.join("modules", "accessibility.js")),
+    };
+}
+
+ipcMain.handle("highcharts-asset-urls", async () => getHighchartsAssetUrls());
+ipcMain.handle("splace-highcharts-asset-urls", async () => getHighchartsAssetUrls());
+ipcMain.handle("load-highcharts-assets", async () => getHighchartsAssetCode());
+ipcMain.handle("splace-load-highcharts-assets", async () => getHighchartsAssetCode());
+
+// -----------------------------------------------------------------------
+// Desktop-only Python tools for optional ClipKIT trimming
+// -----------------------------------------------------------------------
+function runCommandCapture(cmd, args, options = {}) {
+    const result = spawnSync(cmd, args, {
+        encoding: "utf8",
+        timeout: options.timeout || 120000,
+        shell: false,
+        windowsHide: true,
+    });
+    return {
+        status: result.status,
+        error: result.error ? result.error.message : null,
+        stdout: result.stdout || "",
+        stderr: result.stderr || "",
+    };
+}
+
+function pythonCandidates() {
+    if (process.platform === "win32") {
+        return [
+            { cmd: "py", args: ["-3"] },
+            { cmd: "python", args: [] },
+            { cmd: "python3", args: [] },
+        ];
+    }
+    return [
+        { cmd: "python3", args: [] },
+        { cmd: "python", args: [] },
+    ];
+}
+
+function findPython() {
+    for (const candidate of pythonCandidates()) {
+        const probe = runCommandCapture(candidate.cmd, [...candidate.args, "--version"], { timeout: 10000 });
+        const version = `${probe.stdout || ""}${probe.stderr || ""}`.trim();
+        if (!probe.error && probe.status === 0 && /Python\s+\d+/i.test(version)) {
+            return { cmd: candidate.cmd, prefixArgs: candidate.args, version };
+        }
+    }
+    return null;
+}
+
+function runPython(py, args, options = {}) {
+    return runCommandCapture(py.cmd, [...py.prefixArgs, ...args], options);
+}
+
+function checkPythonEnvironment() {
+    const py = findPython();
+    if (!py) {
+        return { pythonFound: false, clipkitFound: false, error: "Python was not found in PATH." };
+    }
+    const clipkitProbe = runPython(py, ["-c", "import clipkit, sys; print(getattr(clipkit, '__version__', 'installed'))"], { timeout: 10000 });
+    return {
+        pythonFound: true,
+        executable: [py.cmd, ...py.prefixArgs].join(" "),
+        version: py.version.replace(/^Python\s*/i, ""),
+        clipkitFound: clipkitProbe.status === 0,
+        clipkitVersion: clipkitProbe.status === 0 ? (clipkitProbe.stdout || "installed").trim() : null,
+        clipkitError: clipkitProbe.status === 0 ? null : (clipkitProbe.stderr || clipkitProbe.error || "ClipKIT import failed"),
+    };
+}
+
+ipcMain.handle("python-status", async () => checkPythonEnvironment());
+ipcMain.handle("splace-python-status", async () => checkPythonEnvironment());
+
+ipcMain.handle("splace-python-install-packages", async (_event, params = {}) => installPythonPackages(params));
+
+async function installPythonPackages({ packages } = {}) {
+    const py = findPython();
+    if (!py) return { success: false, error: "Python was not found in PATH." };
+    const safePackages = (Array.isArray(packages) && packages.length ? packages : ["clipkit"])
+        .map(String)
+        .filter((pkg) => /^[A-Za-z0-9_.-]+$/.test(pkg));
+    if (!safePackages.length) return { success: false, error: "No valid packages were requested." };
+
+    const result = runPython(py, ["-m", "pip", "install", "--user", "--upgrade", ...safePackages], { timeout: 600000 });
+    return {
+        success: result.status === 0,
+        output: `${result.stdout || ""}${result.stderr || ""}`.trim(),
+        error: result.status === 0 ? null : (result.stderr || result.error || `pip exited with status ${result.status}`),
+    };
+}
+
+ipcMain.handle("python-install-packages", async (_event, params = {}) => installPythonPackages(params));
+
 
 // -----------------------------------------------------------------------
 // Binary resolution: WSL on Windows, system PATH otherwise
@@ -88,6 +226,7 @@ function createWindow() {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
             nodeIntegration: false,
+            sandbox: false,
         },
     });
     const indexHtml = app.isPackaged
@@ -241,11 +380,12 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
 // -----------------------------------------------------------------------
 let _lastMarkerResults = [];
 
-ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, alignmentMode }) => {
+ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, alignmentMode, trimTool = "auto", clipkitMode = "gappy" }) => {
     const sender = event.sender;
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
     let done = 0, trimmed = 0;
+    const failedMarkers = [];
     const updatedResults = _lastMarkerResults.map(r => ({ ...r }));
     const concurrency = Math.max(1, os.cpus().length - 2);
     let nextIdx = 0;
@@ -256,14 +396,17 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
             if (idx >= markers.length) break;
             const name = markers[idx];
             const mr = updatedResults.find(r => r.marker === name);
-            if (!mr || !mr.alignedContent || !mr.outputFile) {
+            const proteinInputFile = mr?.proteinAlignedFile || mr?.outputFile;
+            if (!mr || !mr.alignedContent || !(codonMode ? proteinInputFile : mr.outputFile)) {
                 done++;
                 send("analysis-progress", { marker: name, status: "error", message: `[${name}] No aligned file found`, done, total: markers.length });
                 continue;
             }
 
-            const inputFile = mr.outputFile;
-            const trimmedFile = inputFile.replace(/_aligned\.fasta$/, "_trimmed.fasta");
+            const inputFile = codonMode ? proteinInputFile : mr.outputFile;
+            const trimmedFile = codonMode
+                ? path.join(path.dirname(mr.outputFile || inputFile), `${name}_codon_trimmed.fasta`)
+                : inputFile.replace(/_aligned\.fasta$/, "_trimmed.fasta");
 
             // ── Codon-aware trimming (back-translation) ─────────────────────────
             if (codonMode && cdsFastas && cdsFastas[name]) {
@@ -275,15 +418,126 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
 
                 const dnaCdsContent = cdsFastas[name];
                 let dnaResult = null;
+                const logicalTrimMetadata = {
+                    inputAlignment: `${name}_protein_aligned.fasta`,
+                    backtransInput: `${name}_cds_validated.fasta`,
+                    outputAlignment: `${name}_codon_trimmed.fasta`,
+                    outputType: "codon-preserving DNA",
+                };
+                const trimalMetadata = {
+                    trimmingTool: "trimal",
+                    trimmingMode: "protein-guided-backtrans",
+                    ...logicalTrimMetadata,
+                };
+                const fallbackMetadata = {
+                    trimmingTool: "splace-internal",
+                    trimmingMode: "protein-guided-codon-block-fallback",
+                    ...logicalTrimMetadata,
+                };
+                const failCodonTrim = (issues, metadata, methodLabel) => {
+                    const issueList = (Array.isArray(issues) ? issues : [issues]).filter(Boolean);
+                    const summary = issueList.join("; ");
+                    mr.trimmedContent = null;
+                    mr.trimmedStats = null;
+                    mr.trimmedFile = null;
+                    mr.trimError = summary;
+                    mr.trimValidation = {
+                        valid: false,
+                        issues: issueList,
+                        equalLengths: false,
+                        allLengthsMultipleOf3: false,
+                        gapBlocksAreTriplets: false,
+                        headersMatch: false,
+                        dnaCompatible: false,
+                        frameDisrupted: true,
+                    };
+                    mr.trimMetadata = {
+                        ...metadata,
+                        codonIntegrityValidated: false,
+                    };
+                    mr.trimMethod = metadata?.trimmingTool === "trimal" ? "trimal-backtrans" : "js-fallback";
+                    try { fs.rmSync(trimmedFile, { force: true }); } catch { }
+                    issueList.forEach((issue) => send("analysis-progress", { message: `[${name}] VALIDATION ERROR: ${issue}` }));
+                    done++;
+                    failedMarkers.push({ marker: name, issues: issueList, method: methodLabel || metadata?.trimmingMode || "codon-aware trimming" });
+                    send("analysis-progress", {
+                        marker: name,
+                        status: "error",
+                        info: summary,
+                        message: `[${name}] ✗ Codon-aware trimming failed`,
+                        done,
+                        total: markers.length,
+                    });
+                };
+
+                const requestedTrimTool = String(trimTool || "auto").toLowerCase();
+                const preferClipkit = requestedTrimTool === "clipkit";
+                const allowTrimal = requestedTrimTool !== "clipkit";
+                const allowClipkitFallback = requestedTrimTool === "auto" || requestedTrimTool === "clipkit";
+
+                async function runClipkitBacktranslation() {
+                    const tmpProtOut = path.join(os.tmpdir(), `splace-clipkit-${Date.now()}-${idx}.fasta`);
+                    try {
+                        const clipRes = await runClipkitProteinTrim(inputFile, tmpProtOut, clipkitMode, (msg) => send("analysis-progress", { message: `[${name}] ${msg}` }));
+                        if (!clipRes.success) return { success: false, error: clipRes.error };
+                        const protSeqs = parseFastaArr(clipRes.trimmedContent);
+                        const dnaSeqs = parseFastaArr(dnaCdsContent);
+                        const dnaMap = {};
+                        for (const s of dnaSeqs) dnaMap[s.name] = s.seq.replace(/-/g, "");
+
+                        let dnaFasta = "";
+                        let skipped = 0;
+                        for (const ps of protSeqs) {
+                            const dna = dnaMap[ps.name];
+                            if (!dna) { skipped++; continue; }
+                            dnaFasta += `>${ps.name}\n${backTranslateJS(ps.seq, dna)}\n`;
+                        }
+                        if (!dnaFasta) return { success: false, error: "ClipKIT back-translation produced no DNA output" };
+                        const validation = validateCodonPreservingTrimmedAlignment(dnaFasta, dnaCdsContent);
+                        if (!validation.valid) return { success: false, error: validation.issues };
+                        if (skipped > 0) send("analysis-progress", { message: `[${name}] WARNING: ${skipped} sequences were unmatched after ClipKIT` });
+                        return {
+                            success: true,
+                            content: dnaFasta,
+                            validation,
+                            method: "clipkit-backtrans",
+                            metadata: {
+                                trimmingTool: "clipkit",
+                                trimmingMode: `clipkit-${clipkitMode || "gappy"}-protein-guided-backtrans`,
+                                ...logicalTrimMetadata,
+                                codonIntegrityValidated: true,
+                            },
+                        };
+                    } finally {
+                        try { fs.unlinkSync(tmpProtOut); } catch { }
+                    }
+                }
+
+                if (preferClipkit) {
+                    send("analysis-progress", { message: `[${name}] Using ClipKIT for protein-guided codon trimming…` });
+                    const clipResult = await runClipkitBacktranslation();
+                    if (clipResult.success) {
+                        dnaResult = clipResult;
+                        send("analysis-progress", { message: `[${name}] ✓ ClipKIT produced validated codon-preserving DNA` });
+                    } else {
+                        failCodonTrim(clipResult.error || "ClipKIT failed", { trimmingTool: "clipkit", trimmingMode: `clipkit-${clipkitMode || "gappy"}`, ...logicalTrimMetadata, codonIntegrityValidated: false }, "ClipKIT");
+                        continue;
+                    }
+                }
 
                 // Try trimAl -backtrans
                 const trimalBin = resolveBin("trimal");
-                if (trimalBin !== "trimal") {
-                    const tmpCdsFile = path.join(os.tmpdir(), `splace-cds-${Date.now()}.fasta`);
-                    const tmpOutFile = path.join(os.tmpdir(), `splace-bt-${Date.now()}.fasta`);
+                if (allowTrimal && !dnaResult) {
+                    const tmpCdsFile = (!mr.rawFile || !fs.existsSync(mr.rawFile))
+                        ? path.join(os.tmpdir(), `splace-cds-${Date.now()}-${idx}.fasta`)
+                        : null;
+                    const tmpOutFile = path.join(os.tmpdir(), `splace-bt-${Date.now()}-${idx}.fasta`);
+                    const backtransInputFile = mr.rawFile && fs.existsSync(mr.rawFile) ? mr.rawFile : tmpCdsFile;
                     try {
-                        fs.writeFileSync(tmpCdsFile, dnaCdsContent, "utf8");
-                        const btArgs = ["-in", inputFile, "-backtrans", tmpCdsFile, "-out", tmpOutFile, "-fasta", ...params];
+                        if (tmpCdsFile) {
+                            fs.writeFileSync(tmpCdsFile, dnaCdsContent, "utf8");
+                        }
+                        const btArgs = ["-in", inputFile, "-backtrans", backtransInputFile, "-out", tmpOutFile, "-fasta", ...params];
                         const btRes = await new Promise((resolve) => {
                             const proc = spawn(trimalBin, btArgs, { shell: false });
                             let stderr = "";
@@ -296,37 +550,79 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
                                 if (code === 0 && fs.existsSync(tmpOutFile)) {
                                     resolve({ success: true, content: fs.readFileSync(tmpOutFile, "utf8") });
                                 } else {
-                                    resolve({ success: false, error: stderr.trim() || `Exit code ${code}` });
+                                    resolve({ success: false, error: stderr.trim() || `Exit code ${code}`, unavailable: false });
                                 }
                             });
-                            proc.on("error", err => resolve({ success: false, error: err.message }));
+                            proc.on("error", err => resolve({ success: false, error: err.message, unavailable: isTrimAlUnavailableError(err.message) }));
                         });
                         if (btRes.success) {
-                            dnaResult = { content: btRes.content, method: "trimal-backtrans" };
-                            send("analysis-progress", { message: `[${name}] ✓ trimAl -backtrans succeeded` });
+                            const validation = validateCodonPreservingTrimmedAlignment(btRes.content, dnaCdsContent);
+                            if (!validation.valid) {
+                                if (requestedTrimTool === "auto") {
+                                    send("analysis-progress", { message: `[${name}] trimAl -backtrans validation failed, trying ClipKIT fallback` });
+                                } else {
+                                    failCodonTrim(validation.issues, trimalMetadata, "trimAl -backtrans");
+                                    continue;
+                                }
+                            } else {
+                                dnaResult = {
+                                    content: btRes.content,
+                                    method: "trimal-backtrans",
+                                    validation,
+                                    metadata: {
+                                        ...trimalMetadata,
+                                        codonIntegrityValidated: true,
+                                    },
+                                };
+                                send("analysis-progress", { message: `[${name}] ✓ trimAl -backtrans produced validated codon-preserving DNA` });
+                            }
+                        } else if (btRes.unavailable) {
+                            send("analysis-progress", { message: `[${name}] trimAl is unavailable (${btRes.error}), using approximate JavaScript fallback` });
                         } else {
-                            send("analysis-progress", { message: `[${name}] trimAl -backtrans failed (${btRes.error}), using JS fallback` });
+                            if (requestedTrimTool === "auto") {
+                                send("analysis-progress", { message: `[${name}] trimAl -backtrans failed (${btRes.error}), trying ClipKIT fallback` });
+                            } else {
+                                failCodonTrim(`trimAl -backtrans failed: ${btRes.error}`, trimalMetadata, "trimAl -backtrans");
+                                continue;
+                            }
                         }
                     } catch (e) {
-                        send("analysis-progress", { message: `[${name}] trimAl -backtrans error: ${e.message}, using JS fallback` });
+                        if (isTrimAlUnavailableError(e.message)) {
+                            send("analysis-progress", { message: `[${name}] trimAl is unavailable (${e.message}), using approximate JavaScript fallback` });
+                        } else {
+                            if (requestedTrimTool === "auto") {
+                                send("analysis-progress", { message: `[${name}] trimAl -backtrans error (${e.message}), trying ClipKIT fallback` });
+                            } else {
+                                failCodonTrim(`trimAl -backtrans error: ${e.message}`, trimalMetadata, "trimAl -backtrans");
+                                continue;
+                            }
+                        }
                     } finally {
-                        try { fs.unlinkSync(tmpCdsFile); } catch { }
+                        try { if (tmpCdsFile) fs.unlinkSync(tmpCdsFile); } catch { }
                         try { fs.unlinkSync(tmpOutFile); } catch { }
+                    }
+                }
+
+                if (!dnaResult && allowClipkitFallback) {
+                    send("analysis-progress", { message: `[${name}] Trying ClipKIT as codon-aware trimming fallback…` });
+                    const clipResult = await runClipkitBacktranslation();
+                    if (clipResult.success) {
+                        dnaResult = clipResult;
+                        send("analysis-progress", { message: `[${name}] ✓ ClipKIT fallback produced validated codon-preserving DNA` });
+                    } else {
+                        send("analysis-progress", { message: `[${name}] ClipKIT fallback unavailable or failed: ${Array.isArray(clipResult.error) ? clipResult.error.join("; ") : clipResult.error}` });
                     }
                 }
 
                 if (!dnaResult) {
                     // JS fallback: trim protein alignment, then back-translate to DNA
-                    send("analysis-progress", { message: `[${name}] Using JS codon-aware fallback` });
-                    const protContent = fs.existsSync(inputFile) ? fs.readFileSync(inputFile, "utf8") : (mr.alignedContent || "");
+                    send("analysis-progress", { message: `[${name}] Using approximate JavaScript codon-aware fallback` });
+                    const protContent = fs.existsSync(inputFile)
+                        ? fs.readFileSync(inputFile, "utf8")
+                        : (mr.proteinAlignedContent || "");
                     const trimResult = trimAlignmentJS(protContent, params);
                     if (!trimResult.success) {
-                        done++;
-                        send("analysis-progress", {
-                            marker: name, status: "error",
-                            message: `[${name}] Trimming failed: ${trimResult.error}`,
-                            done, total: markers.length,
-                        });
+                        failCodonTrim(`SPLACE internal fallback failed: ${trimResult.error}`, fallbackMetadata, "SPLACE internal fallback");
                         continue;
                     }
                     const protSeqs = parseFastaArr(trimResult.trimmedContent);
@@ -346,30 +642,44 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
                         dnaFasta += `>${ps.name}\n${backTranslateJS(ps.seq, dna)}\n`;
                     }
                     if (!dnaFasta) {
-                        done++;
-                        send("analysis-progress", {
-                            marker: name, status: "error",
-                            message: `[${name}] Back-translation produced no output`,
-                            done, total: markers.length,
-                        });
+                        failCodonTrim("back-translation produced no DNA output", fallbackMetadata, "SPLACE internal fallback");
                         continue;
                     }
-                    if (skipped > 0) send("analysis-progress", { message: `[${name}] ⚠ ${skipped} sequences skipped (header mismatch)` });
-                    dnaResult = { content: dnaFasta, method: "js-fallback" };
-                    send("analysis-progress", { message: `[${name}] ✓ JS back-translation complete` });
+                    const validation = validateCodonPreservingTrimmedAlignment(dnaFasta, dnaCdsContent);
+                    if (!validation.valid) {
+                        failCodonTrim(validation.issues, fallbackMetadata, "SPLACE internal fallback");
+                        continue;
+                    }
+                    if (skipped > 0) send("analysis-progress", { message: `[${name}] ⚠ ${skipped} sequences were unmatched before validation` });
+                    dnaResult = {
+                        content: dnaFasta,
+                        method: "js-fallback",
+                        validation,
+                        metadata: {
+                            ...fallbackMetadata,
+                            codonIntegrityValidated: true,
+                        },
+                    };
+                    send("analysis-progress", { message: `[${name}] ✓ Approximate JavaScript back-translation produced validated codon-preserving DNA` });
                 }
+
+                fs.writeFileSync(trimmedFile, dnaResult.content, "utf8");
 
                 done++;
                 trimmed++;
                 mr.trimmedContent = dnaResult.content;
                 mr.trimMethod = dnaResult.method;
                 mr.trimmedStats = parseFastaStats(dnaResult.content);
+                mr.trimmedFile = trimmedFile;
+                mr.trimValidation = dnaResult.validation || null;
+                mr.trimMetadata = dnaResult.metadata || null;
+                mr.trimError = null;
                 const dnaLen = mr.trimmedStats.length;
-                const isDiv3 = dnaLen % 3 === 0;
+                const isDiv3 = mr.trimValidation?.allLengthsMultipleOf3 !== false && dnaLen % 3 === 0;
                 send("analysis-progress", {
                     marker: name, status: "done",
                     info: `${mr.trimmedStats.numSeqs} seq · ${dnaLen} bp (DNA codon${isDiv3 ? "" : " ⚠"})`,
-                    message: `[${name}] ✓ Codon alignment (${dnaResult.method}) → ${mr.trimmedStats.numSeqs} seq · ${dnaLen} bp${!isDiv3 ? " ⚠ length not multiple of 3" : ""}`,
+                    message: `[${name}] ✓ Codon-preserving DNA (${dnaResult.metadata?.trimmingTool === "trimal" ? "trimAl -backtrans" : dnaResult.metadata?.trimmingTool === "clipkit" ? "ClipKIT" : "SPLACE fallback"}) → ${mr.trimmedStats.numSeqs} seq · ${dnaLen} bp${!isDiv3 ? " ⚠ length not multiple of 3" : ""}`,
                     done, total: markers.length,
                 });
                 continue;
@@ -409,9 +719,10 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
 
     send("analysis-done", {
         phase: "trimal",
-        success: trimmed > 0,
+        success: codonMode ? (failedMarkers.length === 0 && trimmed === markers.length && trimmed > 0) : trimmed > 0,
         aligned: trimmed, total: markers.length,
         markerResults: updatedResults,
+        failedMarkers,
     });
 });
 
@@ -603,6 +914,132 @@ function parseFastaArr(text) {
     return seqs;
 }
 
+function normalizeValidationDna(sequence) {
+    return (sequence || "").toUpperCase().replace(/\s+/g, "").replace(/U/g, "T");
+}
+
+function splitIntoCodons(sequence) {
+    const dna = normalizeValidationDna(sequence);
+    const codons = [];
+    for (let i = 0; i + 2 < dna.length; i += 3) {
+        codons.push(dna.slice(i, i + 3));
+    }
+    return codons;
+}
+
+function isOrderedCodonSubsequence(candidateSequence, originalSequence) {
+    const candidateCodons = splitIntoCodons(candidateSequence);
+    const originalCodons = splitIntoCodons(originalSequence);
+    let searchIndex = 0;
+
+    for (const codon of candidateCodons) {
+        while (searchIndex < originalCodons.length && originalCodons[searchIndex] !== codon) {
+            searchIndex++;
+        }
+        if (searchIndex >= originalCodons.length) {
+            return false;
+        }
+        searchIndex++;
+    }
+
+    return true;
+}
+
+function formatValidationNameList(names) {
+    if (!names.length) return "";
+    const preview = names.slice(0, 3).join(", ");
+    return names.length > 3 ? `${preview} (+${names.length - 3} more)` : preview;
+}
+
+function validateCodonPreservingTrimmedAlignment(trimmedContent, originalDnaContent) {
+    const trimmedSeqs = parseFastaArr(trimmedContent);
+    const originalSeqs = parseFastaArr(originalDnaContent);
+    const issues = [];
+
+    if (!trimmedSeqs.length) {
+        return {
+            valid: false,
+            issues: ["trimAl -backtrans produced no DNA sequences"],
+            equalLengths: false,
+            allLengthsMultipleOf3: false,
+            gapBlocksAreTriplets: false,
+            headersMatch: false,
+            dnaCompatible: false,
+            frameDisrupted: true,
+            length: 0,
+            missingHeaders: originalSeqs.map((seq) => seq.name),
+            extraHeaders: [],
+            subsequenceIssues: [],
+        };
+    }
+
+    const originalMap = new Map(originalSeqs.map((seq) => [seq.name, normalizeValidationDna(seq.seq)]));
+    const originalNames = originalSeqs.map((seq) => seq.name);
+    const trimmedNames = trimmedSeqs.map((seq) => seq.name);
+    const originalNameSet = new Set(originalNames);
+    const trimmedNameSet = new Set(trimmedNames);
+    const missingHeaders = originalNames.filter((name) => !trimmedNameSet.has(name));
+    const extraHeaders = trimmedNames.filter((name) => !originalNameSet.has(name));
+    const lengths = trimmedSeqs.map((seq) => seq.seq.length);
+    const length = lengths[0] || 0;
+    const equalLengths = lengths.every((seqLen) => seqLen === length);
+    const allLengthsMultipleOf3 = trimmedSeqs.every((seq) => seq.seq.length % 3 === 0);
+    const gapBlocksAreTriplets = trimmedSeqs.every((seq) => (seq.seq.match(/-+/g) || []).every((run) => run.length % 3 === 0));
+    const dnaCompatible = trimmedSeqs.every((seq) => /^[ACGTNRYSWKMBDHV\-\?]*$/i.test(normalizeValidationDna(seq.seq)));
+    const subsequenceIssues = [];
+
+    for (const seq of trimmedSeqs) {
+        const original = originalMap.get(seq.name);
+        if (!original) continue;
+        const trimmedUngapped = normalizeValidationDna(seq.seq).replace(/-/g, "");
+        if (!trimmedUngapped.length || trimmedUngapped.length % 3 !== 0) continue;
+        if (!isOrderedCodonSubsequence(trimmedUngapped, original)) {
+            subsequenceIssues.push(`${seq.name}: trimmed DNA is not a codon-ordered subsequence of the validated CDS`);
+        }
+    }
+
+    if (!equalLengths) issues.push("trimmed sequences do not all have equal length");
+    if (!allLengthsMultipleOf3) issues.push(`final trimmed length ${length} is not divisible by 3`);
+    if (!gapBlocksAreTriplets) issues.push("trimmed alignment has gap runs that are not multiples of 3");
+    if (!dnaCompatible) issues.push("trimAl -backtrans output contains non-DNA symbols");
+    if (missingHeaders.length) issues.push(`missing sequence names from validated CDS: ${formatValidationNameList(missingHeaders)}`);
+    if (extraHeaders.length) issues.push(`unexpected sequence names in trimmed alignment: ${formatValidationNameList(extraHeaders)}`);
+    if (subsequenceIssues.length) {
+        issues.push(...subsequenceIssues.slice(0, 3));
+        if (subsequenceIssues.length > 3) {
+            issues.push(`... and ${subsequenceIssues.length - 3} more sequence(s) with codon frame disruption`);
+        }
+    }
+
+    const frameDisrupted =
+        !equalLengths ||
+        !allLengthsMultipleOf3 ||
+        !gapBlocksAreTriplets ||
+        !dnaCompatible ||
+        missingHeaders.length > 0 ||
+        extraHeaders.length > 0 ||
+        subsequenceIssues.length > 0;
+
+    return {
+        valid: issues.length === 0,
+        issues,
+        equalLengths,
+        allLengthsMultipleOf3,
+        gapBlocksAreTriplets,
+        headersMatch: missingHeaders.length === 0 && extraHeaders.length === 0,
+        dnaCompatible,
+        frameDisrupted,
+        length,
+        missingHeaders,
+        extraHeaders,
+        subsequenceIssues,
+    };
+}
+
+function isTrimAlUnavailableError(message) {
+    return /ENOENT|not found|not recognized|No such file or directory/i.test(message || "");
+}
+
 // -----------------------------------------------------------------------
 // Helper: back-translate an aligned protein sequence to DNA using the
 // original CDS codons.  Each '-' gap in the protein → '---' in DNA.
@@ -624,6 +1061,47 @@ function backTranslateJS(alignedProteinSeq, originalDna) {
         }
     }
     return output;
+}
+
+// -----------------------------------------------------------------------
+// Helper: run ClipKIT through Python or the console script
+// -----------------------------------------------------------------------
+function runClipkitProteinTrim(inputFile, outputFile, mode, onLog) {
+    const safeMode = String(mode || "gappy").replace(/[^A-Za-z0-9_-]/g, "") || "gappy";
+    const attempts = [];
+    const py = findPython();
+    if (py) attempts.push({ cmd: py.cmd, args: [...py.prefixArgs, "-m", "clipkit", inputFile, "-o", outputFile, "-m", safeMode], label: "python -m clipkit" });
+    attempts.push({ cmd: resolveBin("clipkit"), args: [inputFile, "-o", outputFile, "-m", safeMode], label: "clipkit" });
+
+    return new Promise((resolve) => {
+        let idx = 0;
+        function nextAttempt(lastError = null) {
+            if (idx >= attempts.length) {
+                resolve({ success: false, error: lastError || "ClipKIT is not available. Install it with the Python tools button." });
+                return;
+            }
+            const attempt = attempts[idx++];
+            onLog(`Running ${attempt.label} -m ${safeMode}`);
+            let stderr = "";
+            let stdout = "";
+            const proc = spawn(attempt.cmd, attempt.args, { shell: false, windowsHide: true });
+            proc.stdout.on("data", d => { stdout += d.toString(); });
+            proc.stderr.on("data", d => {
+                const msg = d.toString().trim();
+                stderr += d.toString();
+                if (msg) onLog(msg);
+            });
+            proc.on("close", code => {
+                if (code === 0 && fs.existsSync(outputFile)) {
+                    resolve({ success: true, trimmedContent: fs.readFileSync(outputFile, "utf8"), stdout, stderr, method: "clipkit" });
+                } else {
+                    nextAttempt(stderr.trim() || `ClipKIT exit code ${code}`);
+                }
+            });
+            proc.on("error", err => nextAttempt(err.message));
+        }
+        nextAttempt();
+    });
 }
 
 // -----------------------------------------------------------------------
@@ -693,11 +1171,71 @@ function parseFastaStats(text) {
     return { numSeqs, length, avgLen, gapPct };
 }
 
+function getCodonOutputFiles(outputDir, marker) {
+    return {
+        rawFile: path.join(outputDir, `${marker}_cds_validated.fasta`),
+        proteinAlignedFile: path.join(outputDir, `${marker}_protein_aligned.fasta`),
+        codonAlignedFile: path.join(outputDir, `${marker}_codon_aligned.fasta`),
+        codonTrimmedFile: path.join(outputDir, `${marker}_codon_trimmed.fasta`),
+    };
+}
+
+function persistCodonMarkerOutputs(outputDir, markerResult) {
+    const files = getCodonOutputFiles(outputDir, markerResult.marker);
+    const legacyAlignedFile = markerResult.outputFile;
+    const proteinContent = markerResult.proteinAlignedContent || markerResult.alignedContent || "";
+
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    if (markerResult.rawContent) {
+        fs.writeFileSync(files.rawFile, markerResult.rawContent, "utf8");
+    }
+
+    if (legacyAlignedFile && fs.existsSync(legacyAlignedFile) && path.resolve(legacyAlignedFile) !== path.resolve(files.proteinAlignedFile)) {
+        try { fs.rmSync(files.proteinAlignedFile, { force: true }); } catch { }
+        try {
+            fs.renameSync(legacyAlignedFile, files.proteinAlignedFile);
+        } catch {
+            fs.copyFileSync(legacyAlignedFile, files.proteinAlignedFile);
+            try { fs.rmSync(legacyAlignedFile, { force: true }); } catch { }
+        }
+    } else if (proteinContent) {
+        fs.writeFileSync(files.proteinAlignedFile, proteinContent, "utf8");
+    }
+
+    if (markerResult.alignedContent) {
+        fs.writeFileSync(files.codonAlignedFile, markerResult.alignedContent, "utf8");
+    }
+
+    if (markerResult.trimmedContent) {
+        fs.writeFileSync(files.codonTrimmedFile, markerResult.trimmedContent, "utf8");
+    }
+
+    return {
+        ...markerResult,
+        rawFile: markerResult.rawContent ? files.rawFile : null,
+        proteinAlignedFile: proteinContent ? files.proteinAlignedFile : null,
+        outputFile: markerResult.alignedContent ? files.codonAlignedFile : markerResult.outputFile,
+        trimmedFile: markerResult.trimmedContent ? files.codonTrimmedFile : (markerResult.trimmedFile || null),
+    };
+}
+
+ipcMain.handle("save-codon-outputs", async (_event, { outputDir, markerResults }) => {
+    try {
+        if (!outputDir) throw new Error("Missing output directory");
+        const updatedResults = (markerResults || []).map((mr) => persistCodonMarkerOutputs(outputDir, mr));
+        _lastMarkerResults = updatedResults;
+        return { success: true, outputDir, markerResults: updatedResults };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
 // -----------------------------------------------------------------------
 // IPC: run IQ-TREE3
-// { nexus, partition, params, threads, outgroup }
+// { nexus, partition, fasta, params, threads, outgroup, fileNames, extraFiles }
 // -----------------------------------------------------------------------
-ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outgroup, perGene, geneFiles }) => {
+ipcMain.on("run-iqtree", async (event, { nexus, partition, fasta, params, threads, outgroup, perGene, geneFiles, fileNames, extraFiles }) => {
     const sender = event.sender;
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
@@ -705,12 +1243,30 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
     try { fs.rmSync(outputDir, { recursive: true, force: true }); } catch { }
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const nexusFile = path.join(outputDir, "concatenated.nex");
-    const partitionFile = path.join(outputDir, "partitions.txt");
-    const concatPrefix = path.join(outputDir, "concat_tree");
+    const activeFileNames = {
+        nexus: fileNames?.nexus || "concatenated.nex",
+        partition: fileNames?.partition || "partitions.txt",
+        fasta: fileNames?.fasta || "concatenated.fasta",
+        prefix: fileNames?.prefix || "concat_tree",
+    };
+    const nexusFile = path.join(outputDir, activeFileNames.nexus);
+    const partitionFile = path.join(outputDir, activeFileNames.partition);
+    const fastaFile = path.join(outputDir, activeFileNames.fasta);
+    const concatPrefix = path.join(outputDir, activeFileNames.prefix);
 
-    fs.writeFileSync(nexusFile, nexus, "utf8");
-    fs.writeFileSync(partitionFile, partition, "utf8");
+    const writeOutputFile = (targetPath, content) => {
+        if (typeof content !== "string") return;
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, content, "utf8");
+    };
+
+    writeOutputFile(nexusFile, nexus);
+    writeOutputFile(partitionFile, partition);
+    writeOutputFile(fastaFile, fasta || "");
+    for (const [relativeName, content] of Object.entries(extraFiles || {})) {
+        if (!relativeName) continue;
+        writeOutputFile(path.join(outputDir, relativeName), content);
+    }
 
     // Resolve IQ-TREE binary: bundled first, then iqtree3 > iqtree2 > iqtree
     function findIqtree() {
@@ -745,7 +1301,7 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
     // === Concatenated tree ===
     const concatArgs = [
         "-s", nexusFile,
-        "-p", partitionFile,
+        ...(partition ? ["-p", partitionFile] : []),
         "--prefix", concatPrefix,
         "-T", String(threads),
         "--redo",
@@ -780,8 +1336,9 @@ ipcMain.on("run-iqtree", async (event, { nexus, partition, params, threads, outg
     // Collect output files
     let files = [];
     try {
+        const visibleConcatFastas = new Set(["concatenated.fasta", "concatenated_no3rd.fasta"]);
         files = fs.readdirSync(outputDir)
-            .filter(f => !f.endsWith(".fasta"))
+            .filter(f => !f.endsWith(".fasta") || visibleConcatFastas.has(f))
             .map(f => f);
         if (perGene) {
             const genesDir = path.join(outputDir, "gene_trees");
@@ -831,7 +1388,7 @@ ipcMain.handle("translate-fasta", async (event, { content, code }) => {
 
 //   aligned/      — *_aligned.fasta files from alignmentDir
 //   trimmed/      — *_aligned_trimmed.fasta files from alignmentDir (if any)
-//   concatenated/ — concatenated.nex + partitions.txt from iqtreeDir
+//   concatenated/ — concatenated matrices and partition files from iqtreeDir
 //   trees/        — all other iqtree output files (treefile, log, etc.)
 // -----------------------------------------------------------------------
 ipcMain.handle("save-zip", async (event, { alignmentDir, iqtreeDir, rawFastas, suggestedName }) => {
@@ -848,7 +1405,7 @@ ipcMain.handle("save-zip", async (event, { alignmentDir, iqtreeDir, rawFastas, s
             const rawDir = path.join(stagingDir, "raw");
             fs.mkdirSync(rawDir, { recursive: true });
             for (const [gene, content] of Object.entries(rawFastas)) {
-                fs.writeFileSync(path.join(rawDir, `${gene}.fasta`), content, "utf8");
+                fs.writeFileSync(path.join(rawDir, `${gene}_cds_validated.fasta`), content, "utf8");
             }
         }
 
@@ -857,17 +1414,29 @@ ipcMain.handle("save-zip", async (event, { alignmentDir, iqtreeDir, rawFastas, s
             const alignedDir = path.join(stagingDir, "aligned");
             fs.mkdirSync(alignedDir, { recursive: true });
             let trimmedDir = null;
+            let proteinAlignedDir = null;
 
             for (const f of fs.readdirSync(alignmentDir)) {
                 const src = path.join(alignmentDir, f);
                 try { if (!fs.statSync(src).isFile()) continue; } catch { continue; }
 
-                if (f.endsWith("_trimmed.fasta") || f.includes("_aligned_trimmed")) {
+                if (f.endsWith("_codon_trimmed.fasta") || f.endsWith("_trimmed.fasta") || f.includes("_aligned_trimmed")) {
                     if (!trimmedDir) {
                         trimmedDir = path.join(stagingDir, "trimmed");
                         fs.mkdirSync(trimmedDir, { recursive: true });
                     }
                     fs.copyFileSync(src, path.join(trimmedDir, f));
+                } else if (f.endsWith("_protein_aligned.fasta")) {
+                    if (!proteinAlignedDir) {
+                        proteinAlignedDir = path.join(stagingDir, "protein_aligned");
+                        fs.mkdirSync(proteinAlignedDir, { recursive: true });
+                    }
+                    fs.copyFileSync(src, path.join(proteinAlignedDir, f));
+                } else if (f.endsWith("_codon_aligned.fasta")) {
+                    fs.copyFileSync(src, path.join(alignedDir, f));
+                } else if (f.endsWith("_cds_validated.fasta")) {
+                    // raw/ is already populated from renderer memory to match the UI exactly.
+                    continue;
                 } else if (f.endsWith(".fasta") || f.endsWith(".fa")) {
                     fs.copyFileSync(src, path.join(alignedDir, f));
                 }
@@ -881,7 +1450,14 @@ ipcMain.handle("save-zip", async (event, { alignmentDir, iqtreeDir, rawFastas, s
             fs.mkdirSync(concatDir, { recursive: true });
             fs.mkdirSync(treesDir, { recursive: true });
 
-            const CONCAT_FILES = new Set(["concatenated.nex", "partitions.txt"]);
+            const CONCAT_FILES = new Set([
+                "concatenated.nex",
+                "partitions.txt",
+                "concatenated.fasta",
+                "concatenated_no3rd.nex",
+                "partitions_no3rd.txt",
+                "concatenated_no3rd.fasta",
+            ]);
 
             for (const f of fs.readdirSync(iqtreeDir)) {
                 const src = path.join(iqtreeDir, f);

@@ -3,11 +3,14 @@
 import asyncio
 import argparse
 import logging
+import re
 import shutil
 import subprocess
 import os
 import sys
 import yaml
+
+from splace.read_genbank.genbank_handler import FASTA_HEADER_FIELDS
 
 __authors__     = "Renato Oliveira and Luan Rabelo"
 __license__     = "GPL-3.0"
@@ -26,6 +29,84 @@ logging.basicConfig(
     datefmt='%Y/%m/%d - %H:%M:%S'
     )
 
+
+DEFAULT_FASTA_HEADER_CONFIG = {
+    "template": "{accession}_{family}_{genus}_{species}",
+    "missing_value": "?",
+}
+
+
+def ensure_default_fasta_header_config(config_path):
+    if os.path.exists(config_path):
+        return
+
+    config_dir = os.path.dirname(config_path)
+    
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+
+    with open(config_path, "w", encoding="utf-8") as handle:
+        yaml.safe_dump(DEFAULT_FASTA_HEADER_CONFIG, handle, sort_keys=False)
+
+    logging.info(f"Created default FASTA header configuration at: {config_path}")
+
+
+def load_fasta_header_config(config_path):
+    ensure_default_fasta_header_config(config_path)
+
+    with open(config_path, "r", encoding="utf-8") as handle:
+        raw_config = yaml.safe_load(handle) or {}
+
+    if isinstance(raw_config, str):
+        config = dict(DEFAULT_FASTA_HEADER_CONFIG)
+        config["template"] = raw_config
+    elif isinstance(raw_config, dict):
+        config = dict(DEFAULT_FASTA_HEADER_CONFIG)
+        config.update({key: value for key, value in raw_config.items() if value is not None})
+    else:
+        raise ValueError("FASTA header configuration must be a YAML string or mapping.")
+
+    template = str(config.get("template", "")).strip()
+    missing_value = str(config.get("missing_value", "?") or "?")
+    placeholders = set(re.findall(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", template))
+
+    if not template:
+        raise ValueError("FASTA header template cannot be empty.")
+    if not placeholders:
+        raise ValueError("FASTA header template must contain at least one placeholder like {accession}.")
+
+    invalid_placeholders = sorted(placeholders - FASTA_HEADER_FIELDS)
+    if invalid_placeholders:
+        valid_fields = ", ".join(sorted(FASTA_HEADER_FIELDS))
+        invalid_fields = ", ".join(invalid_placeholders)
+        raise ValueError(
+            f"Unsupported FASTA header placeholders: {invalid_fields}. Available fields: {valid_fields}."
+        )
+
+    return template, missing_value
+
+
+def collect_input_files(input_directories):
+    genbank_files = set()
+    fasta_files = set()
+
+    for input_dir in input_directories:
+        if not input_dir:
+            continue
+        if not os.path.exists(input_dir):
+            raise FileNotFoundError(f"Input directory '{input_dir}' not found.")
+
+        for root, _, files in os.walk(input_dir):
+            for file_name in files:
+                file_path = os.path.join(root, file_name)
+                lowered = file_name.lower()
+                if lowered.endswith((".gb", ".gbk", ".genbank")):
+                    genbank_files.add(file_path)
+                elif lowered.endswith((".fasta", ".fa", ".fas")):
+                    fasta_files.add(file_path)
+
+    return sorted(genbank_files), sorted(fasta_files)
+
 parser = argparse.ArgumentParser(
     prog=__tool__,
     usage='%(prog)s [options]',
@@ -41,10 +122,10 @@ input_group = parser.add_argument_group(
 )
 input_group.add_argument(
     "-i", "--input_dir",
-    required=True,
+    required=False,
     type=str,
-    help="Directory with FASTA (.fasta, .fa, .fas) or GenBank (.gb, .gbk) files. Default: 'input_files/'.",
-    default="input_files/"
+    help="Directory with FASTA (.fasta, .fa, .fas) or GenBank (.gb, .gbk) files. Optional when --ncbi-search-term is used.",
+    default=None
 )
 
 output_group = parser.add_argument_group(
@@ -80,24 +161,79 @@ genbank_group.add_argument(
     help="Extract mitochondrial or chloroplast sequences from GenBank files.",
     default="mt"
 )
+genbank_group.add_argument(
+    "--gbif",
+    action="store_true",
+    help="Query GBIF taxonomy for valid binomial species names found in GenBank records and store the retrieved ranks in the run metadata."
+)
+genbank_group.add_argument(
+    "--fasta-header-config",
+    type=str,
+    default="fasta_header.yaml",
+    help="Path to the YAML file that defines the FASTA header template. Default: 'fasta_header.yaml'."
+)
+
+remote_group = parser.add_argument_group(
+    title="Remote Retrieval",
+    description="Download GenBank genomes from NCBI using a taxonomic name/rank plus genome scope flags."
+)
+remote_group.add_argument(
+    "--ncbi-search-term",
+    type=str,
+    default=None,
+    help="Taxonomic name or rank used to build the NCBI genome query automatically (for example: 'Bufonidae' or 'Coffea')."
+)
+remote_group.add_argument(
+    "--apis-env",
+    type=str,
+    default="apis.env",
+    help="Path to an optional apis.env file containing NCBI_API_KEY and NCBI_EMAIL. Default: 'apis.env'."
+)
+remote_group.add_argument(
+    "--ncbi-download-dir",
+    type=str,
+    default=None,
+    help="Directory where GenBank files downloaded from NCBI will be saved."
+)
+remote_group.add_argument(
+    "--ncbi-complete",
+    action="store_true",
+    help="Include complete genomes in the automatically generated NCBI query."
+)
+remote_group.add_argument(
+    "--ncbi-partial",
+    action="store_true",
+    help="Include partial or incomplete genomes in the automatically generated NCBI query."
+)
+remote_group.add_argument(
+    "--ncbi-refseq-only",
+    action="store_true",
+    help="Restrict the automatically generated NCBI query to RefSeq genomes only."
+)
+remote_group.add_argument(
+    "--download-only",
+    action="store_true",
+    help="Run only the NCBI search/download stage and stop before marker extraction or downstream analyses."
+)
 
 gene_filter_group = parser.add_argument_group(
     title="Gene Filtering",
-    description="Filter sequences by specific gene names or GenBank feature types."
+    description="Filter sequences either by specific gene names or by GenBank feature types."
 )
-gene_filter_group.add_argument(
+gene_filter_options = gene_filter_group.add_mutually_exclusive_group()
+gene_filter_options.add_argument(
     "--genes",
     type=str,
     default=None,
     help="Comma-separated list of gene names (e.g., '12S,16S,COI') or path to a text file with one gene per line. "
-         "If not specified, uses the default gene list for the selected --gb-type."
+         "Mutually exclusive with --feature-types. If not specified, uses the default gene list for the selected --gb-type."
 )
-gene_filter_group.add_argument(
+gene_filter_options.add_argument(
     "--feature-types",
     type=str,
     default=None,
     help="Comma-separated list of GenBank feature types to extract (e.g., 'CDS,rRNA,tRNA'). "
-         "Only applies to GenBank files. Default: 'CDS'."
+         "Mutually exclusive with --genes. Only applies to GenBank files. Default: 'CDS'."
 )
 
 pipeline_group = parser.add_argument_group(
@@ -186,6 +322,37 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if not args.input_dir and not args.ncbi_search_term:
+        logging.error("Provide either --input_dir or --ncbi-search-term.")
+        sys.exit(1)
+
+    if args.ncbi_search_term and not args.ncbi_download_dir:
+        logging.error("The argument --ncbi-search-term requires --ncbi-download-dir.")
+        sys.exit(1)
+
+    if args.ncbi_download_dir and not args.ncbi_search_term:
+        logging.error("The argument --ncbi-download-dir requires --ncbi-search-term.")
+        sys.exit(1)
+
+    if args.download_only and not args.ncbi_search_term:
+        logging.error("The argument --download-only requires --ncbi-search-term.")
+        sys.exit(1)
+
+    if args.ncbi_search_term and not (args.ncbi_complete or args.ncbi_partial):
+        logging.error("The argument --ncbi-search-term requires at least one of --ncbi-complete or --ncbi-partial.")
+        sys.exit(1)
+
+    fasta_header_template = DEFAULT_FASTA_HEADER_CONFIG["template"]
+    fasta_header_missing_value = DEFAULT_FASTA_HEADER_CONFIG["missing_value"]
+    if not args.download_only:
+        try:
+            fasta_header_template, fasta_header_missing_value = load_fasta_header_config(args.fasta_header_config)
+        except ValueError as exc:
+            logging.error(str(exc))
+            sys.exit(1)
+
+        logging.info(f"Using FASTA header template from: {args.fasta_header_config}")
+
     # Parse gene filter: comma-separated string or text file
     genes_filter = None
     if args.genes:
@@ -223,27 +390,56 @@ if __name__ == "__main__":
     # Initialize Benchmark
     from splace.utils import Benchmark
     benchmark = Benchmark(output_path=os.path.join(args.output_dir, "benchmark.tsv"), enabled=args.benchmark)
-
-    if not os.path.exists(args.input_dir):
-        logging.error(msg=f"Input directory '{args.input_dir}' not found.")
-        sys.exit(1)
         
     os.makedirs(name=args.output_dir, exist_ok=True, mode=0o755)
 
-    genbank_files = []
-    fasta_files = []
+    input_directories = []
+    if args.input_dir:
+        input_directories.append(args.input_dir)
+
+    downloaded_genbank_files = []
+    if args.ncbi_search_term:
+        from splace.ncbi_download import download_genbank_records_from_search
+
+        benchmark.start("NCBI Download")
+        try:
+            downloaded_genbank_files = download_genbank_records_from_search(
+                taxon_name=args.ncbi_search_term,
+                output_dir=args.ncbi_download_dir,
+                data_type=args.gb_type,
+                include_complete=args.ncbi_complete,
+                include_partial=args.ncbi_partial,
+                refseq_only=args.ncbi_refseq_only,
+                env_path=args.apis_env,
+            )
+        finally:
+            benchmark.stop("NCBI Download")
+
+        input_directories.append(args.ncbi_download_dir)
+
+    if args.download_only:
+        benchmark.save(
+            input_dir=args.ncbi_download_dir or args.input_dir or os.getcwd(),
+            file_count=len(downloaded_genbank_files),
+        )
+        logging.info(
+            "NCBI retrieval stage completed. Add any outgroup files to the download directory before re-running SPLACE with extraction, alignment, trimming, or phylogeny flags."
+        )
+        sys.exit(0)
+
+    try:
+        genbank_files, fasta_files = collect_input_files(input_directories)
+    except FileNotFoundError as exc:
+        logging.error(str(exc))
+        sys.exit(1)
+
+    if downloaded_genbank_files:
+        logging.info(
+            f"Downloaded {len(downloaded_genbank_files)} GenBank file(s) from NCBI into '{args.ncbi_download_dir}'."
+        )
     
-    for root, dirs, files in os.walk(args.input_dir):
-        for file in files:
-            if file.lower().endswith(('.gb', '.gbk', '.genbank')):
-                genbank_files.append(os.path.join(root, file))
-    
-    for root, dirs, files in os.walk(args.input_dir):
-        for file in files:
-            if file.lower().endswith(('.fasta', '.fa', '.fas')):
-                fasta_files.append(os.path.join(root, file))
-    
-    logging.info(msg=f"Found {len(fasta_files)} FASTA files and {len(genbank_files)} GenBank files in '{args.input_dir}'.")
+    scanned_sources = ", ".join(input_directories)
+    logging.info(msg=f"Found {len(fasta_files)} FASTA files and {len(genbank_files)} GenBank files in: {scanned_sources}")
     
     if genbank_files or fasta_files:
         from splace import extract_multiple_genbanks
@@ -278,10 +474,14 @@ if __name__ == "__main__":
                     extract_multiple_genbanks(
                         genbank_files=genbank_files,
                         output_dir=os.path.join(args.output_dir, "markers_fasta"),
+                        report_dir=args.output_dir,
                         data_type=args.gb_type,
                         max_concurrent=args.threads,
                         genes_filter=genes_filter,
-                        feature_types=feature_types
+                        feature_types=feature_types,
+                        gbif_enabled=args.gbif,
+                        header_template=fasta_header_template,
+                        missing_value=fasta_header_missing_value,
                     )
                 )
                 benchmark.stop("GenBank Extraction")
@@ -363,4 +563,7 @@ if __name__ == "__main__":
 
         except Exception as e:
             logging.error(msg=f"An error occurred during processing: {e}")
+    else:
+        logging.error("No GenBank or FASTA files were found in the supplied input sources.")
+        sys.exit(1)
     

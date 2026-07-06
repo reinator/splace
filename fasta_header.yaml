@@ -1,0 +1,14 @@
+# The template for the FASTA header, where each placeholder will be replaced with the corresponding value from the data. 
+# If a value is missing, it will be replaced with the specified missing_value.
+# Placeholders:
+# - {accession}: The accession number of the sequence.
+# - {kingdom}: The kingdom of the organism.
+# - {phylum}: The phylum of the organism.
+# - {class}: The class of the organism.
+# - {order}: The order of the organism.
+# - {family}: The family of the organism.
+# - {genus}: The genus of the organism.
+# - {species}: The species of the organism.
+
+template: "{accession}_{family}_{genus}_{species}"
+missing_value: "?"

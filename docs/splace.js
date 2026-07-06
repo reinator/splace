@@ -428,52 +428,31 @@ function initGeneComboboxes() {
         });
 
         search.addEventListener("input", () => {
-            const q = search.value;
-            const ql = q.toLowerCase();
-            combobox.querySelectorAll(".gene-opt").forEach(opt => {
-                const label = opt.dataset.label;
-                const value = opt.dataset.value;
-                const match = !ql || value.toLowerCase().includes(ql) || label.toLowerCase().includes(ql);
-                opt.style.display = match ? "" : "none";
-                if (match && ql) {
-                    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-                    opt.innerHTML = escHtml(label).replace(re, '<mark class="bg-yellow-100 text-amber-900 rounded-sm not-italic">$1</mark>');
-                } else {
-                    opt.textContent = label;
+            const query = search.value.trim().toLowerCase();
+            combobox.querySelectorAll(".gene-opt").forEach((option) => {
+                const label = option.dataset.label || option.textContent || "";
+                const match = !query || label.toLowerCase().includes(query);
+                option.style.display = match ? "" : "none";
+                if (!match || !query) {
+                    option.textContent = label;
+                    return;
                 }
+                const idx = label.toLowerCase().indexOf(query);
+                option.innerHTML =
+                    escHtml(label.slice(0, idx)) +
+                    `<mark class="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">${escHtml(label.slice(idx, idx + query.length))}</mark>` +
+                    escHtml(label.slice(idx + query.length));
             });
         });
 
-        combobox.querySelectorAll(".gene-opt").forEach(opt => {
-            opt.addEventListener("click", e => {
-                e.stopPropagation();
-                hidden.value = opt.dataset.value;
-                display.textContent = opt.dataset.label;
-                if (opt.dataset.value) {
-                    display.classList.remove("text-gray-400");
-                    display.classList.add("text-gray-800", "font-medium");
-                } else {
-                    display.classList.remove("text-gray-800", "font-medium");
-                    display.classList.add("text-gray-400");
-                }
+        dropdown.querySelectorAll(".gene-opt").forEach(option => {
+            option.addEventListener("click", () => {
+                hidden.value = option.dataset.value || option.dataset.label || option.textContent.trim();
+                display.textContent = option.dataset.label || option.textContent.trim();
                 closeDropdown();
             });
         });
-
-        dropdown.addEventListener("click", e => e.stopPropagation());
     });
-
-    if (_geneComboboxCloseHandler) {
-        document.removeEventListener("click", _geneComboboxCloseHandler);
-    }
-    _geneComboboxCloseHandler = () => {
-        document.querySelectorAll(".gene-dropdown").forEach(d => {
-            d.classList.add("hidden");
-            d.style.cssText = "";
-            d.closest(".gene-combobox")?.querySelector(".fa-chevron-down")?.classList.remove("rotate-180");
-        });
-    };
-    document.addEventListener("click", _geneComboboxCloseHandler);
 
     const scrollEl = document.querySelector("#unknownGenesModal .overflow-y-auto");
     if (scrollEl && !scrollEl._geneScrollHandler) {
@@ -730,6 +709,226 @@ function countFeatureTypes(record) {
     return { pcgs, rrnas, trnas };
 }
 
+
+const MARKER_KEYS = ["pcgs", "trnas", "rrnas"];
+const MARKER_LABELS = { pcgs: "PCGs", trnas: "tRNAs", rrnas: "rRNAs" };
+const SPLACE_HEATMAP_COLORS = {
+    lossStart: [254, 242, 242],
+    lossEnd: [191, 0, 48],
+    gainStart: [238, 240, 251],
+    gainEnd: [58, 71, 171],
+};
+
+function getModeCount(values) {
+    const counts = new Map();
+    values.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? 0;
+}
+
+function buildMarkerHeatmapStats(records) {
+    const stats = {};
+    for (const key of MARKER_KEYS) {
+        const values = records.map((record) => countFeatureTypes(record)[key]);
+        stats[key] = {
+            min: Math.min(...values),
+            max: Math.max(...values),
+            mode: getModeCount(values),
+        };
+    }
+    return stats;
+}
+
+function interpolateRgb(start, end, t) {
+    const clamped = Math.max(0, Math.min(1, t));
+    return start.map((value, index) => Math.round(value + (end[index] - value) * clamped));
+}
+
+function rgbToCss(rgb) {
+    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+function markerHeatmapCellData(value, key, stats) {
+    const label = MARKER_LABELS[key] || key;
+    const stat = stats?.[key] || { min: value, max: value, mode: value };
+    const expected = stat.mode;
+    let relation = "normal";
+    let intensity = 0;
+    let bg = "#f9fafb";
+    let color = "#374151";
+    let border = "rgba(209, 213, 219, 0.9)";
+    let note = "matches the most common marker count in this dataset";
+
+    if (value < expected) {
+        relation = "loss";
+        intensity = Math.max(0.28, (expected - value) / Math.max(1, expected - stat.min));
+        bg = rgbToCss(interpolateRgb(SPLACE_HEATMAP_COLORS.lossStart, SPLACE_HEATMAP_COLORS.lossEnd, intensity));
+        border = "rgba(191, 0, 48, 0.55)";
+        color = intensity > 0.62 ? "#ffffff" : "#8a001f";
+        note = "below the most common count, possible gene loss or missing annotation";
+    } else if (value > expected) {
+        relation = "duplication";
+        intensity = Math.max(0.28, (value - expected) / Math.max(1, stat.max - expected));
+        bg = rgbToCss(interpolateRgb(SPLACE_HEATMAP_COLORS.gainStart, SPLACE_HEATMAP_COLORS.gainEnd, intensity));
+        border = "rgba(58, 71, 171, 0.55)";
+        color = intensity > 0.62 ? "#ffffff" : "#191b4d";
+        note = "above the most common count, possible duplicated marker or duplicated annotation";
+    }
+
+    return {
+        value: escHtml(String(value)),
+        relation,
+        style: `background:${bg};color:${color};border-color:${border};`,
+        tooltip: `${label}: ${value}. Common count in this dataset: ${expected}. This value ${note}.`,
+    };
+}
+
+function markerHeatmapCell(value, key, stats) {
+    const cell = markerHeatmapCellData(value, key, stats);
+    return `<span class="marker-heatmap-cell marker-${cell.relation}" style="${cell.style}" data-tippy-content="${escHtml(cell.tooltip)}">${cell.value}</span>`;
+}
+
+function formatAverage(value) {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function getFeatureLengthBp(feature, sequenceLength = 0) {
+    const segments = parseLocation(feature?.locationStr || "", sequenceLength || 0);
+    if (!segments.length) return 0;
+    return segments.reduce((sum, segment) => sum + Math.max(0, segment.end - segment.start), 0);
+}
+
+function markerLengthTotals(record) {
+    const totals = { pcgs: 0, trnas: 0, rrnas: 0 };
+    const sequenceLength = record?.sequence?.length || 0;
+    for (const feature of record?.features || []) {
+        let key = null;
+        if (feature.type === "CDS") key = "pcgs";
+        else if (feature.type === "tRNA") key = "trnas";
+        else if (feature.type === "rRNA") key = "rrnas";
+        if (key) totals[key] += getFeatureLengthBp(feature, sequenceLength);
+    }
+    return totals;
+}
+
+function formatBp(value) {
+    const rounded = Math.round(Number(value) || 0);
+    return `${rounded.toLocaleString()} bp`;
+}
+
+function meanMarkerLength(records, key) {
+    if (!records.length) return 0;
+    const total = records.reduce((sum, record) => sum + markerLengthTotals(record)[key], 0);
+    return total / records.length;
+}
+
+function markerMetricsHtml(records, useRealValues = false) {
+    return MARKER_KEYS.map((key) => {
+        const label = MARKER_LABELS[key] || key;
+        if (useRealValues) {
+            const values = records.map((record) => markerLengthTotals(record)[key]);
+            const uniqueValues = [...new Set(values)].sort((a, b) => a - b);
+            const text = uniqueValues.length === 1
+                ? formatBp(uniqueValues[0])
+                : uniqueValues.map(formatBp).join("/");
+            return `<span class="taxonomy-tree-chip real">${label} ${text}</span>`;
+        }
+        return `<span class="taxonomy-tree-chip">${label} ~${formatBp(meanMarkerLength(records, key))}</span>`;
+    }).join("");
+}
+
+function hasFetchedTaxonomy(record) {
+    const ranks = record.taxonomyRanks || {};
+    return Boolean(ranks.kingdom || ranks.phylum || ranks.class || ranks.order || ranks.family || ranks.authorship);
+}
+
+function addTaxonomyTreeNode(parent, rankKey, rankLabel, name, record) {
+    const cleanName = String(name || "").trim();
+    if (!cleanName) return parent;
+    const mapKey = `${rankKey}:${cleanName}`;
+    if (!parent.children.has(mapKey)) {
+        parent.children.set(mapKey, {
+            rankKey,
+            rankLabel,
+            name: cleanName,
+            records: [],
+            children: new Map(),
+        });
+    }
+    const node = parent.children.get(mapKey);
+    node.records.push(record);
+    return node;
+}
+
+function buildTaxonomyTree(records) {
+    const root = { children: new Map(), records };
+    for (const record of records) {
+        const tax = extractTaxonomy(record);
+        const speciesName = `${tax.genus}${tax.species ? " " + tax.species : ""}`.trim() || record.editedOrganism || record.organism || record.accession || "Unknown species";
+        const lineage = [
+            ["kingdom", "Kingdom", tax.kingdom],
+            ["phylum", "Phylum", tax.phylum],
+            ["class", "Class", tax.class],
+            ["order", "Order", tax.order],
+            ["family", "Family", tax.family],
+            ["genus", "Genus", tax.genus],
+            ["species", "Species", speciesName],
+        ];
+        let current = root;
+        lineage.forEach(([rankKey, rankLabel, name]) => {
+            current = addTaxonomyTreeNode(current, rankKey, rankLabel, name, record);
+        });
+    }
+    return root;
+}
+
+function renderTaxonomyTreeNode(node) {
+    const childNodes = [...node.children.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const isSpecies = node.rankKey === "species";
+    const isItalicTaxon = node.rankKey === "genus" || node.rankKey === "species";
+    const metrics = markerMetricsHtml(node.records, isSpecies);
+    const displayName = isItalicTaxon ? `<em>${escHtml(node.name)}</em>` : escHtml(node.name);
+    const row = `
+        <span class="taxonomy-tree-row">
+            <span class="taxonomy-tree-identity"><span class="taxonomy-tree-rank">${escHtml(node.rankLabel)}</span><span class="taxonomy-tree-name">${displayName}</span> <span class="text-gray-400 text-xs">(${node.records.length})</span></span>
+            <span class="taxonomy-tree-metrics">${metrics}</span>
+        </span>
+    `;
+
+    if (!childNodes.length) {
+        return `<li class="taxonomy-tree-node">${row}</li>`;
+    }
+
+    return `
+        <li class="taxonomy-tree-node">
+            <details class="taxonomy-tree-details">
+                <summary>${row}</summary>
+                <ul class="taxonomy-tree-children">${childNodes.map(renderTaxonomyTreeNode).join("")}</ul>
+            </details>
+        </li>
+    `;
+}
+
+function renderTaxonomyExplorer() {
+    const panel = document.getElementById("taxonomyTreePanel");
+    const body = document.getElementById("taxonomyTreeBody");
+    if (!panel || !body) return;
+
+    const recordsWithTaxonomy = state.records.filter(hasFetchedTaxonomy);
+    if (recordsWithTaxonomy.length === 0) {
+        panel.classList.add("hidden");
+        body.innerHTML = "";
+        return;
+    }
+
+    const tree = buildTaxonomyTree(recordsWithTaxonomy);
+    const topNodes = [...tree.children.values()].sort((a, b) => a.name.localeCompare(b.name));
+    body.innerHTML = `<ul class="taxonomy-tree-list">${topNodes.map(renderTaxonomyTreeNode).join("")}</ul>`;
+    panel.classList.remove("hidden");
+
+    // v12: keep the Taxonomic tree panel visible with only top-level nodes shown.
+    // The user expands each first-level node to inspect the nested taxonomy.
+}
+
 function parseFeatures(featText) {
     const features = [];
     const lines = featText.split("\n");
@@ -827,6 +1026,7 @@ const NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
 const NCBI_SEARCH_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
 const NCBI_SUMMARY_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
 const NCBI_API_KEY_STORAGE = "splace.ncbi.apiKey";
+const TAXONOMY_API_HINT_DISMISSED_STORAGE = "splace.taxonomyApiHintDismissed";
 const FETCH_DELAY_DEFAULT = 334;
 const FETCH_DELAY_WITH_KEY = 100;
 
@@ -900,6 +1100,27 @@ function openClearNcbiApiKeyModal() {
 
 function closeClearNcbiApiKeyModal() {
     document.getElementById("clearNcbiApiKeyModal")?.classList.add("hidden");
+}
+
+function syncTaxonomyApiHint() {
+    const hint = document.getElementById("taxonomyApiHint");
+    if (!hint) return;
+    let dismissed = false;
+    try {
+        dismissed = localStorage.getItem(TAXONOMY_API_HINT_DISMISSED_STORAGE) === "1";
+    } catch {
+        dismissed = false;
+    }
+    hint.classList.toggle("hidden", dismissed);
+}
+
+function dismissTaxonomyApiHint() {
+    try {
+        localStorage.setItem(TAXONOMY_API_HINT_DISMISSED_STORAGE, "1");
+    } catch {
+        // Storage unavailable, ignored
+    }
+    syncTaxonomyApiHint();
 }
 
 function resetStep1Inputs() {
@@ -1015,14 +1236,17 @@ async function fetchAccession(accession) {
 }
 
 async function fetchMultiple(accessions, options = {}) {
-    const results = [];
+    const accessionEntries = accessions
+        .map((accession, originalIndex) => ({ accession: accession.trim(), originalIndex }))
+        .filter((entry) => entry.accession);
+    const resultsByInput = new Array(accessionEntries.length);
     const statusEl = document.getElementById("fetchStatus");
     const localStatusEl = options.statusElementId ? document.getElementById(options.statusElementId) : statusEl;
     localStatusEl.classList.remove("hidden");
 
     showProgress(
         options.progressTitle || i18nText("step1.progress.fetchGenericTitle"),
-        formatProgressCounter(0, accessions.length),
+        formatProgressCounter(0, accessionEntries.length),
         options.progressDetail || "",
         {
             mode: "ncbi",
@@ -1035,30 +1259,41 @@ async function fetchMultiple(accessions, options = {}) {
         }
     );
 
-    let lastRequestAt = 0;
+    const batchSize = hasUsableNcbiApiKey() ? 10 : 3;
+    const batchDelayMs = 1000;
+    let completed = 0;
 
-    for (let i = 0; i < accessions.length; i++) {
-        const acc = accessions[i].trim();
-        if (!acc) continue;
-        const currentLabel = options.progressItems?.[acc] || acc;
-        localStatusEl.textContent = `Fetching ${i + 1}/${accessions.length}: ${acc}...`;
-        updateProgress(i + 1, accessions.length, currentLabel);
-        const wait = getNcbiFetchDelay() - (Date.now() - lastRequestAt);
-        if (wait > 0) await new Promise(r => setTimeout(r, wait));
-        lastRequestAt = Date.now();
-        try {
-            const record = await fetchAccession(acc);
-            results.push(record);
-            console.log(`Fetched: ${record.organism || acc} (${record.accession || acc})`);
-        } catch (e) {
-            console.error(`Failed to fetch ${acc}: ${e.message}`);
+    for (let start = 0; start < accessionEntries.length; start += batchSize) {
+        const batch = accessionEntries.slice(start, start + batchSize);
+        const batchEnd = start + batch.length;
+        localStatusEl.textContent = `Fetching ${start + 1}-${batchEnd}/${accessionEntries.length} records...`;
+
+        await Promise.all(batch.map(async (entry, batchIndex) => {
+            const acc = entry.accession;
+            const currentLabel = options.progressItems?.[acc] || acc;
+            try {
+                const record = await fetchAccession(acc);
+                resultsByInput[start + batchIndex] = record;
+                console.log(`Fetched: ${record.organism || acc} (${record.accession || acc})`);
+            } catch (e) {
+                console.error(`Failed to fetch ${acc}: ${e.message}`);
+            } finally {
+                completed++;
+                updateProgress(completed, accessionEntries.length, currentLabel);
+            }
+        }));
+
+        if (start + batchSize < accessionEntries.length) {
+            await new Promise((resolve) => setTimeout(resolve, batchDelayMs));
         }
     }
-    localStatusEl.textContent = `Fetched ${results.length}/${accessions.length} records`;
+
+    const results = resultsByInput.filter(Boolean);
+    localStatusEl.textContent = `Fetched ${results.length}/${accessionEntries.length} records`;
     setTimeout(() => localStatusEl.classList.add("hidden"), 3000);
 
     hideProgress(`Loaded ${results.length} record${results.length !== 1 ? 's' : ''}`);
-    console.log(`NCBI fetch complete: ${results.length}/${accessions.length} records`);
+    console.log(`NCBI fetch complete: ${results.length}/${accessionEntries.length} records using batches of ${batchSize}`);
 
     return results;
 }
@@ -1082,10 +1317,10 @@ async function searchNcbiGenomeIds(options) {
 }
 
 function getSelectedGenomeScopes() {
-    const scopes = [];
-    if (document.getElementById("taxonomyCompleteCheckbox")?.checked) scopes.push("complete genome");
-    if (document.getElementById("taxonomyPartialCheckbox")?.checked) scopes.push("partial genome");
-    return scopes;
+    const completeOnly = document.getElementById("taxonomyCompleteCheckbox")?.checked;
+    return completeOnly
+        ? ["complete genome"]
+        : ["complete genome", "partial genome"];
 }
 
 function buildTaxonomyReviewDetails(options) {
@@ -1192,13 +1427,106 @@ function isUnverifiedGenome(title) {
     return /\bunverified\b/i.test(title || "");
 }
 
+
+function getAccessionVersionFromSummary(summary, fallbackId) {
+    return summary?.accessionversion
+        || summary?.caption
+        || summary?.extra?.gi
+        || summary?.uid
+        || fallbackId;
+}
+
+function extractSpeciesNameFromGenomeTitle(title) {
+    const clean = String(title || "")
+        .replace(/\b(?:complete|partial|incomplete|unverified)\b.*$/i, "")
+        .replace(/\b(?:mitochondrion|mitochondrial|chloroplast|plastid)\b.*$/i, "")
+        .trim();
+
+    const match = clean.match(/^([A-Z][a-zA-Z.-]+\s+(?:cf\.\s+|aff\.\s+|sp\.\s+)?[a-z][a-zA-Z.-]+)/);
+    return match ? match[1].replace(/\s+/g, " ").trim() : "";
+}
+
+function cleanGenomeDescription(title, accession, speciesName) {
+    let description = String(title || "-");
+    const baseAccession = String(accession || "").replace(/\.\d+$/, "");
+
+    [accession, baseAccession].filter(Boolean).forEach((value) => {
+        const safe = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        description = description.replace(new RegExp(`\\b${safe}\\b`, "g"), "");
+    });
+
+    description = description
+        .replace(/\b(voucher|isolate|strain|specimen)\s+[^,;:]+/ig, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([,;:])/g, "$1")
+        .replace(/^[,;:\s]+|[,;:\s]+$/g, "")
+        .trim();
+
+    if (speciesName && !description.toLowerCase().startsWith(speciesName.toLowerCase())) {
+        description = `${speciesName} ${description}`.trim();
+    }
+
+    return description || speciesName || "-";
+}
+
+function normalizeTaxonomyImportFilter(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+
+function escapeRegExp(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightTaxonomyImportText(value, query) {
+    const text = String(value ?? "");
+    const cleanQuery = String(query || "").trim();
+    if (!cleanQuery) return escHtml(text);
+
+    const pattern = new RegExp(escapeRegExp(cleanQuery), "ig");
+    let lastIndex = 0;
+    let html = "";
+    for (const match of text.matchAll(pattern)) {
+        const start = match.index || 0;
+        html += escHtml(text.slice(lastIndex, start));
+        html += `<mark class="taxonomy-search-mark">${escHtml(match[0])}</mark>`;
+        lastIndex = start + match[0].length;
+    }
+    html += escHtml(text.slice(lastIndex));
+    return html;
+}
+
+function getVisibleTaxonomyImportCandidates() {
+    const filter = normalizeTaxonomyImportFilter(document.getElementById("taxonomyImportSearchInput")?.value || "");
+    if (!filter) return state.taxonomyImportCandidates;
+
+    return state.taxonomyImportCandidates.filter((candidate) => {
+        const haystack = normalizeTaxonomyImportFilter([
+            candidate.accession,
+            candidate.id,
+            candidate.speciesName,
+            candidate.description,
+            candidate.title,
+        ].filter(Boolean).join(" "));
+        return haystack.includes(filter);
+    });
+}
+
 function buildTaxonomyImportCandidates(ids, summaries) {
     return ids.map((id, index) => {
         const summary = summaries[index] || {};
         const title = summary.title || "";
+        const accession = getAccessionVersionFromSummary(summary, id);
+        const speciesName = extractSpeciesNameFromGenomeTitle(title);
         return {
             id,
-            accession: summary.caption || summary.accessionversion || summary.uid || id,
+            accession,
+            speciesName,
+            description: cleanGenomeDescription(title, accession, speciesName),
             title,
             classification: getGenomeClassificationKey(title),
             unverified: isUnverifiedGenome(title),
@@ -1268,13 +1596,29 @@ function renderTaxonomyImportCandidates() {
     countEl.innerHTML = stackedBarHtml;
     confirmBtn.disabled = selected === 0;
 
-    tbody.innerHTML = state.taxonomyImportCandidates.map((candidate) => {
+    const visibleCandidates = getVisibleTaxonomyImportCandidates();
+    const rawFilter = (document.getElementById("taxonomyImportSearchInput")?.value || "").trim();
+    const filter = normalizeTaxonomyImportFilter(rawFilter);
+    const showingHtml = filter
+        ? `<div class="mt-2 text-xs text-gray-500">Showing ${visibleCandidates.length}/${total} genomes matching the search.</div>`
+        : "";
+    countEl.insertAdjacentHTML("beforeend", showingHtml);
+
+    if (visibleCandidates.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="taxonomy-review-empty">No genomes match the current search.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = visibleCandidates.map((candidate) => {
         const isActive = candidate.selected;
         const label = i18nText(`step1.review.class.${candidate.classification}`);
         const unverifiedLabel = i18nText("step1.review.class.unverified");
         const classificationHtml = candidate.unverified
             ? `<span class="taxonomy-review-badge unverified">${escHtml(unverifiedLabel)}</span>`
             : `<span class="taxonomy-review-badge ${candidate.classification}">${escHtml(label)}</span>`;
+        const speciesHtml = candidate.speciesName
+            ? `<strong class="taxonomy-review-species"><em>${highlightTaxonomyImportText(candidate.speciesName, rawFilter)}</em></strong>`
+            : `<strong class="taxonomy-review-species">${escHtml(i18nText("step1.review.unknownSpecies", "Unknown species"))}</strong>`;
         return `
             <tr class="${candidate.unverified ? "unverified" : ""}">
                 <td class="px-4 py-3 text-center">
@@ -1288,10 +1632,10 @@ function renderTaxonomyImportCandidates() {
                         <span class="taxonomy-review-switch-label ${isActive ? "active" : "inactive"}">${escHtml(i18nText(isActive ? "step1.review.switch.on" : "step1.review.switch.off"))}</span>
                     </button>
                 </td>
-                <td class="px-4 py-3 text-gray-700 text-center">${escHtml(String(candidate.accession))}</td>
+                <td class="px-4 py-3 text-gray-700 text-center font-mono">${highlightTaxonomyImportText(candidate.accession, rawFilter)}</td>
                 <td class="px-4 py-3 taxonomy-review-description">
-                    <strong>${escHtml(String(candidate.accession))}</strong>
-                    <p class="${candidate.unverified ? "unverified" : ""}">${escHtml(candidate.title || "-")}</p>
+                    ${speciesHtml}
+                    <p class="${candidate.unverified ? "unverified" : ""}">${highlightTaxonomyImportText(candidate.description || candidate.title || "-", rawFilter)}</p>
                 </td>
                 <td class="px-4 py-3 text-center">${classificationHtml}</td>
             </tr>
@@ -1340,8 +1684,11 @@ function openTaxonomyImportModal({ taxon, summaryHtml, candidates, searchDetails
         ? `<div class="mt-2"><span class="taxonomy-review-badge unverified">${i18nText("step1.review.class.unverified")}</span> ${i18nText("step1.review.unverifiedCount", { count: unverifiedCount })}<div class="mt-1 text-sm text-splace-red-700">${i18nText("step1.review.unverifiedAdvice")}</div></div>`
         : "";
     document.getElementById("taxonomyImportSummary").innerHTML = `${summaryHtml}${unverifiedHtml}`;
+    const searchInput = document.getElementById("taxonomyImportSearchInput");
+    if (searchInput) searchInput.value = "";
     state.taxonomyImportCandidates = candidates;
     renderTaxonomyImportCandidates();
+    if (typeof window.initTooltips === "function") window.initTooltips();
     document.getElementById("taxonomyImportModal").classList.remove("hidden");
     return new Promise((resolve) => {
         state.taxonomyImportResolver = resolve;
@@ -1498,9 +1845,11 @@ function renderRecords() {
 
     if (state.records.length === 0) {
         section.classList.add("hidden");
+        document.getElementById("taxonomyTreePanel")?.classList.add("hidden");
         document.getElementById("featureTypesSection").classList.add("hidden");
         document.getElementById("genesSection").classList.add("hidden");
         document.getElementById("heatmapSection").classList.add("hidden");
+        document.getElementById("markerLengthHeatmapSection")?.classList.add("hidden");
         document.getElementById("downloadSection").classList.add("hidden");
         return;
     }
@@ -1515,6 +1864,9 @@ function renderRecords() {
     const sortedIndices = state.records
         .map((r, i) => ({ record: r, originalIndex: i }))
         .sort((a, b) => (a.record.organism || "").localeCompare(b.record.organism || ""));
+    const markerStats = buildMarkerHeatmapStats(sortedIndices.map(({ record }) => record));
+
+    renderTaxonomyExplorer();
 
     tbody.innerHTML = sortedIndices.map(({ record: r, originalIndex: i }) => {
         const tax = extractTaxonomy(r);
@@ -1524,6 +1876,10 @@ function renderRecords() {
         const abbrevSpecies = tax.genus ? `${tax.genus.charAt(0)}.${tax.species ? ' ' + tax.species : ''}` : '';
         const fullSpecies = `${tax.genus}${tax.species ? ' ' + tax.species : ''}`;
         const displayName = fullSpecies || (r.editedOrganism || r.organism || r.accession || "Unknown");
+
+        const pcgHeat = markerHeatmapCell(counts.pcgs, "pcgs", markerStats);
+        const rrnaHeat = markerHeatmapCell(counts.rrnas, "rrnas", markerStats);
+        const trnaHeat = markerHeatmapCell(counts.trnas, "trnas", markerStats);
 
         return `
             <tr class="group">
@@ -1536,13 +1892,13 @@ function renderRecords() {
                 <td class="px-3 py-2 text-gray-500" data-col="genus"><span class="genus-italic">${tax.genus}</span></td>
                 <td class="px-3 py-2 text-gray-500" data-col="species"><span class="species-italic">${abbrevSpecies}</span></td>
                 <td class="px-3 py-2 text-gray-500" data-col="authorship">${tax.authorship || "—"}</td>
-                <td class="px-3 py-2 text-center text-gray-600" data-col="pcgs">${counts.pcgs}</td>
-                <td class="px-3 py-2 text-center text-gray-600" data-col="rrnas">${counts.rrnas}</td>
-                <td class="px-3 py-2 text-center text-gray-600" data-col="trnas">${counts.trnas}</td>
+                <td class="px-3 py-2 text-center" data-col="pcgs">${pcgHeat}</td>
+                <td class="px-3 py-2 text-center" data-col="rrnas">${rrnaHeat}</td>
+                <td class="px-3 py-2 text-center" data-col="trnas">${trnaHeat}</td>
                 <td class="px-3 py-2 text-center" data-col="source"><span class="text-xs px-1.5 py-0.5 rounded ${sourceClass}">${sourceLabel}</span></td>
                 <td class="px-3 py-2 text-right whitespace-nowrap">
-                    <button onclick="editRecord(${i})" class="record-action-edit transition-colors text-sm leading-none mr-2" data-tippy-content="${i18nText('step2.record.tooltip.edit', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-pen-to-square"></i></button>
-                    <button onclick="removeRecord(${i})" class="record-action-remove transition-colors text-lg leading-none" data-tippy-content="${i18nText('step2.record.tooltip.remove', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-xmark"></i></button>
+                    <button onclick="editRecord(${i})" class="record-action-edit transition-colors leading-none mr-2" data-tippy-content="${i18nText('step2.record.tooltip.edit', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <button onclick="removeRecord(${i})" class="record-action-remove transition-colors leading-none" data-tippy-content="${i18nText('step2.record.tooltip.remove', { species: `<em>${escHtml(displayName)}</em>`, accession: escHtml(r.accession) })}"><i class="fa-solid fa-xmark"></i></button>
                 </td>
             </tr>
         `;
@@ -1689,6 +2045,8 @@ function toggleColumn(colKey, visible) {
 
 function renderGeneSelection() {
     if (state.records.length === 0) return;
+
+    syncCodonUiDefaults();
 
     // Step 3: Feature Types — always visible once user proceeds
     document.getElementById("featureTypesSection").classList.remove("hidden");
@@ -2114,8 +2472,9 @@ function renderGenes(genesByType) {
         else { countEl.classList.add("hidden"); }
     }
 
-    // Render heatmap
+    // Render the original gene-presence heatmap and the desktop-only length heatmap.
     renderHeatmap();
+    renderMarkerLengthHeatmap();
 }
 
 // ========================================================================
@@ -2338,6 +2697,490 @@ function renderHeatmap() {
     updateStepBadges();
 }
 
+function markerHeatmapSpeciesLabel(record, index) {
+    const tax = typeof extractTaxonomy === "function" ? extractTaxonomy(record) : {};
+    const speciesName = (tax.genus && tax.species)
+        ? `${tax.genus} ${tax.species}`
+        : (record.editedOrganism || record.organism || `Record ${index + 1}`);
+    const accession = record.accession || "N/A";
+    return { speciesName, accession };
+}
+
+function collectSelectedMarkerLengthMatrix(selectedGenes) {
+    const selectedGeneSet = new Set(selectedGenes);
+    const dataType = state.detectedDataType;
+
+    const rows = state.records.map((record, ri) => {
+        const label = markerHeatmapSpeciesLabel(record, ri);
+        const lengthsByGene = new Map();
+        const candidatesPerGene = new Map();
+        const assignedTrnas = new Set();
+        const recordKey = record.accession || `${label.speciesName}_${ri}`;
+
+        for (const feat of record.features || []) {
+            if (!state.selectedFeatureTypes.has(feat.type)) continue;
+
+            let geneName = null;
+            if (feat.type === "tRNA") {
+                geneName = standardizeTrnaName(feat);
+                if (geneName && assignedTrnas.has(geneName)) {
+                    if (geneName === "tRNA-Ser1") geneName = "tRNA-Ser2";
+                    else if (geneName === "tRNA-Leu1") geneName = "tRNA-Leu2";
+                }
+                if (geneName) assignedTrnas.add(geneName);
+            } else {
+                geneName = resolveSelectedFeatureGeneName(feat, dataType);
+            }
+
+            if (!geneName || !selectedGeneSet.has(geneName)) continue;
+
+            let len = 0;
+            try {
+                const seq = extractSequence(record.sequence, feat.locationStr);
+                len = seq ? seq.length : 0;
+            } catch {
+                len = getFeatureLengthBp(feat, record.sequence?.length || 0);
+            }
+            if (!len) continue;
+
+            const list = candidatesPerGene.get(geneName) || [];
+            list.push({ len });
+            candidatesPerGene.set(geneName, list);
+        }
+
+        for (const [geneName, candidates] of candidatesPerGene) {
+            const choiceKey = getDuplicateChoiceKey(recordKey, geneName);
+            const longestIndex = candidates.reduce((bestIndex, candidate, index, all) => (
+                candidate.len > all[bestIndex].len ? index : bestIndex
+            ), 0);
+            const selectedIndex = state.duplicateGeneChoices.has(choiceKey)
+                ? state.duplicateGeneChoices.get(choiceKey)
+                : longestIndex;
+            const chosen = candidates[selectedIndex] || candidates[longestIndex];
+            if (chosen) lengthsByGene.set(geneName, chosen.len);
+        }
+
+        return { ...label, originalIndex: ri, lengthsByGene };
+    }).sort((a, b) => a.speciesName.localeCompare(b.speciesName));
+
+    return rows;
+}
+
+function buildMarkerLengthColumnStats(selectedGenes, rows) {
+    const stats = new Map();
+    selectedGenes.forEach((gene) => {
+        const values = rows
+            .map((row) => row.lengthsByGene.get(gene))
+            .filter((value) => Number.isFinite(value) && value > 0);
+        stats.set(gene, {
+            min: values.length ? Math.min(...values) : 0,
+            max: values.length ? Math.max(...values) : 1,
+        });
+    });
+    return stats;
+}
+
+function markerLengthHeatColor(value, stat) {
+    if (!Number.isFinite(value) || value <= 0) {
+        return { bg: "#f3f4f6", color: "#6b7280", ratio: 0, equalColumn: false };
+    }
+
+    const min = stat?.min ?? value;
+    const max = stat?.max ?? value;
+    if (max === min) {
+        return { bg: "#ffffff", color: "#111827", ratio: 0.5, equalColumn: true };
+    }
+
+    const ratio = (value - min) / Math.max(1, max - min);
+    const rgb = interpolateRgb([191, 0, 48], [58, 71, 171], ratio);
+    return {
+        bg: rgbToCss(rgb),
+        color: "#ffffff",
+        ratio,
+        equalColumn: false,
+    };
+}
+
+function renderHighchartsMarkerLengthHeatmap(container, selectedGenes, rows) {
+    if (!container || selectedGenes.length === 0 || rows.length === 0) return;
+    const columnStats = buildMarkerLengthColumnStats(selectedGenes, rows);
+    const data = [];
+
+    rows.forEach((row, y) => {
+        selectedGenes.forEach((gene, x) => {
+            const value = row.lengthsByGene.has(gene) ? row.lengthsByGene.get(gene) : null;
+            const stat = columnStats.get(gene);
+            const colorInfo = markerLengthHeatColor(value, stat);
+            data.push({
+                x,
+                y,
+                value,
+                color: colorInfo.bg,
+                dataLabels: { style: { color: colorInfo.color, textOutline: "none" } },
+                equalColumn: colorInfo.equalColumn === true,
+                columnMin: stat?.min ?? 0,
+                columnMax: stat?.max ?? 0,
+                speciesName: row.speciesName,
+                accession: row.accession,
+                gene,
+            });
+        });
+    });
+
+    const manyCells = rows.length * selectedGenes.length > 180;
+    const minWidth = Math.max(760, 220 + selectedGenes.length * 92);
+    const minHeight = Math.max(360, 120 + rows.length * 28);
+
+    if (container.clientWidth < 10) {
+        requestAnimationFrame(() => renderHighchartsMarkerLengthHeatmap(container, selectedGenes, rows));
+        return;
+    }
+
+    const yAxisSpeciesLabels = rows.map((row) => row.speciesName);
+    const yAxisAccessions = rows.map((row) => row.accession);
+
+    Highcharts.chart(container, {
+        chart: {
+            type: "heatmap",
+            height: Math.min(Math.max(360, minHeight), 1200),
+            scrollablePlotArea: {
+                minWidth,
+                minHeight,
+            },
+            backgroundColor: "#ffffff",
+            spacingTop: 18,
+            spacingRight: 24,
+            spacingBottom: 24,
+            spacingLeft: 12,
+        },
+        title: { text: null },
+        subtitle: {
+            text: "Each marker column uses its own min and max length scale.",
+            align: "left",
+            style: { color: "#6b7280", fontSize: "12px" },
+        },
+        credits: { enabled: false },
+        exporting: { enabled: false },
+        xAxis: {
+            categories: selectedGenes,
+            title: { text: null },
+            labels: {
+                useHTML: false,
+                rotation: 0,
+                formatter: function () {
+                    const gene = selectedGenes[this.pos] || this.value;
+                    const stat = columnStats.get(gene) || { min: 0, max: 0 };
+                    const range = stat.min && stat.max
+                        ? `${Number(stat.min).toLocaleString()}–${Number(stat.max).toLocaleString()} bp`
+                        : "no values";
+                    return `${gene} (${range})`;
+                },
+                style: { color: "#191b4d", fontWeight: "600", fontSize: "10px", textOverflow: "ellipsis" },
+            },
+            opposite: true,
+        },
+        yAxis: {
+            categories: rows.map((row, index) => String(index)),
+            title: { text: null },
+            reversed: true,
+            labels: {
+                useHTML: false,
+                formatter: function () {
+                    const speciesName = yAxisSpeciesLabels[this.pos] || this.value || "";
+                    const accession = yAxisAccessions[this.pos] || "";
+                    return `<tspan style="font-style:italic">${escHtml(speciesName)}</tspan> <tspan style="fill:#9ca3af">(${escHtml(accession)})</tspan>`;
+                },
+                style: { color: "#374151", fontSize: "12px", whiteSpace: "nowrap" },
+            },
+        },
+        legend: { enabled: false },
+        tooltip: {
+            useHTML: true,
+            formatter: function () {
+                const point = this.point;
+                const value = point.value === null || typeof point.value === "undefined"
+                    ? "missing"
+                    : `${Number(point.value).toLocaleString()} bp`;
+                const range = Number(point.columnMin) && Number(point.columnMax)
+                    ? `${Number(point.columnMin).toLocaleString()}–${Number(point.columnMax).toLocaleString()} bp`
+                    : "no comparable values";
+                return `<strong>${escHtml(point.gene)}</strong><br>` +
+                    `<em>${escHtml(point.speciesName)}</em><br>` +
+                    `${escHtml(point.accession)}<br>` +
+                    `<span style="color:#323795;font-weight:700">${value}</span><br>` +
+                    `<span style="color:#6b7280">Column min–max: ${range}</span>`;
+            },
+        },
+        plotOptions: {
+            series: {
+                borderWidth: 1,
+                borderColor: "#ffffff",
+                nullColor: "#f3f4f6",
+                dataLabels: {
+                    enabled: !manyCells,
+                    formatter: function () {
+                        return this.point.value ? Number(this.point.value).toLocaleString() : "";
+                    },
+                    style: { textOutline: "none", fontSize: "10px", fontWeight: "700" },
+                },
+            },
+        },
+        series: [{
+            name: "Marker length",
+            data,
+            turboThreshold: 0,
+        }],
+        accessibility: {
+            enabled: false,
+        },
+    });
+}
+
+function renderFallbackMarkerLengthHeatmap(container, selectedGenes, rows) {
+    const columnStats = buildMarkerLengthColumnStats(selectedGenes, rows);
+
+    function valueStyle(value, gene) {
+        const stat = columnStats.get(gene);
+        const colorInfo = markerLengthHeatColor(value, stat);
+        return `background:${colorInfo.bg};color:${colorInfo.color};`;
+    }
+
+    let html = `<div class="text-xs text-gray-500 mb-2">Each marker column uses its own min and max length scale.</div>`;
+    html += `<div class="marker-length-heatmap-wrap">`;
+    html += `<table class="marker-length-heatmap-table" style="min-width:${Math.max(760, 220 + selectedGenes.length * 88)}px;width:100%;">`;
+    html += `<thead><tr><th class="marker-length-heatmap-species px-2 py-2 text-left">Species</th>`;
+    selectedGenes.forEach((gene) => {
+        const stat = columnStats.get(gene) || { min: 0, max: 0 };
+        const range = stat.min && stat.max ? `${stat.min.toLocaleString()}–${stat.max.toLocaleString()} bp` : "no values";
+        html += `<th class="px-2 py-2 text-center text-xs text-splace-blue-900" data-tippy-content="Column min-max: ${escHtml(range)}"><div class="font-bold">${escHtml(gene)}</div><div class="font-normal text-[10px] text-gray-500">${escHtml(range)}</div></th>`;
+    });
+    html += `</tr></thead><tbody>`;
+    rows.forEach((row) => {
+        html += `<tr><td class="marker-length-heatmap-species px-2 py-1.5 whitespace-nowrap"><em>${escHtml(row.speciesName)}</em> <span class="text-gray-400">(${escHtml(row.accession)})</span></td>`;
+        selectedGenes.forEach((gene) => {
+            const value = row.lengthsByGene.get(gene) || 0;
+            const stat = columnStats.get(gene) || { min: 0, max: 0 };
+            const range = stat.min && stat.max ? `${stat.min.toLocaleString()}–${stat.max.toLocaleString()} bp` : "no values";
+            const colorInfo = markerLengthHeatColor(value, stat);
+            const equalClass = colorInfo.equalColumn ? " marker-length-equal" : "";
+            html += `<td class="marker-length-heatmap-cell${equalClass} px-2 py-1.5 text-center font-semibold" style="${valueStyle(value, gene)}" data-tippy-content="${escHtml(gene)}: ${value ? value.toLocaleString() + ' bp' : 'missing'}. Column min-max: ${range}">${value ? value.toLocaleString() : "—"}</td>`;
+        });
+        html += `</tr>`;
+    });
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+    container.querySelectorAll("[data-tippy-content]").forEach((el) => {
+        const htmlContent = el.getAttribute("data-tippy-content") || "";
+        const titleText = htmlContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (titleText) {
+            el.setAttribute("title", titleText);
+            el.setAttribute("aria-label", titleText);
+        }
+        window.createTippy && window.createTippy(el, htmlContent);
+    });
+}
+
+
+
+let highchartsAssetLoadPromise = null;
+let markerLengthHeatmapRenderToken = 0;
+
+function isDesktopRuntime() {
+    return Boolean(window.isElectron && window.electronAPI);
+}
+
+function syncRuntimeAttribute() {
+    document.documentElement.dataset.runtime = isDesktopRuntime() ? "desktop" : "web";
+}
+
+function syncPythonRuntimeCard() {
+    const card = document.getElementById("pythonRuntimeCard");
+    if (!card) return;
+    const isCodon = document.getElementById("alignSeqCodon")?.checked === true;
+    card.classList.toggle("hidden", !(isDesktopRuntime() && isCodon));
+}
+
+function syncCodonTrimToolUi() {
+    const section = document.getElementById("codonTrimToolSection");
+    const modeRow = document.getElementById("clipkitModeRow");
+    const tool = document.getElementById("codonTrimTool")?.value || "auto";
+    const isCodon = window._codonMode === true || document.getElementById("alignSeqCodon")?.checked === true;
+    if (section) section.classList.toggle("hidden", !isCodon);
+    if (modeRow) modeRow.classList.toggle("hidden", !(isCodon && tool === "clipkit"));
+}
+
+async function checkPythonRuntime() {
+    const statusEl = document.getElementById("pythonRuntimeStatus");
+    if (!statusEl) return;
+    if (!window.electronAPI?.checkPythonEnvironment) {
+        statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Desktop Python bridge is unavailable.</span><br><span class="text-gray-500">Replace both <code>electron/main.js</code> and <code>electron/preload.js</code>, then restart SPLACE.</span>`;
+        return;
+    }
+    statusEl.textContent = "Checking Python and ClipKIT…";
+    try {
+        const result = await window.electronAPI.checkPythonEnvironment();
+        if (result?.ipcError) {
+            statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Desktop Python bridge is not registered.</span><br><span class="text-gray-500">${escHtml(result.error || "Replace electron/main.js and restart SPLACE.")}</span>`;
+            return;
+        }
+        const pythonText = result?.pythonFound
+            ? `Python ${result.version || "detected"} at ${result.executable || "system PATH"}`
+            : "Python was not found.";
+        const clipkitText = result?.clipkitFound
+            ? `ClipKIT ${result.clipkitVersion || "detected"}`
+            : "ClipKIT is not installed.";
+        statusEl.innerHTML = `<span class="font-semibold ${result?.pythonFound ? "text-splace-blue-700" : "text-splace-red-700"}">${escHtml(pythonText)}</span><br><span class="${result?.clipkitFound ? "text-splace-blue-700" : "text-amber-700"}">${escHtml(clipkitText)}</span>`;
+    } catch (error) {
+        statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Python check failed.</span><br><span class="text-gray-500">${escHtml(error?.message || String(error))}</span><br><span class="text-gray-500">Make sure the updated <code>electron/main.js</code> is in place and restart the Electron app.</span>`;
+    }
+}
+
+async function installPythonPackagesForSplace() {
+    const statusEl = document.getElementById("pythonRuntimeStatus");
+    if (!statusEl) return;
+    if (!window.electronAPI?.installPythonPackages) {
+        statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Desktop Python bridge is unavailable.</span><br><span class="text-gray-500">Replace both <code>electron/main.js</code> and <code>electron/preload.js</code>, then restart SPLACE.</span>`;
+        return;
+    }
+    statusEl.textContent = "Installing ClipKIT with pip…";
+    try {
+        const result = await window.electronAPI.installPythonPackages({ packages: ["clipkit"] });
+        if (result?.success) {
+            statusEl.innerHTML = `<span class="font-semibold text-splace-blue-700">ClipKIT installed or upgraded successfully.</span><br><span class="text-gray-500">${escHtml(result.output || "")}</span>`;
+            await checkPythonRuntime();
+        } else {
+            statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Install failed.</span><br><span class="text-gray-500 whitespace-pre-wrap">${escHtml(result?.error || result?.output || "Unknown error")}</span>`;
+        }
+    } catch (error) {
+        statusEl.textContent = `Install failed: ${error?.message || error}`;
+    }
+}
+
+async function ensureClipkitIfRequested(trimTool) {
+    if (trimTool !== "clipkit") return true;
+    if (!window.electronAPI?.checkPythonEnvironment) return true;
+    try {
+        const result = await window.electronAPI.checkPythonEnvironment();
+        if (result?.pythonFound && result?.clipkitFound) return true;
+    } catch (error) {
+        alert(`ClipKIT check failed: ${error?.message || error}. Replace electron/main.js and electron/preload.js, then restart SPLACE.`);
+        return false;
+    }
+    alert("ClipKIT requires Python with the clipkit package installed. Use the Check Python and Install ClipKIT buttons in Sequence Type first, or choose trimAl/Auto.");
+    return false;
+}
+
+function loadScriptOnce(src, globalCheck) {
+    if (globalCheck && globalCheck()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+        if (!src) return resolve(false);
+        const existing = document.querySelector(`script[data-splace-src="${CSS.escape(src)}"]`);
+        if (existing) {
+            existing.addEventListener("load", () => resolve(true), { once: true });
+            existing.addEventListener("error", () => resolve(false), { once: true });
+            if (globalCheck && globalCheck()) resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = src;
+        script.dataset.splaceSrc = src;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+    });
+}
+
+async function ensureDesktopHighchartsLoaded() {
+    if (window.Highcharts?.chart) return true;
+    if (!isDesktopRuntime() || !window.electronAPI) return false;
+
+    if (!highchartsAssetLoadPromise) {
+        highchartsAssetLoadPromise = (async () => {
+            let lastError = null;
+
+            async function tryAssetUrls() {
+                if (!window.electronAPI.getHighchartsAssetUrls) return false;
+                const urls = await window.electronAPI.getHighchartsAssetUrls();
+                const loadedCore = await loadScriptOnce(urls?.highcharts, () => Boolean(window.Highcharts?.chart));
+                if (!loadedCore) return false;
+                await loadScriptOnce(urls?.heatmap, () => Boolean(window.Highcharts?.seriesTypes?.heatmap));
+                await loadScriptOnce(urls?.accessibility, () => Boolean(window.Highcharts?.AST || window.Highcharts?.A11yChartUtilities));
+                return Boolean(window.Highcharts?.chart && window.Highcharts?.seriesTypes?.heatmap);
+            }
+
+            async function tryInlineAssets() {
+                if (!window.electronAPI.loadHighchartsAssets) return false;
+                const assets = await window.electronAPI.loadHighchartsAssets();
+                const scripts = [assets?.highcharts, assets?.heatmap, assets?.accessibility];
+                for (const code of scripts) {
+                    if (!code) continue;
+                    const blob = new Blob([code], { type: "text/javascript" });
+                    const url = URL.createObjectURL(blob);
+                    await loadScriptOnce(url, null);
+                    URL.revokeObjectURL(url);
+                }
+                return Boolean(window.Highcharts?.chart && window.Highcharts?.seriesTypes?.heatmap);
+            }
+
+            try {
+                const ok = await tryAssetUrls();
+                if (ok) return true;
+            } catch (error) {
+                lastError = error;
+                console.warn("Highcharts asset URL loading failed; trying inline desktop assets.", error);
+            }
+
+            try {
+                const ok = await tryInlineAssets();
+                if (ok) return true;
+            } catch (error) {
+                lastError = error;
+                console.warn("Highcharts inline loading failed.", error);
+            }
+
+            if (lastError) {
+                console.warn("Highcharts could not be loaded from the desktop package.", lastError);
+            }
+            return false;
+        })();
+    }
+    return highchartsAssetLoadPromise;
+}
+
+async function renderMarkerLengthHeatmap() {
+    syncRuntimeAttribute();
+    const section = document.getElementById("markerLengthHeatmapSection");
+    const container = document.getElementById("markerLengthHeatmapContainer");
+    if (!section || !container) return;
+
+    const selectedGenes = [...state.selectedGenes].sort();
+    if (!isDesktopRuntime() || selectedGenes.length === 0 || state.records.length === 0) {
+        section.classList.add("hidden");
+        container.innerHTML = "";
+        return;
+    }
+
+    const renderToken = ++markerLengthHeatmapRenderToken;
+    const rows = collectSelectedMarkerLengthMatrix(selectedGenes);
+    if (rows.length === 0) {
+        section.classList.add("hidden");
+        container.innerHTML = "";
+        return;
+    }
+    section.classList.remove("hidden");
+    container.innerHTML = `<div class="text-sm text-gray-500 p-4">Loading desktop Highcharts heatmap…</div>`;
+
+    const highchartsReady = await ensureDesktopHighchartsLoaded();
+    if (renderToken !== markerLengthHeatmapRenderToken) return;
+
+    if (highchartsReady) {
+        renderHighchartsMarkerLengthHeatmap(container, selectedGenes, rows);
+    } else {
+        container.innerHTML = `<div class="text-sm text-splace-red-700 bg-splace-red-50 border border-splace-red-100 rounded-xl p-3 mb-3">Highcharts is not available in the desktop package. Run <code>npm install highcharts --save</code> in the Electron folder and restart SPLACE.</div>`;
+        renderFallbackMarkerLengthHeatmap(container, selectedGenes, rows);
+    }
+}
+
 // ========================================================================
 // UI Event Handlers
 // ========================================================================
@@ -2429,7 +3272,6 @@ function fillTaxonomySearchExample() {
     document.getElementById("taxonomyOrganelleSelect").value = "mitochondrion";
     document.getElementById("taxonomyRefseqOnly").checked = true;
     document.getElementById("taxonomyCompleteCheckbox").checked = true;
-    document.getElementById("taxonomyPartialCheckbox").checked = false;
     validateTaxonomySearchInput();
 }
 
@@ -2446,7 +3288,7 @@ function validateTaxonomySearchInput() {
     const raw = document.getElementById("taxonomySearchInput")?.value || "";
     const btn = document.getElementById("taxonomySearchBtn");
     const scopes = getSelectedGenomeScopes();
-    if (btn) btn.disabled = raw.trim().length < 3 || scopes.length === 0;
+    if (btn) btn.disabled = raw.trim().length < 3;
 
     const previewEl = document.getElementById("taxonomyQueryPreview");
     if (!previewEl) return;
@@ -2493,6 +3335,19 @@ function i18nText(key, fallbackOrParams, maybeParams) {
     }
 
     return value;
+}
+
+function getDefaultCodonFallbackGeneticCode() {
+    return state.detectedDataType === "cp" ? "11" : "2";
+}
+
+function syncCodonUiDefaults(force = false) {
+    const geneticCodeSelect = document.getElementById("alignGeneticCode");
+    if (!geneticCodeSelect) return;
+
+    if (force || geneticCodeSelect.dataset.userSelected !== "true") {
+        geneticCodeSelect.value = getDefaultCodonFallbackGeneticCode();
+    }
 }
 
 // ========================================================================
@@ -3033,21 +3888,95 @@ function generateFastaFiles() {
 // Codon-aware helpers: CDS validation + JS translation
 // -----------------------------------------------------------------------
 
+function getGeneticCodeName(code) {
+    const select = document.getElementById("alignGeneticCode");
+    const option = select?.querySelector(`option[value="${code}"]`);
+    return option ? option.textContent.trim() : `NCBI ${code}`;
+}
+
+function getCodonRunOptions() {
+    const fallbackGeneticCode = String(
+        parseInt(document.getElementById("alignGeneticCode")?.value, 10) ||
+        parseInt(getDefaultCodonFallbackGeneticCode(), 10)
+    );
+
+    return {
+        fallbackGeneticCode,
+        fallbackGeneticCodeName: getGeneticCodeName(fallbackGeneticCode),
+        allowPseudo: document.getElementById("codonAllowPseudo")?.checked === true,
+        allowBacktranslationWarnings: document.getElementById("codonAllowBacktranslationWarnings")?.checked === true,
+        internalStopPolicy: document.getElementById("codonAllowInternalStops")?.checked === true
+            ? "allow-with-warning"
+            : "exclude",
+    };
+}
+
+function normalizeQualifierText(value) {
+    return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function resolveCodonGeneName(feat, dataType) {
+    const rawGene = normalizeQualifierText(feat.qualifiers.gene);
+    const rawProduct = normalizeQualifierText(feat.qualifiers.product);
+    const directMatch = standardizeGeneName(rawGene || null, rawProduct || null, dataType);
+    if (directMatch) return directMatch;
+
+    const fallbackFields = [
+        normalizeQualifierText(feat.qualifiers.note),
+        normalizeQualifierText(feat.qualifiers.locus_tag),
+        normalizeQualifierText(feat.qualifiers.gene_synonym),
+    ].filter(Boolean);
+
+    for (const fallbackField of fallbackFields) {
+        const fallbackMatch = standardizeGeneName(rawGene || fallbackField, fallbackField, dataType);
+        if (fallbackMatch) return fallbackMatch;
+    }
+
+    return rawGene || rawProduct || fallbackFields[0] || null;
+}
+
+function resolveSelectedFeatureGeneName(feat, dataType) {
+    if (feat.type === "tRNA") return standardizeTrnaName(feat);
+    return resolveCodonGeneName(feat, dataType);
+}
+
+function isPseudoCdsFeature(feat) {
+    const qualifiers = feat?.qualifiers || {};
+    return Object.prototype.hasOwnProperty.call(qualifiers, "pseudo") ||
+        Object.prototype.hasOwnProperty.call(qualifiers, "pseudogene");
+}
+
+function resolveCodonFeatureGeneticCode(feat, fallbackGeneticCode) {
+    const featureCode = parseInt(feat.qualifiers.transl_table, 10);
+    if (featureCode) return featureCode;
+
+    const parsedFallback = parseInt(fallbackGeneticCode, 10);
+    if (parsedFallback) return parsedFallback;
+
+    return parseInt(getDefaultCodonFallbackGeneticCode(), 10);
+}
+
 /**
  * Validate a single CDS DNA sequence and translate it to protein.
  * Returns { validDna, protein } where validDna has the terminal stop codon
  * removed (if present), so protein length * 3 === validDna.length.
  * Returns null if validation fails.
  */
-function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, logFn) {
+function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, options, logFn) {
     if (!dna || dna.length === 0) {
-        logFn(`[${geneName}] SKIP "${seqHeader}": empty sequence`);
+        logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": empty sequence`);
         return null;
     }
-    const tableKey = String(translTable || 1);
-    const table = GENETIC_CODE_TABLES[tableKey] || GENETIC_CODE_TABLES["1"];
+
+    const fallbackCode = String(parseInt(options?.fallbackGeneticCode, 10) || parseInt(getDefaultCodonFallbackGeneticCode(), 10));
+    const internalStopPolicy = options?.internalStopPolicy || "exclude";
+
+    let tableKey = String(translTable || fallbackCode);
+    let table = GENETIC_CODE_TABLES[tableKey] || GENETIC_CODE_TABLES[fallbackCode] || GENETIC_CODE_TABLES["1"];
     if (!GENETIC_CODE_TABLES[tableKey]) {
-        logFn(`[${geneName}] WARN "${seqHeader}": unknown transl_table ${translTable}, using Standard (1)`);
+        logFn(`[Translation] [${geneName}] WARN "${seqHeader}": unknown transl_table ${translTable}, using fallback ${getGeneticCodeName(fallbackCode)}`);
+        tableKey = fallbackCode;
+        table = GENETIC_CODE_TABLES[tableKey] || GENETIC_CODE_TABLES["1"];
     }
 
     let workDna = dna.toUpperCase().replace(/U/g, "T");
@@ -3059,21 +3988,21 @@ function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, 
         const remainder = workDna.length % 3;
         const terminal = workDna.slice(-remainder);
         if (remainder === 1 && terminal === "T") {
-            logFn(`[${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment T (${dna.length} bp → ${dna.length - 1} bp)`);
+            logFn(`[CDS validation] [${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment T (${dna.length} bp → ${dna.length - 1} bp)`);
             workDna = workDna.slice(0, -1);
             normalized = true;
         } else if (remainder === 2 && terminal === "TA") {
-            logFn(`[${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment TA (${dna.length} bp → ${dna.length - 2} bp)`);
+            logFn(`[CDS validation] [${geneName}] "${seqHeader}": removed terminal incomplete stop codon fragment TA (${dna.length} bp → ${dna.length - 2} bp)`);
             workDna = workDna.slice(0, -2);
             normalized = true;
         } else {
-            logFn(`[${geneName}] SKIP "${seqHeader}": length ${dna.length} bp is not a multiple of 3 (terminal "${terminal}" is not a recognizable incomplete stop fragment)`);
+            logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": length ${dna.length} bp is not a multiple of 3 (terminal "${terminal}" is not a recognizable incomplete stop fragment)`);
             return null;
         }
     }
 
     if (workDna.length === 0) {
-        logFn(`[${geneName}] SKIP "${seqHeader}": sequence empty after normalization`);
+        logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": sequence empty after normalization`);
         return null;
     }
 
@@ -3094,26 +4023,49 @@ function validateAndTranslateCdsForCodon(geneName, seqHeader, dna, translTable, 
     let validDna;
 
     if (lastAa === "*") {
-        validDna = workDna.slice(0, -3);  // remove terminal stop codon from DNA
-        logFn(`[${geneName}] "${seqHeader}": removed terminal stop codon ${lastCodon} (${workDna.length / 3} codons, code ${translTable})`);
+        validDna = workDna.slice(0, -3);
+        logFn(`[CDS validation] [${geneName}] "${seqHeader}": removed terminal stop codon ${lastCodon} (${workDna.length / 3} codons, code ${tableKey})`);
         // protein already excludes the last codon
     } else {
         protein += lastAa;
         validDna = workDna;
-        logFn(`[${geneName}] "${seqHeader}": ${workDna.length / 3} codons, no terminal stop (code ${translTable})`);
+        logFn(`[CDS validation] [${geneName}] "${seqHeader}": ${workDna.length / 3} codons, no terminal stop (code ${tableKey})`);
+    }
+
+    if (!validDna || validDna.length === 0) {
+        logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": no validated CDS remains after terminal stop removal`);
+        return null;
+    }
+
+    if (validDna.length % 3 !== 0) {
+        logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": validated CDS length ${validDna.length} bp is not divisible by 3`);
+        return null;
     }
 
     if (internalStops > 0) {
-        logFn(`[${geneName}] WARN "${seqHeader}": ${internalStops} internal stop codon(s) — verify genetic code`);
+        if (internalStopPolicy === "exclude") {
+            logFn(`[CDS validation] [${geneName}] SKIP "${seqHeader}": ${internalStops} internal stop codon(s) detected (policy: exclude)`);
+            return null;
+        }
+        logFn(`[Translation] [${geneName}] WARN "${seqHeader}": ${internalStops} internal stop codon(s) detected (policy: allow with warning)`);
     }
 
-    return { validDna, protein, normalized, terminalStopRemoved: lastAa === "*", internalStops };
+    return {
+        validDna,
+        protein,
+        normalized,
+        terminalStopRemoved: lastAa === "*",
+        internalStops,
+        internalStopPolicy,
+        translTableUsed: tableKey,
+    };
 }
 
 // Build perGeneCandidates Map from state.records (first phase of codon validation).
-function buildCodonCandidates(defaultGeneticCode, logFn) {
+function buildCodonCandidates(options, logFn) {
     const dataType = state.detectedDataType;
     const perGeneCandidates = new Map();
+    const selectedGeneTypes = new Map();
 
     for (const record of state.records) {
         const candidatesPerGene = new Map();
@@ -3122,25 +4074,42 @@ function buildCodonCandidates(defaultGeneticCode, logFn) {
         const recordKey = record.accession || headerName;
 
         for (const feat of record.features) {
+            const selectedGeneName = resolveSelectedFeatureGeneName(feat, dataType);
+            if (selectedGeneName && state.selectedGenes.has(selectedGeneName)) {
+                const types = selectedGeneTypes.get(selectedGeneName) || new Set();
+                types.add(feat.type);
+                selectedGeneTypes.set(selectedGeneName, types);
+            }
+
             if (feat.type !== "CDS") continue;
-            const rawGene = feat.qualifiers.gene || null;
-            const rawProduct = feat.qualifiers.product || null;
-            const geneName = standardizeGeneName(rawGene, rawProduct, dataType);
+
+            const geneName = resolveCodonGeneName(feat, dataType);
             if (!geneName || !state.selectedGenes.has(geneName)) continue;
 
-            const rawSeq = extractSequence(record.sequence, feat.locationStr);
-            if (!rawSeq) continue;
+            if (isPseudoCdsFeature(feat) && !options.allowPseudo) {
+                logFn(`[CDS extraction] [${geneName}] SKIP "${headerName}": /pseudo or /pseudogene CDS excluded by policy`);
+                continue;
+            }
 
-            const codonStart = parseInt(feat.qualifiers.codon_start) || 1;
+            const rawSeq = extractSequence(record.sequence, feat.locationStr);
+            if (!rawSeq) {
+                logFn(`[CDS extraction] [${geneName}] SKIP "${headerName}": unable to extract CDS sequence from GenBank location`);
+                continue;
+            }
+
+            const codonStart = parseInt(feat.qualifiers.codon_start, 10) || 1;
             const offset = Math.max(0, codonStart - 1);
             const seq = offset > 0 ? rawSeq.slice(offset) : rawSeq;
             if (offset > 0) {
-                logFn(`[${geneName}] "${headerName}": /codon_start=${codonStart}, trimmed ${offset} bp`);
+                logFn(`[CDS extraction] [${geneName}] "${headerName}": /codon_start=${codonStart}, trimmed ${offset} bp`);
             }
 
-            const translTable = parseInt(feat.qualifiers.transl_table) || parseInt(defaultGeneticCode) || 2;
+            const translTable = resolveCodonFeatureGeneticCode(feat, options.fallbackGeneticCode);
+            const translTableSource = parseInt(feat.qualifiers.transl_table, 10)
+                ? "/transl_table"
+                : `fallback ${getGeneticCodeName(options.fallbackGeneticCode)}`;
             const existing = candidatesPerGene.get(geneName) || [];
-            existing.push({ header: headerName, seq, translTable, len: seq.length });
+            existing.push({ header: headerName, seq, translTable, translTableSource, len: seq.length });
             candidatesPerGene.set(geneName, existing);
         }
 
@@ -3159,53 +4128,204 @@ function buildCodonCandidates(defaultGeneticCode, logFn) {
         }
     }
 
-    return perGeneCandidates;
+    const cdsSelectedMarkers = [...state.selectedGenes]
+        .filter((geneName) => selectedGeneTypes.get(geneName)?.has("CDS"))
+        .sort();
+    const nonCdsMarkers = [...state.selectedGenes]
+        .filter((geneName) => {
+            const featureTypes = selectedGeneTypes.get(geneName);
+            return featureTypes && !featureTypes.has("CDS");
+        })
+        .sort();
+
+    return {
+        perGeneCandidates,
+        summary: {
+            cdsSelectedMarkers,
+            nonCdsMarkers,
+        },
+    };
 }
 
 // Validate and translate one gene entry from perGeneCandidates.
 // Returns { cdsDnaFasta, proteinFasta, stats } or null if not enough valid seqs.
-function processCodonGeneEntry(geneName, seqs, logFn) {
+function processCodonGeneEntry(geneName, seqs, options, logFn) {
     const headerCounts = {};
     for (const s of seqs) headerCounts[s.header] = (headerCounts[s.header] || 0) + 1;
     const dupHeaders = Object.entries(headerCounts).filter(([, c]) => c > 1).map(([h]) => h);
-    if (dupHeaders.length) logFn(`[${geneName}] WARN: duplicate headers detected — ${dupHeaders.join("; ")}`);
+    if (dupHeaders.length) logFn(`[CDS extraction] [${geneName}] WARN: duplicate headers detected — ${dupHeaders.join("; ")}`);
 
-    const codesUsed = [...new Set(seqs.map(s => s.translTable))];
-    logFn(`[${geneName}] genetic code(s): ${codesUsed.join(", ")} (${seqs.length} seq)`);
+    const codesUsed = [...new Set(seqs.map((s) => String(s.translTable)))];
+    const codeNames = codesUsed.map((code) => getGeneticCodeName(code));
+    logFn(`[CDS extraction] [${geneName}] genetic code(s): ${codeNames.join(", ")} (${seqs.length} seq)`);
 
     let cdsDnaFasta = "", proteinFasta = "";
+    const sequenceMeta = {};
     let validCount = 0, skipCount = 0, normalizedCount = 0;
     let terminalStopsRemoved = 0, incompleteStopFragmentsRemoved = 0, internalStopsDetected = 0;
 
     for (const s of seqs) {
-        const validated = validateAndTranslateCdsForCodon(geneName, s.header, s.seq, s.translTable, logFn);
+        const validated = validateAndTranslateCdsForCodon(geneName, s.header, s.seq, s.translTable, options, logFn);
         if (!validated) { skipCount++; continue; }
         if (validated.normalized) { normalizedCount++; incompleteStopFragmentsRemoved++; }
         if (validated.terminalStopRemoved) terminalStopsRemoved++;
         internalStopsDetected += validated.internalStops || 0;
         cdsDnaFasta += `>${s.header}\n${validated.validDna}\n`;
         proteinFasta += `>${s.header}\n${validated.protein}\n`;
+        sequenceMeta[s.header] = {
+            geneticCode: validated.translTableUsed,
+            geneticCodeName: getGeneticCodeName(validated.translTableUsed),
+            protein: validated.protein,
+            validDnaLength: validated.validDna.length,
+        };
         validCount++;
     }
 
     const rawCount = seqs.length;
+    const stats = {
+        rawCount,
+        validCount,
+        skippedCount: skipCount,
+        normalizedCount,
+        terminalStopsRemoved,
+        incompleteStopFragmentsRemoved,
+        internalStopsDetected,
+        internalStopPolicy: options.internalStopPolicy,
+        geneticCodesUsed: codesUsed,
+        geneticCode: codesUsed.length === 1 ? codesUsed[0] : String(options.fallbackGeneticCode),
+        geneticCodeName: codesUsed.length === 1
+            ? getGeneticCodeName(codesUsed[0])
+            : codeNames.join(", "),
+    };
+
     if (validCount < 2) {
-        logFn(`[${geneName}] SKIP: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized${validCount < 2 ? " (minimum 2 required)" : ""}`);
-        return null;
+        logFn(`[CDS validation] [${geneName}] SKIP: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized (minimum 2 required)`);
+        return { eligible: false, cdsDnaFasta, proteinFasta, stats, sequenceMeta };
     }
-    logFn(`[${geneName}] OK: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized`);
-    return { cdsDnaFasta, proteinFasta, stats: { terminalStopsRemoved, incompleteStopFragmentsRemoved, internalStopsDetected } };
+    logFn(`[CDS validation] [${geneName}] OK: ${rawCount} raw | ${validCount} valid | ${skipCount} skipped | ${normalizedCount} normalized`);
+    return { eligible: true, cdsDnaFasta, proteinFasta, stats, sequenceMeta };
 }
 
 function generateCodonFastaPair(defaultGeneticCode, logFn) {
-    const perGeneCandidates = buildCodonCandidates(defaultGeneticCode, logFn);
+    const options = typeof defaultGeneticCode === "object"
+        ? defaultGeneticCode
+        : {
+            ...getCodonRunOptions(),
+            fallbackGeneticCode: String(defaultGeneticCode || getDefaultCodonFallbackGeneticCode()),
+            fallbackGeneticCodeName: getGeneticCodeName(String(defaultGeneticCode || getDefaultCodonFallbackGeneticCode())),
+        };
+    const candidateContext = buildCodonCandidates(options, logFn);
     const result = new Map();
-    for (const [geneName, seqs] of perGeneCandidates) {
-        const pair = processCodonGeneEntry(geneName, seqs, logFn);
-        if (pair) result.set(geneName, pair);
+    for (const [geneName, seqs] of candidateContext.perGeneCandidates) {
+        const pair = processCodonGeneEntry(geneName, seqs, options, logFn);
+        if (pair?.eligible) result.set(geneName, pair);
     }
     return result;
 }
+
+window.runCodonAwareSelfTest = function () {
+    const silentLog = () => { };
+    const mtOptions = { fallbackGeneticCode: "2", internalStopPolicy: "exclude" };
+    const cpOptions = { fallbackGeneticCode: "11", internalStopPolicy: "exclude" };
+
+    const terminalStop = validateAndTranslateCdsForCodon("TEST", "terminal-stop", "ATGTAG", 2, mtOptions, silentLog);
+    const incompleteStop = validateAndTranslateCdsForCodon("TEST", "incomplete-stop", "ATGTA", 2, mtOptions, silentLog);
+    const mtTranslation = validateAndTranslateCdsForCodon("TEST", "mt-code", "ATATGATAA", 2, mtOptions, silentLog);
+    const cpTranslation = validateAndTranslateCdsForCodon("TEST", "cp-code", "ATATTTTAA", 11, cpOptions, silentLog);
+    const backtranslated = backTranslateProteinAlignment("M-F", "ATGTTT");
+    const integrity = getCodonIntegrityChecks([
+        { name: "tax1", seq: backtranslated },
+        { name: "tax2", seq: "ATA---TTT" },
+    ]);
+    const partitions = [{ gene: "geneA", start: 1, end: 9, len: 9 }];
+    const noThirdSeq = removeThirdCodonPositionsFromSequence("ATGCCCTTT");
+    const concatFixture = {
+        alignedSeqs: [
+            { name: "tax1", seq: "ATGCCCTTT" },
+            { name: "tax2", seq: "ATA---TTT" },
+        ],
+        partitions,
+        geneOrder: ["geneA"],
+        geneSeqs: {
+            geneA: {
+                tax1: "ATGCCCTTT",
+                tax2: "ATA---TTT",
+            },
+        },
+        geneLens: { geneA: 9 },
+        allSpecies: ["tax1", "tax2"],
+        totalLen: 9,
+        missingReport: [],
+    };
+    const noThirdMatrix = buildNoThirdCodonMatrix(concatFixture);
+    const nexus = buildNexusString([
+        { name: "tax1", seq: "ATG---TTC" },
+        { name: "tax2", seq: "ATA---TTT" },
+    ], partitions, [], "dna", true);
+    const partitionText = buildPartitionString(partitions, true, "dna");
+    const positions12Nexus = buildNexusString(noThirdMatrix.alignedSeqs, noThirdMatrix.partitions, [], "dna", "positions12");
+    const positions12Partition = buildPartitionString(noThirdMatrix.partitions, "positions12", "dna");
+
+    let modalFooterVisible = false;
+    const analysisModal = document.getElementById("analysisModal");
+    const modalShell = analysisModal?.querySelector(".analysis-modal-shell");
+    const modalMain = analysisModal?.querySelector(".analysis-modal-main");
+    const modalFooter = document.getElementById("analysisModalFooter");
+    if (analysisModal && modalShell && modalMain && modalFooter) {
+        const previousHidden = analysisModal.classList.contains("hidden");
+        const previousHeight = modalShell.style.height;
+        const previousMaxHeight = modalShell.style.maxHeight;
+        analysisModal.classList.remove("hidden");
+        modalShell.style.height = "240px";
+        modalShell.style.maxHeight = "240px";
+        refreshManagedModalState("analysisModal");
+        const shellRect = modalShell.getBoundingClientRect();
+        const footerRect = modalFooter.getBoundingClientRect();
+        modalFooterVisible = !modalMain.contains(modalFooter)
+            && footerRect.top >= shellRect.top - 1
+            && footerRect.bottom <= shellRect.bottom + 1;
+        modalShell.style.height = previousHeight;
+        modalShell.style.maxHeight = previousMaxHeight;
+        if (previousHidden) analysisModal.classList.add("hidden");
+        refreshManagedModalState("analysisModal");
+    }
+
+    const results = [
+        { name: "terminal stop removal", pass: terminalStop?.validDna === "ATG" && terminalStop?.protein === "M" },
+        { name: "incomplete stop fragment removal", pass: incompleteStop?.validDna === "ATG" && incompleteStop?.protein === "M" },
+        { name: "NCBI 2 translation", pass: mtTranslation?.protein === "MW" },
+        { name: "NCBI 11 translation", pass: cpTranslation?.protein === "IF" },
+        { name: "back-translation length divisible by 3", pass: backtranslated.length % 3 === 0 },
+        { name: "back-translation gaps in triplets", pass: integrity.gapBlocksAreTriplets && integrity.equalLengths },
+        { name: "codon-position charsets", pass: nexus.includes("charset geneA_pos1 = 1-9\\3;") && partitionText.includes("DNA, geneA_pos3 = 3-9\\3") },
+        { name: "remove third codon positions", pass: noThirdSeq === "ATCCTT" },
+        { name: "no-third matrix is two thirds of original length", pass: noThirdMatrix.originalLength === 9 && noThirdMatrix.noThirdLength === 6 && noThirdMatrix.noThirdLength * 3 === noThirdMatrix.originalLength * 2 },
+        { name: "positions12 partition output", pass: positions12Nexus.includes("charset geneA_pos1 = 1-6\\2;") && positions12Nexus.includes("charset geneA_pos2 = 2-6\\2;") && !positions12Nexus.includes("pos3") && positions12Partition.includes("DNA, geneA_pos2 = 2-6\\2") && !positions12Partition.includes("pos3") },
+        { name: "analysis modal footer stays visible in compact height", pass: modalFooterVisible },
+    ];
+
+    const summary = {
+        pass: results.every((result) => result.pass),
+        results,
+        artifacts: {
+            terminalStopProtein: terminalStop?.protein || null,
+            mtTranslationProtein: mtTranslation?.protein || null,
+            cpTranslationProtein: cpTranslation?.protein || null,
+            backtranslated,
+            noThirdSeq,
+            noThirdMatrix,
+            nexus,
+            partitionText,
+            positions12Nexus,
+            positions12Partition,
+            modalFooterVisible,
+        },
+    };
+
+    console.table(results);
+    console.log("[codon-self-test]", summary);
+    return summary;
+};
 
 function downloadIndividualFasta() {
     const files = generateFastaFiles();
@@ -3381,6 +4501,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const dropZone = document.getElementById("dropZone");
     const fileInput = document.getElementById("fileInput");
 
+    registerManagedModal({
+        modalId: "analysisModal",
+        scrollRegionId: "analysisModalBody",
+        footerId: "analysisModalFooter",
+        scrollCueId: "analysisModalScrollCue",
+        closeButtonId: "analysisModalClose",
+    });
+    registerManagedModal({
+        modalId: "iqtreeModal",
+        scrollRegionId: "iqtreeModalBody",
+        footerId: "iqtreeModalFooter",
+        scrollCueId: "iqtreeModalScrollCue",
+        closeButtonId: "iqtreeModalClose",
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (closeManagedModal("iqtreeModal")) {
+            event.preventDefault();
+            return;
+        }
+        if (closeManagedModal("analysisModal")) {
+            event.preventDefault();
+        }
+    });
+
     window.addEventListener("dragover", (e) => {
         e.preventDefault();
     });
@@ -3419,6 +4564,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("exampleBtn").addEventListener("click", fillExampleAccessions);
     document.getElementById("taxonomySearchExampleBtn").addEventListener("click", fillTaxonomySearchExample);
+    document.getElementById("taxonomyApiHintClose")?.addEventListener("click", dismissTaxonomyApiHint);
     document.getElementById("ncbiApiKeyBtn").addEventListener("click", openNcbiApiKeyModal);
     document.getElementById("ncbiApiKeyModalOverlay").addEventListener("click", closeNcbiApiKeyModal);
     document.getElementById("ncbiApiKeyModalClose").addEventListener("click", closeNcbiApiKeyModal);
@@ -3434,11 +4580,18 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("taxonomyImportDisableUnverified").addEventListener("click", () => setTaxonomyImportSelection("disable-unverified"));
     document.getElementById("taxonomyImportSelectComplete").addEventListener("click", () => setTaxonomyImportSelection("complete"));
     document.getElementById("taxonomyImportSelectPartial").addEventListener("click", () => setTaxonomyImportSelection("partial"));
+    document.getElementById("taxonomyImportSearchInput")?.addEventListener("input", renderTaxonomyImportCandidates);
     document.getElementById("taxonomyImportConfirm").addEventListener("click", () => {
         const selectedIds = state.taxonomyImportCandidates
             .filter((candidate) => candidate.selected)
             .map((candidate) => candidate.id);
         closeTaxonomyImportModal(selectedIds);
+    });
+    document.getElementById("checkPythonBtn")?.addEventListener("click", checkPythonRuntime);
+    document.getElementById("installPythonPackagesBtn")?.addEventListener("click", installPythonPackagesForSplace);
+    document.getElementById("codonTrimTool")?.addEventListener("change", syncCodonTrimToolUi);
+    document.getElementById("taxonomyTreePanel")?.addEventListener("toggle", () => {
+        // The panel remains user-controlled after opening; new taxonomy renders reset it closed.
     });
 
     document.getElementById("accessionInput").addEventListener("input", validateAccessionInput);
@@ -3446,7 +4599,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("taxonomyOrganelleSelect").addEventListener("change", validateTaxonomySearchInput);
     document.getElementById("taxonomyRefseqOnly").addEventListener("change", validateTaxonomySearchInput);
     document.getElementById("taxonomyCompleteCheckbox").addEventListener("change", validateTaxonomySearchInput);
-    document.getElementById("taxonomyPartialCheckbox").addEventListener("change", validateTaxonomySearchInput);
+    document.getElementById("taxonomyPartialCheckbox")?.addEventListener("change", validateTaxonomySearchInput);
 
     document.getElementById("fetchBtn").addEventListener("click", async () => {
         const raw = document.getElementById("accessionInput").value;
@@ -3551,6 +4704,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderTaxonomySearchButton();
     renderFetchButton();
     syncNcbiApiUi();
+    syncTaxonomyApiHint();
     validateAccessionInput();
     validateTaxonomySearchInput();
     updateProgressMeta();
@@ -3751,8 +4905,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const isNt = !isAa && !isCodon;
             const codeSection = document.getElementById("alignGeneticCodeSection");
             const codonWarning = document.getElementById("codonModeWarning");
+            const codonPolicy = document.getElementById("codonPolicySection");
             if (codeSection) codeSection.classList.toggle("hidden", !(isAa || isCodon));
             if (codonWarning) codonWarning.classList.toggle("hidden", !isCodon);
+            if (codonPolicy) codonPolicy.classList.toggle("hidden", !isCodon);
+            if (isCodon) syncCodonUiDefaults();
+            syncPythonRuntimeCard();
+            syncCodonTrimToolUi();
             // Visual highlight on the label cards
             const ntLabel = document.getElementById("alignSeqNtLabel");
             const aaLabel = document.getElementById("alignSeqAaLabel");
@@ -3766,6 +4925,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    const geneticCodeSelect = document.getElementById("alignGeneticCode");
+    if (geneticCodeSelect) {
+        syncCodonUiDefaults();
+        geneticCodeSelect.addEventListener("change", () => {
+            geneticCodeSelect.dataset.userSelected = "true";
+        });
+    }
+
     // Re-render header builder when separator changes
     document.querySelectorAll('input[name="headerSeparator"]').forEach(radio => {
         radio.addEventListener("change", () => renderHeaderBuilder());
@@ -3773,6 +4940,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize Tippy on static elements
     window.initTooltips && window.initTooltips();
+    syncRuntimeAttribute();
+    syncPythonRuntimeCard();
+    syncCodonTrimToolUi();
 
     // ----------------------------------------------------------------
     // Electron desktop mode
@@ -3821,17 +4991,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         document.getElementById("trimalYesBtn").addEventListener("click", () => {
             document.getElementById("trimalPromptCard").classList.add("hidden");
+            syncCodonTrimToolUi();
             document.getElementById("panel6d").classList.remove("hidden");
             document.getElementById("panel6d").scrollIntoView({ behavior: "smooth", block: "start" });
         });
         document.getElementById("showTrimalBtn").addEventListener("click", () => {
             document.getElementById("showTrimalBtn").classList.add("hidden");
+            syncCodonTrimToolUi();
             document.getElementById("panel6d").classList.remove("hidden");
             document.getElementById("panel6d").scrollIntoView({ behavior: "smooth", block: "start" });
         });
 
         // Run trimAl
-        document.getElementById("runTrimalBtn").addEventListener("click", () => {
+        document.getElementById("runTrimalBtn").addEventListener("click", async () => {
             if (state.selectedGenes.size === 0) return;
             const mode = document.getElementById("trimalMode").value;
             const extra = document.getElementById("trimalExtra").value.trim();
@@ -3851,6 +5023,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (extra) params.push(...extra.split(/\s+/).filter(Boolean));
 
             const isCodonMode = window._codonMode === true;
+            const trimTool = isCodonMode ? (document.getElementById("codonTrimTool")?.value || "auto") : "trimal";
+            const clipkitMode = document.getElementById("clipkitMode")?.value || "gappy";
+            if (!(await ensureClipkitIfRequested(trimTool))) return;
             const markers = isCodonMode
                 ? Object.keys(window._codonOriginalDna || {})
                 : [...state.selectedGenes];
@@ -3858,7 +5033,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 alignMode: window._alignmentMode || (isCodonMode ? "codon" : "nt"),
                 isTranslated: isCodonMode || window._alignmentMode === "aa",
                 mafftMode: null,
-                postProcess: isCodonMode ? "trimAl -backtrans" : "trimAl",
+                postProcess: isCodonMode ? (trimTool === "clipkit" ? "ClipKIT protein trim + codon back-translation" : "trimAl/ClipKIT codon back-translation") : "trimAl",
             });
             window.electronAPI.runTrimal({
                 markers,
@@ -3866,6 +5041,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 alignmentMode: window._alignmentMode || (isCodonMode ? "codon" : "nt"),
                 codonMode: isCodonMode,
                 cdsFastas: isCodonMode ? window._codonOriginalDna : undefined,
+                trimTool,
+                clipkitMode,
             });
         });
 
@@ -3889,7 +5066,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const isCodonMode = document.getElementById("alignSeqCodon")?.checked === true;
             const isAaMode = !isCodonMode && document.getElementById("alignSeqAa")?.checked === true;
-            const geneticCode = document.getElementById("alignGeneticCode")?.value || "2";
+            const codonOptions = isCodonMode ? getCodonRunOptions() : null;
+            const geneticCode = isCodonMode
+                ? codonOptions.fallbackGeneticCode
+                : (document.getElementById("alignGeneticCode")?.value || getDefaultCodonFallbackGeneticCode());
 
             // Guard: AA mode requires translateFasta IPC (codon mode uses JS translation)
             if (isAaMode && !window.electronAPI?.translateFasta) {
@@ -3908,9 +5088,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 return opt ? opt.textContent.trim() : `NCBI ${geneticCode}`;
             })();
 
+            syncPythonRuntimeCard();
+            syncCodonTrimToolUi();
+
             // Save alignment metadata globally for pipeline tracking
             window._alignmentGeneticCode = geneticCode;
             window._alignmentGeneticCodeName = geneticCodeName;
+            window._codonInternalStopPolicy = codonOptions?.internalStopPolicy || null;
+            window._codonAllowPseudo = codonOptions?.allowPseudo === true;
 
             // Build MAFFT params
             const method = document.getElementById("mafftMethod").value;
@@ -3953,32 +5138,50 @@ document.addEventListener("DOMContentLoaded", () => {
                     const validationLogs = [];
                     const logFn = (msg) => { validationLogs.push(msg); appendLog(msg); console.log("[codon]", msg); };
 
-                    const perGeneCandidates = buildCodonCandidates(geneticCode, logFn);
-                    const geneEntries = [...perGeneCandidates.entries()];
+                    appendLog("=== CDS extraction ===");
+                    const candidateContext = buildCodonCandidates(codonOptions, logFn);
+                    const geneEntries = [...candidateContext.perGeneCandidates.entries()];
                     const totalGenes = geneEntries.length;
+                    const cdsSelectedMarkers = candidateContext.summary.cdsSelectedMarkers || [];
+                    const nonCdsMarkers = candidateContext.summary.nonCdsMarkers || [];
+
+                    if (nonCdsMarkers.length) {
+                        logFn(`[CDS extraction] Non-CDS markers skipped: ${nonCdsMarkers.join(", ")}`);
+                    }
 
                     if (totalGenes === 0) {
-                        appendLog("No CDS features found for selected genes.");
+                        appendLog(cdsSelectedMarkers.length === 0
+                            ? i18nText("step5.modal.codon.noMarkers", "No CDS markers are currently selected for Codon-aware alignment.")
+                            : i18nText("step5.modal.codon.noCandidates", "No CDS candidates remained after Codon-aware extraction."));
                         document.getElementById("analysisModalClose").classList.remove("hidden");
                         document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
-                        document.getElementById("analysisModalTitle").textContent = "No CDS sequences found";
+                        document.getElementById("analysisModalTitle").textContent = i18nText("step5.modal.codon.noSequencesTitle", "No CDS sequences found");
                         window._codonMode = false;
                         window._alignmentMode = "nt";
                         return;
                     }
 
-                    appendLog(`Validating ${totalGenes} gene(s)\u2026`);
+                    appendLog(i18nText("step5.modal.codon.validationHeading", "=== CDS validation + translation ==="));
+                    appendLog(i18nText("step5.modal.codon.validationProgress", "Validating {count} CDS gene(s)...", { count: totalGenes }));
 
                     const codonPairs = new Map();
                     let gIdx = 0;
 
                     function validateNext() {
                         if (gIdx >= totalGenes) {
+                            const processedMarkers = [...codonPairs.keys()].sort();
+                            const insufficientGenes = cdsSelectedMarkers.filter((geneName) => !codonPairs.has(geneName)).sort();
+
+                            logFn(i18nText("step5.modal.codon.summaryHeading", "=== Codon-aware summary ==="));
+                            logFn(i18nText("step5.modal.codon.summary.processed", "CDS markers to process: {markers}", { markers: processedMarkers.length ? processedMarkers.join(", ") : "none" }));
+                            logFn(i18nText("step5.modal.codon.summary.nonCds", "Non-CDS markers skipped: {markers}", { markers: nonCdsMarkers.length ? nonCdsMarkers.join(", ") : "none" }));
+                            logFn(i18nText("step5.modal.codon.summary.insufficient", "Genes with fewer than two valid CDS sequences: {markers}", { markers: insufficientGenes.length ? insufficientGenes.join(", ") : "none" }));
+
                             if (codonPairs.size === 0) {
-                                appendLog("No valid CDS sequences found for codon-aware alignment.");
+                                appendLog(i18nText("step5.modal.codon.noValidLog", "No valid CDS sequences found for Codon-aware alignment."));
                                 document.getElementById("analysisModalClose").classList.remove("hidden");
                                 document.getElementById("analysisModalIcon").className = "fa-solid fa-xmark text-red-500 text-lg";
-                                document.getElementById("analysisModalTitle").textContent = "No valid CDS sequences";
+                                document.getElementById("analysisModalTitle").textContent = i18nText("step5.modal.codon.noValidTitle", "No valid CDS sequences");
                                 window._codonMode = false;
                                 window._alignmentMode = "nt";
                                 return;
@@ -3986,15 +5189,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
                             window._codonOriginalDna = {};
                             window._codonPipelineStats = {};
+                            window._codonSequenceMeta = {};
                             window._codonValidationLogs = validationLogs;
+                            window._codonAllowBacktranslationWarnings = codonOptions?.allowBacktranslationWarnings === true;
                             const files = {};
                             for (const [geneName, pair] of codonPairs) {
                                 window._codonOriginalDna[geneName] = pair.cdsDnaFasta;
                                 window._codonPipelineStats[geneName] = pair.stats || {};
+                                window._codonSequenceMeta[geneName] = pair.sequenceMeta || {};
                                 files[geneName] = pair.proteinFasta;
                             }
-                            const skippedGenes = [...state.selectedGenes].filter(g => !codonPairs.has(g));
-                            if (skippedGenes.length) logFn(`Genes skipped (no valid CDS): ${skippedGenes.join(", ")}`);
+                            logFn("=== MAFFT protein alignment ===");
                             logFn(`Sending ${codonPairs.size} gene(s) to MAFFT (--amino)`);
 
                             if (window._phaseTracker) {
@@ -4008,8 +5213,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
 
                         const [geneName, seqs] = geneEntries[gIdx++];
-                        const pair = processCodonGeneEntry(geneName, seqs, logFn);
-                        if (pair) codonPairs.set(geneName, pair);
+                        const pair = processCodonGeneEntry(geneName, seqs, codonOptions, logFn);
+                        if (pair?.eligible) codonPairs.set(geneName, pair);
 
                         const pctVal = Math.round(gIdx / totalGenes * 100);
                         if (window._phaseTracker) window._phaseTracker.update("validation", pctVal, `${gIdx} / ${totalGenes} genes validated`);
@@ -4024,7 +5229,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // ── Nucleotide / Amino-acid: open modal first, then generate FASTAs ──────────
             window._codonOriginalDna = null;
+            window._codonSequenceMeta = null;
             window._codonValidationLogs = null;
+            window._codonAllowBacktranslationWarnings = false;
 
             openAnalysisModal("mafft", [...state.selectedGenes], {
                 alignMode: isAaMode ? "aa" : "nt",
@@ -4140,7 +5347,7 @@ function createPhaseTracker(phases) {
             barEl: row.querySelector("[data-phase-bar]"),
         };
     }
-    tracker.activate = function(id) {
+    tracker.activate = function (id) {
         const p = this.phases[id];
         if (!p) return;
         p.iconEl.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-xs";
@@ -4150,14 +5357,14 @@ function createPhaseTracker(phases) {
         p.barEl.className = "bg-splace-blue-600 h-2 rounded-full";
         p.barEl.style.width = "0%";
     };
-    tracker.update = function(id, pctVal, text) {
+    tracker.update = function (id, pctVal, text) {
         const p = this.phases[id];
         if (!p) return;
         p.barEl.style.width = pctVal + "%";
         p.pctEl.textContent = pctVal + "%";
         if (text !== undefined) p.textEl.textContent = text;
     };
-    tracker.complete = function(id, text) {
+    tracker.complete = function (id, text) {
         const p = this.phases[id];
         if (!p) return;
         p.iconEl.className = "fa-solid fa-check text-green-500 text-xs";
@@ -4192,11 +5399,11 @@ function openAnalysisModal(phase, markers, options) {
     // Title
     if (phase === "mafft") {
         title.textContent = opts.alignMode === "codon"
-            ? "Running Codon-Aware Alignment\u2026"
+            ? i18nText("step5.modal.codon.title.running", "Running Codon-aware Alignment\u2026")
             : "Running MAFFT Alignment\u2026";
     } else if (phase === "trimAl") {
         title.textContent = opts.alignMode === "codon"
-            ? "Running trimAl (protein-guided)\u2026"
+            ? i18nText("step5.modal.codon.title.trim", "Running trimAl (protein-guided)\u2026")
             : "Running trimAl\u2026";
     } else {
         title.textContent = "Running\u2026";
@@ -4205,7 +5412,7 @@ function openAnalysisModal(phase, markers, options) {
     // Subtitle
     if (phase === "mafft") {
         if (opts.alignMode === "codon") {
-            sub.textContent = "CDS to protein \u00b7 MAFFT --amino \u00b7 back-translation to DNA codons";
+            sub.textContent = i18nText("step5.modal.codon.subtitle.mafft", "CDS extraction · CDS validation · MAFFT --amino · back-translation to codon DNA");
         } else if (opts.alignMode === "aa") {
             sub.textContent = "Amino Acid mode \u00b7 Translation ON \u00b7 MAFFT --amino";
         } else {
@@ -4213,7 +5420,7 @@ function openAnalysisModal(phase, markers, options) {
         }
     } else {
         if (phase === "trimAl" && opts.alignMode === "codon") {
-            sub.textContent = "Protein alignment \u2192 trimAl -backtrans \u2192 codon-preserving DNA";
+            sub.textContent = i18nText("step5.modal.codon.subtitle.trim", "Protein alignment · trimAl -backtrans · codon-preserving DNA");
         } else {
             sub.textContent = `${markers.length} marker${markers.length !== 1 ? "s" : ""} queued`;
         }
@@ -4222,9 +5429,9 @@ function openAnalysisModal(phase, markers, options) {
     // Section copy
     if (sectionCopy) {
         if (phase === "trimAl" && opts.alignMode === "codon") {
-            sectionCopy.textContent = "trimAl receives the protein alignment from MAFFT and uses it to guide codon-block trimming. Output is back-translated to codon-preserving DNA.";
+            sectionCopy.textContent = i18nText("step5.modal.codon.copy.trim", "trimAl receives the protein alignment from MAFFT and uses it to guide codon-block trimming. Output is back-translated to codon-preserving DNA.");
         } else if (opts.alignMode === "codon") {
-            sectionCopy.textContent = "CDS sequences are translated, aligned as proteins, then back-translated to codon-preserving DNA.";
+            sectionCopy.textContent = i18nText("step5.modal.codon.copy.mafft", "CDS sequences are extracted, translated, aligned as proteins, then back-translated to codon-preserving DNA.");
         } else if (opts.alignMode === "aa") {
             sectionCopy.textContent = opts.geneticCodeName
                 ? `Sequences are being translated before alignment using genetic code ${opts.geneticCodeName}.`
@@ -4286,20 +5493,20 @@ function openAnalysisModal(phase, markers, options) {
     if (phase === "mafft") {
         if (opts.alignMode === "codon") {
             phaseList.push(
-                { id: "validation", label: "Validating CDS sequences" },
-                { id: "mafft", label: "MAFFT alignment (--amino)" },
-                { id: "reading", label: "Reading alignments" },
-                { id: "backtrans", label: "Back-translating to codon DNA" }
+                { id: "validation", label: i18nText("step5.modal.phase.validation", "CDS extraction + validation") },
+                { id: "mafft", label: i18nText("step5.modal.phase.mafftProtein", "MAFFT protein alignment (--amino)") },
+                { id: "reading", label: i18nText("step5.modal.phase.reading", "Reading alignments") },
+                { id: "backtrans", label: i18nText("step5.modal.phase.backtrans", "Back-translating to codon DNA") }
             );
         } else {
             phaseList.push(
                 { id: "mafft", label: "MAFFT alignment" },
-                { id: "reading", label: "Reading alignments" }
+                { id: "reading", label: i18nText("step5.modal.phase.reading", "Reading alignments") }
             );
         }
     } else if (phase === "trimAl") {
         phaseList.push(
-            { id: "trimal", label: opts.alignMode === "codon" ? "trimAl -backtrans (codon-preserving)" : "trimAl trimming" }
+            { id: "trimal", label: opts.alignMode === "codon" ? i18nText("step5.modal.phase.trimal", "trimAl -backtrans (codon-preserving)") : "trimAl trimming" }
         );
     }
     window._phaseTracker = createPhaseTracker(phaseList);
@@ -4315,7 +5522,9 @@ function openAnalysisModal(phase, markers, options) {
         </div>`
     ).join("");
 
+    setModalEscapeEnabled("analysisModal", false);
     modal.classList.remove("hidden");
+    refreshManagedModalState("analysisModal");
 
     // Codon mode: show CDS validation logs collected before modal opened
     if (window._codonMode && window._codonValidationLogs?.length) {
@@ -4323,7 +5532,62 @@ function openAnalysisModal(phase, markers, options) {
             window._codonValidationLogs.join("\n") +
             "\n=== MAFFT ===\n";
         log.scrollTop = log.scrollHeight;
+        refreshManagedModalState("analysisModal");
     }
+}
+
+function registerManagedModal(config) {
+    const modal = document.getElementById(config.modalId);
+    const scrollRegion = document.getElementById(config.scrollRegionId);
+    const footer = document.getElementById(config.footerId);
+    const cue = document.getElementById(config.scrollCueId);
+    const closeButton = document.getElementById(config.closeButtonId);
+    if (!modal || !scrollRegion || !footer || !cue || !closeButton) return;
+
+    const refresh = () => {
+        const scrollable = scrollRegion.scrollHeight > scrollRegion.clientHeight + 6;
+        const atBottom = scrollRegion.scrollTop + scrollRegion.clientHeight >= scrollRegion.scrollHeight - 6;
+        cue.classList.toggle("hidden", !scrollable || atBottom);
+        footer.classList.toggle("has-scroll-cue", scrollable && !atBottom);
+    };
+
+    scrollRegion.addEventListener("scroll", refresh, { passive: true });
+    if (typeof ResizeObserver !== "undefined") {
+        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(refresh));
+        resizeObserver.observe(scrollRegion);
+        if (scrollRegion.firstElementChild) resizeObserver.observe(scrollRegion.firstElementChild);
+    }
+    if (typeof MutationObserver !== "undefined") {
+        const mutationObserver = new MutationObserver(() => requestAnimationFrame(refresh));
+        mutationObserver.observe(scrollRegion, { childList: true, subtree: true, characterData: true });
+    }
+
+    modal._managedModal = { ...config, refresh };
+    requestAnimationFrame(refresh);
+}
+
+function refreshManagedModalState(modalId) {
+    const modal = document.getElementById(modalId);
+    modal?._managedModal?.refresh?.();
+}
+
+function setModalEscapeEnabled(modalId, enabled) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.dataset.escapeEnabled = enabled ? "true" : "false";
+}
+
+function closeManagedModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal || modal.classList.contains("hidden") || modal.dataset.escapeEnabled !== "true") {
+        return false;
+    }
+    const closeButton = document.getElementById(modal._managedModal?.closeButtonId || "");
+    if (closeButton && !closeButton.classList.contains("hidden")) {
+        closeButton.click();
+        return true;
+    }
+    modal.classList.add("hidden");
+    return true;
 }
 
 window.toggleTaxonomyImportCandidate = toggleTaxonomyImportCandidate;
@@ -4338,6 +5602,7 @@ function updateAnalysisModal(data) {
     if (data.message) {
         log.textContent += data.message + "\n";
         log.scrollTop = log.scrollHeight;
+        refreshManagedModalState("analysisModal");
     }
 
     if (data.total > 0) {
@@ -4420,30 +5685,59 @@ function updatePipelineForTrimming(markerResults) {
                 codonIntegrity: { checked: false },
             };
         }
+        const trimMeta = mr.trimMetadata || {};
+        const trimValidation = mr.trimValidation || null;
         const inputType = mr.pipeline.mafftInputType === "protein" ? "protein" : "nucleotide";
-        const outputType = isCodon ? "codon-dna" : (mr.pipeline.alignedDataType || "nucleotide");
+        const outputType = isCodon ? (trimMeta.outputType || "codon-preserving DNA") : (mr.pipeline.alignedDataType || "nucleotide");
         mr.pipeline.trimming = {
-            status: "done",
+            status: mr.trimmedContent ? "done" : (mr.trimError ? "failed" : "not run"),
             inputType,
             outputType,
-            strategy: isCodon ? "protein-guided codon block trimming" : "column trimming",
+            strategy: isCodon
+                ? ((trimMeta.trimmingTool || (mr.trimMethod === "trimal-backtrans" ? "trimal" : "splace-internal")) === "trimal"
+                    ? "protein-guided backtranslation"
+                    : "protein-guided codon fallback")
+                : "column trimming",
+            method: isCodon ? (mr.trimMethod === "trimal-backtrans" ? "trimAl -backtrans" : "approximate JavaScript fallback") : "trimAl",
             codonPreserving: isCodon,
+            approximate: isCodon && mr.trimMethod !== "trimal-backtrans",
+            trimmingTool: trimMeta.trimmingTool || (isCodon ? (mr.trimMethod === "trimal-backtrans" ? "trimal" : "splace-internal") : "trimal"),
+            trimmingMode: trimMeta.trimmingMode || (isCodon ? (mr.trimMethod === "trimal-backtrans" ? "protein-guided-backtrans" : "protein-guided-codon-block-fallback") : "standard"),
+            inputAlignment: trimMeta.inputAlignment || (isCodon ? `${mr.marker}_protein_aligned.fasta` : `${mr.marker}_aligned.fasta`),
+            backtransInput: trimMeta.backtransInput || (isCodon ? `${mr.marker}_cds_validated.fasta` : null),
+            outputAlignment: trimMeta.outputAlignment || (isCodon ? `${mr.marker}_codon_trimmed.fasta` : `${mr.marker}_trimmed.fasta`),
+            codonIntegrityValidated: trimMeta.codonIntegrityValidated === true,
+            validationIssues: trimValidation?.issues || [],
         };
+        mr.pipeline.trimmingMethod = mr.pipeline.trimming.method;
         if (isCodon && mr.trimMethod) {
             mr.pipeline.backtranslation = {
                 status: "done",
-                method: mr.trimMethod === "trimal-backtrans" ? "trimAl -backtrans" : "javascript fallback",
+                method: mr.trimMethod === "trimal-backtrans" ? "trimAl -backtrans" : "approximate JavaScript fallback",
+                approximate: mr.trimMethod !== "trimal-backtrans",
+                inputAlignment: mr.pipeline.trimming.inputAlignment,
+                backtransInput: mr.pipeline.trimming.backtransInput,
+                outputAlignment: mr.pipeline.trimming.outputAlignment,
             };
+            mr.pipeline.backtranslationMethod = mr.pipeline.backtranslation.method;
         }
-        if (isCodon && mr.trimmedContent) {
-            const trimSeqs = parseFasta(mr.trimmedContent);
-            const allMult3 = trimSeqs.every(s => s.seq.length % 3 === 0);
-            const gapTrip = trimSeqs.every(s =>
-                (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0)
-            );
+        if (isCodon && (mr.trimmedContent || trimValidation)) {
+            const trimSeqs = mr.trimmedContent ? parseFasta(mr.trimmedContent) : [];
+            const integrity = trimSeqs.length
+                ? getCodonIntegrityChecks(trimSeqs)
+                : {
+                    equalLengths: trimValidation?.equalLengths ?? false,
+                    allLengthsMultipleOf3: trimValidation?.allLengthsMultipleOf3 ?? false,
+                    gapBlocksAreTriplets: trimValidation?.gapBlocksAreTriplets ?? false,
+                };
             mr.pipeline.codonIntegrity = {
-                allLengthsMultipleOf3: allMult3,
-                gapBlocksAreTriplets: gapTrip,
+                equalLengths: trimValidation?.equalLengths ?? integrity.equalLengths,
+                allLengthsMultipleOf3: trimValidation?.allLengthsMultipleOf3 ?? integrity.allLengthsMultipleOf3,
+                gapBlocksAreTriplets: trimValidation?.gapBlocksAreTriplets ?? integrity.gapBlocksAreTriplets,
+                headersMatch: trimValidation?.headersMatch,
+                dnaCompatible: trimValidation?.dnaCompatible,
+                frameDisrupted: trimValidation?.frameDisrupted,
+                codonIntegrityValidated: trimMeta.codonIntegrityValidated === true,
                 checked: true,
             };
         }
@@ -4467,71 +5761,77 @@ function finalizeAnalysisModal(result) {
     // Async per-marker back-translation with progress bar phase.
     function runBacktranslation(markers, onDone) {
         icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-lg";
-        title.textContent = "Back-translating\u2026";
+        title.textContent = i18nText("step5.modal.codon.backtransTitle", "Back-translating\u2026");
+        log("=== Back-translation ===");
         bar.style.width = "0%";
         lbl.textContent = `0 / ${markers.length} markers`;
         pct.textContent = "0%";
         let bIdx = 0;
+        const fatalReports = [];
+
         function next() {
             if (bIdx >= markers.length) {
-                if (window._phaseTracker) window._phaseTracker.complete("backtrans", `${markers.length} / ${markers.length} markers back-translated`);
-                onDone(); return;
+                if (fatalReports.length) {
+                    icon.className = "fa-solid fa-triangle-exclamation text-red-600 text-lg";
+                    title.textContent = "Codon-aware validation failed";
+                    close.classList.remove("hidden");
+                    setModalEscapeEnabled("analysisModal", true);
+                    refreshManagedModalState("analysisModal");
+                    log("=== Codon-aware validation failed ===");
+                    fatalReports.forEach((report) => {
+                        report.issues.forEach((issue) => log(`[${report.marker}] ERROR: ${issue}`));
+                    });
+                    close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
+                    return;
+                }
+                if (window._phaseTracker) {
+                    window._phaseTracker.complete("backtrans", `${markers.length} / ${markers.length} markers back-translated`);
+                }
+                onDone();
+                return;
             }
+
             const mr = markers[bIdx++];
-            const dnaCdsContent = window._codonOriginalDna?.[mr.marker];
-            if (dnaCdsContent && mr.alignedContent) {
-                const dnaMap = parseFastaToMap(dnaCdsContent);
-                const protSeqs = parseFasta(mr.alignedContent);
-                let dnaFasta = "", warnings = 0;
-                for (const ps of protSeqs) {
-                    const dna = dnaMap[ps.name];
-                    if (!dna) { log(`[${mr.marker}] WARNING: no DNA for header "${ps.name}"`); warnings++; continue; }
-                    dnaFasta += `>${ps.name}\n${backTranslateProteinAlignment(ps.seq, dna.replace(/-/g, ""))}\n`;
-                }
-                if (!dnaFasta) { log(`[${mr.marker}] ERROR: back-translation produced no sequences`); }
-                else {
-                    mr.proteinAlignedContent = mr.alignedContent;
-                    mr.alignedContent = dnaFasta;
-                    mr.rawContent = dnaCdsContent;
-                    const seqs = parseFasta(dnaFasta);
-                    const dnaLen = seqs[0]?.seq.length || 0;
-                    const gapCount = seqs.reduce((a, s) => a + (s.seq.match(/-/g) || []).length, 0);
-                    const totalChars = seqs.reduce((a, s) => a + s.seq.length, 0);
-                    mr.alignedStats = {
-                        numSeqs: seqs.length, length: dnaLen, avgLen: dnaLen,
-                        gapPct: totalChars > 0 ? ((gapCount / totalChars) * 100).toFixed(1) : "0.0",
-                    };
-                    const allLengthsMult3 = seqs.every(s => s.seq.length % 3 === 0);
-                    const gapBlocksAreTrip = seqs.every(s => (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0));
-                    if (!mr.pipeline) {
-                        const pipelineStats = window._codonPipelineStats?.[mr.marker] || {};
-                        mr.pipeline = {
-                            mode: "codon", rawDataType: "cds-dna", mafftInputType: "protein",
-                            mafftMode: "--amino", alignedDataType: "codon-dna", finalMatrixType: "codon-preserving DNA",
-                            geneticCode: window._alignmentGeneticCode || "2",
-                            geneticCodeName: window._alignmentGeneticCodeName || "",
-                            stopCodonPolicy: {
-                                terminalStopsRemoved: pipelineStats.terminalStopsRemoved || 0,
-                                incompleteStopFragmentsRemoved: pipelineStats.incompleteStopFragmentsRemoved || 0,
-                                internalStopsDetected: pipelineStats.internalStopsDetected || 0,
-                            },
-                            backtranslation: { status: "done", method: "javascript fallback" },
-                            trimming: { status: "not run", inputType: null, outputType: null, strategy: null, codonPreserving: null },
-                            codonIntegrity: { allLengthsMultipleOf3: allLengthsMult3, gapBlocksAreTriplets: gapBlocksAreTrip, checked: true },
-                        };
-                    }
-                    log(`[${mr.marker}] \u2713 Back-translation: ${seqs.length} seq \u00d7 ${dnaLen} bp${dnaLen % 3 !== 0 ? " \u26a0 not multiple of 3" : ""}${!allLengthsMult3 || !gapBlocksAreTrip ? " | \u26a0 codon integrity issues" : ""}`);
-                    if (warnings > 0) log(`[${mr.marker}] \u26a0 ${warnings} sequences skipped (header mismatch)`);
-                }
+            const backtranslationResult = applyBacktranslationToResults([mr], {
+                log,
+                allowCompatibilityWarnings: window._codonAllowBacktranslationWarnings === true,
+            });
+            const report = backtranslationResult.reports[0];
+            if (report && !report.success) {
+                fatalReports.push(report);
             }
-            const pctVal = Math.round(bIdx / markers.length * 100);
+
+            const pctVal = Math.round((bIdx / markers.length) * 100);
             bar.style.width = pctVal + "%";
             lbl.textContent = `${bIdx} / ${markers.length} markers`;
             pct.textContent = pctVal + "%";
             if (window._phaseTracker) window._phaseTracker.update("backtrans", pctVal, `${bIdx} / ${markers.length} markers`);
             setTimeout(next, 0);
         }
+
         setTimeout(next, 0);
+    }
+
+    async function syncCodonOutputs(markerResults) {
+        if (!window._codonMode || !window.electronAPI?.saveCodonOutputs || !window._alignmentOutputDir) {
+            return markerResults;
+        }
+
+        title.textContent = i18nText("step5.modal.codon.saveOutputsTitle", "Saving codon-aware outputs\u2026");
+        log(i18nText("step5.modal.codon.saveOutputsStart", "Syncing codon-aware DNA/protein files to disk\u2026"));
+
+        const syncResult = await window.electronAPI.saveCodonOutputs({
+            outputDir: window._alignmentOutputDir,
+            markerResults,
+        });
+
+        if (!syncResult?.success) {
+            log(i18nText("step5.modal.codon.saveOutputsError", "ERROR: could not save codon-aware outputs to disk ({error})", { error: syncResult?.error || "unknown error" }));
+            return markerResults;
+        }
+
+        log(i18nText("step5.modal.codon.saveOutputsSuccess", "Saved codon-aware outputs to {path}", { path: syncResult.outputDir }));
+        return syncResult.markerResults || markerResults;
     }
 
     if (result.phase === "mafft") {
@@ -4560,15 +5860,16 @@ function finalizeAnalysisModal(result) {
                         for (const mr of markers) {
                             if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
                         }
-                        finishMafft();
+                        finishMafft(markers);
                     } else {
                         if (window._phaseTracker) window._phaseTracker.activate("backtrans");
-                        runBacktranslation(markers, () => {
+                        runBacktranslation(markers, async () => {
+                            const syncedMarkers = await syncCodonOutputs(markers);
                             window._markerPipelines = {};
-                            for (const mr of markers) {
+                            for (const mr of syncedMarkers) {
                                 if (mr.pipeline) window._markerPipelines[mr.marker] = { ...mr.pipeline };
                             }
-                            finishMafft();
+                            finishMafft(syncedMarkers);
                         });
                     }
                     return;
@@ -4582,14 +5883,14 @@ function finalizeAnalysisModal(result) {
                 setTimeout(readNext, 0);
             }
 
-            function finishMafft() {
-                renderAlignmentResults(markers, false);
-                renderConcatSection(markers, false);
+            function finishMafft(finalMarkers) {
+                renderAlignmentResults(finalMarkers, false);
+                renderConcatSection(finalMarkers, false);
                 const trimalCard = document.getElementById("trimalPromptCard");
                 trimalCard.classList.remove("hidden");
                 if (window._codonMode) {
                     const body = trimalCard.querySelector("[data-i18n='step5.trimal.prompt.body']");
-                    if (body) body.textContent = "In codon-aware mode, trimAl runs on the protein alignment (not DNA), then back-translates to codon-preserving DNA. Gaps are always codon-aligned.";
+                    if (body) body.textContent = i18nText("step5.trimal.prompt.codon.body", "In Codon-aware mode, trimAl runs on the protein alignment, then back-translates to codon-preserving DNA. Gaps are always codon-aligned.");
                 }
                 setBadge("step6c-badge", "done");
                 updateStepBadges();
@@ -4599,6 +5900,8 @@ function finalizeAnalysisModal(result) {
                 icon.className = "fa-solid fa-check text-green-600 text-lg";
                 title.textContent = `Alignment complete \u2014 ${result.aligned}/${result.total} markers aligned`;
                 close.classList.remove("hidden");
+                setModalEscapeEnabled("analysisModal", true);
+                refreshManagedModalState("analysisModal");
                 close.onclick = () => {
                     document.getElementById("analysisModal").classList.add("hidden");
                     document.getElementById("trimalPromptCard").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4610,18 +5913,39 @@ function finalizeAnalysisModal(result) {
             icon.className = "fa-solid fa-check text-green-600 text-lg";
             title.textContent = `Alignment complete \u2014 ${result.aligned}/${result.total} markers aligned`;
             close.classList.remove("hidden");
+            setModalEscapeEnabled("analysisModal", true);
+            refreshManagedModalState("analysisModal");
             close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
         }
     } else if (result.phase === "trimal") {
         if (result.markerResults) {
+            setModalEscapeEnabled("analysisModal", false);
             const markers = result.markerResults;
+            refreshManagedModalState("analysisModal");
             icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 text-lg";
             // Complete trimAl phase
             if (window._phaseTracker) window._phaseTracker.complete("trimal", `${result.aligned} / ${result.total} markers trimmed`);
 
+            if ((window._alignmentMode === "codon" || window._codonMode) && (result.success !== true || (result.failedMarkers?.length || 0) > 0)) {
+                icon.className = "fa-solid fa-triangle-exclamation text-red-600 text-lg";
+                title.textContent = "Codon-aware trimming failed";
+                close.classList.remove("hidden");
+                setModalEscapeEnabled("analysisModal", true);
+                refreshManagedModalState("analysisModal");
+                if (result.failedMarkers?.length) {
+                    log("=== Codon-aware trim validation failed ===");
+                    result.failedMarkers.forEach((failure) => {
+                        failure.issues.forEach((issue) => log(`[${failure.marker}] ERROR: ${issue}`));
+                    });
+                }
+                close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
+                return;
+            }
+
             function finishTrimal() {
                 updatePipelineForTrimming(markers);
                 renderAlignmentResults(markers, true);
+                refreshManagedModalState("analysisModal");
                 renderConcatSection(markers, true);
                 document.getElementById("alignmentResults").classList.remove("hidden");
                 setBadge("step6d-badge", "done");
@@ -4632,6 +5956,8 @@ function finalizeAnalysisModal(result) {
                 icon.className = "fa-solid fa-check text-green-600 text-lg";
                 title.textContent = `Trimming complete \u2014 ${result.aligned}/${result.total} markers trimmed`;
                 close.classList.remove("hidden");
+                setModalEscapeEnabled("analysisModal", true);
+                refreshManagedModalState("analysisModal");
                 close.onclick = () => {
                     document.getElementById("analysisModal").classList.add("hidden");
                     document.getElementById("alignmentResults").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4645,6 +5971,8 @@ function finalizeAnalysisModal(result) {
             icon.className = "fa-solid fa-check text-green-600 text-lg";
             title.textContent = `Trimming complete \u2014 ${result.aligned}/${result.total} markers trimmed`;
             close.classList.remove("hidden");
+            setModalEscapeEnabled("analysisModal", true);
+            refreshManagedModalState("analysisModal");
             close.onclick = () => { document.getElementById("analysisModal").classList.add("hidden"); };
         }
     }
@@ -4681,101 +6009,262 @@ function countFastaSequences(fasta) {
     return (fasta.match(/^>/gm) || []).length;
 }
 
+function getCodonIntegrityChecks(seqs) {
+    const lengths = seqs.map((seq) => seq.seq.length);
+    const firstLength = lengths[0] || 0;
+    return {
+        equalLengths: lengths.every((length) => length === firstLength),
+        allLengthsMultipleOf3: lengths.every((length) => length % 3 === 0),
+        gapBlocksAreTriplets: seqs.every((seq) =>
+            (seq.seq.match(/-+/g) || []).every((run) => run.length % 3 === 0)
+        ),
+        length: firstLength,
+    };
+}
+
 // Back-translate one aligned protein sequence to DNA using the original
 // (unaligned) CDS codons.  Each '-' in the protein → '---' in the DNA.
-function backTranslateProteinAlignment(alignedProteinSeq, originalDna) {
+function translateCodonWithGeneticCode(codon, geneticCode = "1") {
+    const codeKey = String(geneticCode || "1");
+    const table = GENETIC_CODE_TABLES[codeKey] || CODON_TABLE;
+    return table[codon] || "X";
+}
+
+function backTranslateProteinAlignmentDetailed(alignedProteinSeq, originalDna, geneticCode = "1") {
     const dna = originalDna.toUpperCase().replace(/U/g, "T").replace(/[^ACGTNRYSWKMBDHV]/g, "");
     const codons = [];
     for (let i = 0; i + 2 < dna.length; i += 3) codons.push(dna.slice(i, i + 3));
     let idx = 0, output = "";
-    for (const aa of alignedProteinSeq) {
+    let mismatchCount = 0;
+    let missingCodonCount = 0;
+    const issues = [];
+
+    for (let pos = 0; pos < alignedProteinSeq.length; pos++) {
+        const aa = String(alignedProteinSeq[pos] || "").toUpperCase();
         if (aa === "-" || aa === ".") output += "---";
-        else { output += codons[idx] || "NNN"; idx++; }
+        else {
+            const codon = codons[idx++];
+            if (!codon) {
+                output += "NNN";
+                missingCodonCount++;
+                issues.push(`AA position ${pos + 1}: no CDS codon available for ${aa}`);
+                continue;
+            }
+            const translatedAa = translateCodonWithGeneticCode(codon, geneticCode);
+            if (aa !== "X" && aa !== "?" && aa !== translatedAa) {
+                mismatchCount++;
+                issues.push(`AA position ${pos + 1}: protein ${aa} but ${codon} translates to ${translatedAa} with ${getGeneticCodeName(geneticCode)}`);
+            }
+            output += codon;
+        }
     }
-    return output;
+
+    const consumedCodons = Math.min(idx, codons.length);
+    const leftoverCodons = Math.max(0, codons.length - consumedCodons);
+    if (leftoverCodons > 0) {
+        issues.push(`CDS retained ${leftoverCodons} unused codon(s) after back-translation`);
+    }
+
+    return {
+        dna: output,
+        mismatchCount,
+        missingCodonCount,
+        consumedCodons,
+        totalCodons: codons.length,
+        leftoverCodons,
+        frameDisrupted: missingCodonCount > 0 || leftoverCodons > 0,
+        issues,
+        geneticCode: String(geneticCode || "1"),
+    };
+}
+
+function backTranslateProteinAlignment(alignedProteinSeq, originalDna) {
+    return backTranslateProteinAlignmentDetailed(alignedProteinSeq, originalDna).dna;
+}
+
+function summarizeCodonIntegrityIssues(integrity, frameDisrupted = false) {
+    const issues = [];
+    if (!integrity.equalLengths) issues.push("sequences have unequal lengths");
+    if (!integrity.allLengthsMultipleOf3) issues.push(`alignment length ${integrity.length} is not divisible by 3`);
+    if (!integrity.gapBlocksAreTriplets) issues.push("gap runs are not multiples of 3");
+    if (frameDisrupted) issues.push("codon frame disruption detected during back-translation");
+    return issues;
 }
 
 // After MAFFT returns protein alignments, back-translate every marker's
 // alignedContent to DNA in-place using the stored original CDS sequences.
-function applyBacktranslationToResults(markerResults) {
-    const logEl = document.getElementById("analysisModalLog");
-    const log = (msg) => {
+function applyBacktranslationToResults(markerResults, options = {}) {
+    const logEl = options.logEl || document.getElementById("analysisModalLog");
+    const log = options.log || ((msg) => {
         if (logEl) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
         console.log("[codon]", msg);
-    };
+    });
+    const allowCompatibilityWarnings = options.allowCompatibilityWarnings === true;
+    const reports = [];
+
     for (const mr of markerResults) {
-        const dnaCdsContent = window._codonOriginalDna?.[mr.marker];
-        if (!dnaCdsContent || !mr.alignedContent) continue;
+        const dnaCdsContent = options.rawFastas?.[mr.marker] || window._codonOriginalDna?.[mr.marker];
+        const sequenceMeta = options.sequenceMeta?.[mr.marker] || window._codonSequenceMeta?.[mr.marker] || {};
+        if (!dnaCdsContent || !mr.alignedContent) {
+            const issues = ["missing validated CDS DNA or protein alignment"];
+            log(`[${mr.marker}] ERROR: ${issues[0]}`);
+            reports.push({ marker: mr.marker, success: false, fatal: true, issues, warnings: [] });
+            continue;
+        }
 
         const dnaMap = parseFastaToMap(dnaCdsContent);
         const protSeqs = parseFasta(mr.alignedContent);
         let dnaFasta = "", warnings = 0;
+        let mismatchCount = 0;
+        let frameDisrupted = false;
+        const compatibilityIssues = [];
+        const frameIssues = [];
 
         for (const ps of protSeqs) {
             const dna = dnaMap[ps.name];
             if (!dna) {
                 log(`[${mr.marker}] WARNING: no DNA for header "${ps.name}"`);
                 warnings++;
+                frameIssues.push(`${ps.name}: missing validated CDS DNA`);
                 continue;
             }
-            dnaFasta += `>${ps.name}\n${backTranslateProteinAlignment(ps.seq, dna.replace(/-/g, ""))}\n`;
-        }
-        if (!dnaFasta) { log(`[${mr.marker}] ERROR: back-translation produced no sequences`); continue; }
 
-        mr.proteinAlignedContent = mr.alignedContent;  // keep protein copy
-        mr.alignedContent = dnaFasta;                   // replace with DNA
-        mr.rawContent = dnaCdsContent;                  // show raw CDS in Raw tab
+            const geneticCode = String(
+                sequenceMeta[ps.name]?.geneticCode ||
+                window._codonPipelineStats?.[mr.marker]?.geneticCode ||
+                window._alignmentGeneticCode ||
+                getDefaultCodonFallbackGeneticCode()
+            );
+            const detailed = backTranslateProteinAlignmentDetailed(ps.seq, dna.replace(/-/g, ""), geneticCode);
+            mismatchCount += detailed.mismatchCount;
+            if (detailed.frameDisrupted) {
+                frameDisrupted = true;
+                frameIssues.push(`${ps.name}: consumed ${detailed.consumedCodons}/${detailed.totalCodons} codons`);
+            }
+            if (detailed.issues.length) {
+                detailed.issues.forEach((issue) => {
+                    const formatted = `${ps.name}: ${issue}`;
+                    if (issue.includes("protein ")) compatibilityIssues.push(formatted);
+                    else frameIssues.push(formatted);
+                });
+            }
+            dnaFasta += `>${ps.name}\n${detailed.dna}\n`;
+        }
+        if (!dnaFasta) {
+            const issues = ["back-translation produced no sequences"];
+            log(`[${mr.marker}] ERROR: ${issues[0]}`);
+            reports.push({ marker: mr.marker, success: false, fatal: true, issues, warnings: [] });
+            continue;
+        }
 
         const seqs = parseFasta(dnaFasta);
         const dnaLen = seqs[0]?.seq.length || 0;
         const gapCount = seqs.reduce((a, s) => a + (s.seq.match(/-/g) || []).length, 0);
         const totalChars = seqs.reduce((a, s) => a + s.seq.length, 0);
-        mr.alignedStats = {
-            numSeqs: seqs.length, length: dnaLen, avgLen: dnaLen,
-            gapPct: totalChars > 0 ? ((gapCount / totalChars) * 100).toFixed(1) : "0.0",
+        const integrity = getCodonIntegrityChecks(seqs);
+        const integrityIssues = summarizeCodonIntegrityIssues(integrity, frameDisrupted);
+        const fatalIssues = [
+            ...frameIssues,
+            ...integrityIssues,
+            ...(allowCompatibilityWarnings ? [] : compatibilityIssues),
+        ];
+        const warningIssues = [
+            ...(allowCompatibilityWarnings ? compatibilityIssues : []),
+            ...(warnings > 0 ? [`${warnings} sequences skipped because DNA headers were missing`] : []),
+        ];
+        const success = fatalIssues.length === 0;
+        const pipelineStats = window._codonPipelineStats?.[mr.marker] || {};
+
+        mr.pipeline = {
+            ...(mr.pipeline || {}),
+            mode: "codon",
+            rawDataType: "cds-dna",
+            mafftInputType: "protein",
+            mafftMode: "--amino",
+            alignedDataType: "codon-dna",
+            finalMatrixType: "codon-preserving DNA",
+            geneticCode: pipelineStats.geneticCode || window._alignmentGeneticCode || getDefaultCodonFallbackGeneticCode(),
+            geneticCodeName: pipelineStats.geneticCodeName || window._alignmentGeneticCodeName || getGeneticCodeName(window._alignmentGeneticCode || getDefaultCodonFallbackGeneticCode()),
+            stopCodonPolicy: {
+                terminalStopsRemoved: pipelineStats.terminalStopsRemoved || 0,
+                incompleteStopFragmentsRemoved: pipelineStats.incompleteStopFragmentsRemoved || 0,
+                internalStopsDetected: pipelineStats.internalStopsDetected || 0,
+                internalStopPolicy: pipelineStats.internalStopPolicy || window._codonInternalStopPolicy || "exclude",
+            },
+            backtranslation: {
+                status: success || allowCompatibilityWarnings ? "done" : "failed",
+                method: "JavaScript codon-aware back-translation",
+                approximate: true,
+                compatibilityWarnings: compatibilityIssues.length,
+                compatibilityPolicy: allowCompatibilityWarnings ? "continue-with-warning" : "block",
+                frameDisrupted,
+            },
+            trimming: mr.pipeline?.trimming || {
+                status: "not run",
+                inputType: null,
+                outputType: null,
+                strategy: null,
+                method: null,
+                codonPreserving: null,
+                approximate: false,
+            },
+            codonIntegrity: {
+                equalLengths: integrity.equalLengths,
+                allLengthsMultipleOf3: integrity.allLengthsMultipleOf3,
+                gapBlocksAreTriplets: integrity.gapBlocksAreTriplets,
+                frameDisrupted,
+                checked: true,
+            },
         };
-        // Codon integrity check
-        const allLengthsMult3 = seqs.every(s => s.seq.length % 3 === 0);
-        const gapBlocksAreTrip = seqs.every(s =>
-            (s.seq.match(/-+/g) || []).every(run => run.length % 3 === 0)
-        );
-        if (!mr.pipeline) {
-            const pipelineStats = window._codonPipelineStats?.[mr.marker] || {};
-            mr.pipeline = {
-                mode: "codon",
-                rawDataType: "cds-dna",
-                mafftInputType: "protein",
-                mafftMode: "--amino",
-                alignedDataType: "codon-dna",
-                finalMatrixType: "codon-preserving DNA",
-                geneticCode: window._alignmentGeneticCode || "2",
-                geneticCodeName: window._alignmentGeneticCodeName || "",
-                stopCodonPolicy: {
-                    terminalStopsRemoved: pipelineStats.terminalStopsRemoved || 0,
-                    incompleteStopFragmentsRemoved: pipelineStats.incompleteStopFragmentsRemoved || 0,
-                    internalStopsDetected: pipelineStats.internalStopsDetected || 0,
-                },
-                backtranslation: {
-                    status: "done",
-                    method: "javascript fallback",
-                },
-                trimming: {
-                    status: "not run",
-                    inputType: null,
-                    outputType: null,
-                    strategy: null,
-                    codonPreserving: null,
-                },
-                codonIntegrity: {
-                    allLengthsMultipleOf3: allLengthsMult3,
-                    gapBlocksAreTriplets: gapBlocksAreTrip,
-                    checked: true,
-                },
+
+        if (success || allowCompatibilityWarnings) {
+            mr.proteinAlignedContent = mr.alignedContent;
+            mr.alignedContent = dnaFasta;
+            mr.rawContent = dnaCdsContent;
+            mr.alignedStats = {
+                numSeqs: seqs.length,
+                length: dnaLen,
+                avgLen: dnaLen,
+                gapPct: totalChars > 0 ? ((gapCount / totalChars) * 100).toFixed(1) : "0.0",
             };
         }
-        log(`[${mr.marker}] \u2713 Back-translation: ${seqs.length} seq \u00d7 ${dnaLen} bp${dnaLen % 3 !== 0 ? " \u26a0 not multiple of 3" : ""}${!allLengthsMult3 || !gapBlocksAreTrip ? " | \u26a0 codon integrity issues" : ""}`);
-        if (warnings > 0) log(`[${mr.marker}] \u26a0 ${warnings} sequences skipped (header mismatch)`);
+
+        if (compatibilityIssues.length) {
+            compatibilityIssues.forEach((issue) => {
+                log(`[${mr.marker}] ${allowCompatibilityWarnings ? "WARN" : "ERROR"}: ${issue}`);
+            });
+        }
+        if (frameIssues.length) {
+            frameIssues.forEach((issue) => log(`[${mr.marker}] ERROR: ${issue}`));
+        }
+        if (integrityIssues.length) {
+            integrityIssues.forEach((issue) => log(`[${mr.marker}] ERROR: ${issue}`));
+        }
+        if (warningIssues.length && allowCompatibilityWarnings) {
+            log(`[${mr.marker}] WARN: continuing with ${warningIssues.length} back-translation warning(s) by user request`);
+        }
+        if (success || allowCompatibilityWarnings) {
+            log(`[${mr.marker}] ✓ Back-translation: ${seqs.length} seq × ${dnaLen} bp${mismatchCount > 0 ? ` | ${mismatchCount} compatibility warning(s)` : ""}`);
+        }
+
+        reports.push({
+            marker: mr.marker,
+            success,
+            fatal: !success,
+            issues: fatalIssues,
+            warnings: warningIssues,
+            mismatchCount,
+            integrity,
+            frameDisrupted,
+        });
     }
+
+    return {
+        markerResults,
+        reports,
+        success: reports.every((report) => report.success),
+        errors: reports.filter((report) => !report.success),
+    };
 }
 
 const NT_COLORS = { A: "#1AC253", T: "#E11218", U: "#E11218", G: "#ECA918", C: "#4272EE", "-": "#d1d5db" };
@@ -5074,9 +6563,10 @@ function renderAlignmentCanvas(canvas, sequences) {
     canvas.style.imageRendering = "pixelated";
 
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     const img = ctx.createImageData(W, H);
     const data = img.data;
-
     const colorCache = {};
     const getColor = (ch) => {
         if (!colorCache[ch]) colorCache[ch] = hexToRgb(NT_COLORS[ch] || "#9ca3af");
@@ -5098,6 +6588,7 @@ function renderAlignmentCanvas(canvas, sequences) {
             }
         }
     }
+
     ctx.putImageData(img, 0, 0);
 }
 
@@ -5853,13 +7344,23 @@ function buildPipelineBadgesHtml(pipeline) {
     }
     // Codon integrity
     if (pipeline.codonIntegrity?.checked) {
-        const ok = pipeline.codonIntegrity.allLengthsMultipleOf3 !== false && pipeline.codonIntegrity.gapBlocksAreTriplets !== false;
+        const ok =
+            pipeline.codonIntegrity.equalLengths !== false &&
+            pipeline.codonIntegrity.allLengthsMultipleOf3 !== false &&
+            pipeline.codonIntegrity.gapBlocksAreTriplets !== false &&
+            pipeline.codonIntegrity.headersMatch !== false &&
+            pipeline.codonIntegrity.dnaCompatible !== false &&
+            pipeline.codonIntegrity.frameDisrupted !== true;
         if (ok) {
             badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700"><i class="fa-solid fa-check text-[0.6rem]"></i>Frame OK</span>`);
         } else {
             const issues = [];
+            if (!pipeline.codonIntegrity.equalLengths) issues.push("unequal lengths");
             if (!pipeline.codonIntegrity.allLengthsMultipleOf3) issues.push("length ÷ 3 ≠ 0");
             if (!pipeline.codonIntegrity.gapBlocksAreTriplets) issues.push("gaps not in triplets");
+            if (pipeline.codonIntegrity.headersMatch === false) issues.push("header mismatch");
+            if (pipeline.codonIntegrity.dnaCompatible === false) issues.push("non-DNA output");
+            if (pipeline.codonIntegrity.frameDisrupted === true) issues.push("frame disrupted");
             badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700"><i class="fa-solid fa-triangle-exclamation text-[0.6rem]"></i>Frame: ${issues.join(", ")}</span>`);
         }
     }
@@ -5911,8 +7412,12 @@ function renderAlignmentResults(markerResults, hasTrimal) {
         if (r.pipeline?.codonIntegrity?.checked) {
             const ci = r.pipeline.codonIntegrity;
             const issues = [];
+            if (!ci.equalLengths) issues.push("alignment contains unequal sequence lengths");
             if (!ci.allLengthsMultipleOf3) issues.push("alignment length not multiple of 3");
             if (!ci.gapBlocksAreTriplets) issues.push("gaps not in triplets");
+            if (ci.headersMatch === false) issues.push("sequence names do not match the validated CDS records");
+            if (ci.dnaCompatible === false) issues.push("trimmed output is not DNA-compatible");
+            if (ci.frameDisrupted === true) issues.push("codon frame disruption detected");
             if (issues.length > 0) {
                 integrityAlert = `<div class="mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2"><i class="fa-solid fa-triangle-exclamation text-red-500 mt-0.5 text-xs flex-shrink-0"></i><span class="text-xs text-red-700 font-medium">Frame warning: ${issues.join("; ")}</span></div>`;
             }
@@ -6123,6 +7628,94 @@ window.toggleMarkerResult = function (id) {
 // State for concatenation
 let _lastMarkerResultsUI = []; // mirror of backend results, kept in JS
 
+window.toggleThirdCodonWarning = function () {
+    const warning = document.getElementById("excludeThirdCodonWarning");
+    const checked = document.getElementById("excludeThirdCodonPosition")?.checked === true;
+    if (warning) warning.classList.toggle("hidden", !checked);
+};
+
+function buildConcatenatedFasta(alignedSeqs) {
+    return (alignedSeqs || []).map((seq) => `>${seq.name}\n${seq.seq}`).join("\n") + "\n";
+}
+
+function removeThirdCodonPositionsFromSequence(sequence) {
+    if (!sequence) return "";
+    if (sequence.length % 3 !== 0) {
+        throw new Error(`Cannot remove third codon positions from sequence length ${sequence.length}: length is not divisible by 3`);
+    }
+    let trimmed = "";
+    for (let idx = 0; idx < sequence.length; idx += 3) {
+        const codon = sequence.slice(idx, idx + 3);
+        if (codon.length !== 3) {
+            throw new Error(`Incomplete codon chunk encountered at offset ${idx + 1}`);
+        }
+        trimmed += codon[0] + codon[1];
+    }
+    return trimmed;
+}
+
+function buildNoThirdCodonMatrix(concatResult) {
+    const geneSeqs = {};
+    const geneLens = {};
+    const partitions = [];
+    const logs = [];
+    let pos = 1;
+    let removedThirdPositions = 0;
+
+    for (const gene of concatResult.geneOrder) {
+        const originalLength = concatResult.geneLens[gene];
+        if (!originalLength) continue;
+        if (originalLength % 3 !== 0) {
+            throw new Error(`Cannot exclude third codon positions for ${gene}: alignment length ${originalLength} is not divisible by 3`);
+        }
+        const noThirdLength = (originalLength / 3) * 2;
+        const removedForGene = originalLength / 3;
+        removedThirdPositions += removedForGene;
+        logs.push(`[No-3rd] [${gene}] removed ${removedForGene} third positions (${originalLength} bp → ${noThirdLength} bp)`);
+
+        geneSeqs[gene] = {};
+        for (const [species, seq] of Object.entries(concatResult.geneSeqs[gene] || {})) {
+            geneSeqs[gene][species] = removeThirdCodonPositionsFromSequence(seq);
+        }
+        geneLens[gene] = noThirdLength;
+        partitions.push({
+            gene,
+            start: pos,
+            end: pos + noThirdLength - 1,
+            len: noThirdLength,
+            originalLength,
+            noThirdLength,
+            removedThirdPositions: removedForGene,
+            thirdCodonPositionExcluded: true,
+            codonPositionMode: "positions 1 and 2 only",
+        });
+        pos += noThirdLength;
+    }
+
+    return {
+        ...concatResult,
+        alignedSeqs: concatResult.alignedSeqs.map((seq) => ({
+            name: seq.name,
+            seq: removeThirdCodonPositionsFromSequence(seq.seq),
+        })),
+        partitions,
+        totalLen: pos - 1,
+        geneSeqs,
+        geneLens,
+        thirdCodonPositionExcluded: true,
+        originalLength: concatResult.totalLen,
+        noThirdLength: pos - 1,
+        removedThirdPositions,
+        codonPositionMode: "positions 1 and 2 only",
+        logs,
+    };
+}
+
+function resolveCodonPartitionMode(codonPositions, excludeThirdPositions) {
+    if (!codonPositions) return "genes";
+    return excludeThirdPositions ? "positions12" : "all";
+}
+
 function buildConcat(markerResults, useTrimmed, allowMissing) {
     // Collect all species and their sequences per gene
     const geneOrder = markerResults.map(r => r.marker);
@@ -6187,7 +7780,48 @@ function buildConcat(markerResults, useTrimmed, allowMissing) {
     return { alignedSeqs, partitions, totalLen: pos - 1, species: finalSpecies, missingReport, removedCount: allowMissing ? 0 : missingReport.length, geneSeqs, geneLens, geneOrder, allSpecies };
 }
 
-function buildNexusString(alignedSeqs, partitions, outgroups, datatype, codonPositions) {
+function validateCodonPartitions(markerResults, useTrimmed) {
+    const reports = markerResults.map((markerResult) => {
+        const content = useTrimmed && markerResult.trimmedContent ? markerResult.trimmedContent : markerResult.alignedContent;
+        const seqs = parseFasta(content || "");
+        if (!seqs.length) {
+            return {
+                marker: markerResult.marker,
+                valid: false,
+                issues: ["no sequences available"],
+                length: 0,
+            };
+        }
+
+        const integrity = getCodonIntegrityChecks(seqs);
+        const frameDisrupted = markerResult.pipeline?.codonIntegrity?.frameDisrupted === true || markerResult.pipeline?.backtranslation?.frameDisrupted === true;
+        const issues = summarizeCodonIntegrityIssues(integrity, frameDisrupted);
+
+        return {
+            marker: markerResult.marker,
+            valid: issues.length === 0,
+            issues,
+            length: integrity.length,
+        };
+    });
+
+    return {
+        valid: reports.every((report) => report.valid),
+        reports,
+        errors: reports.filter((report) => !report.valid),
+    };
+}
+
+function showCodonPartitionValidationError(errors) {
+    const warn = document.getElementById("concatMissingWarning");
+    if (!warn) return;
+
+    warn.classList.remove("hidden");
+    warn.className = "text-xs rounded-lg px-3 py-2 border text-red-700 bg-red-50 border-red-200";
+    warn.innerHTML = `<strong>Codon partition validation failed.</strong> ${errors.map((error) => `${escHtml(error.marker)}: ${escHtml(error.issues.join("; "))}`).join(" | ")}`;
+}
+
+function buildNexusString(alignedSeqs, partitions, outgroups, datatype, codonPartitionMode) {
     const dtStr = ((datatype || "dna")).toLowerCase();
     const ntax = alignedSeqs.length;
     const nchar = alignedSeqs[0]?.seq.length || 0;
@@ -6197,18 +7831,29 @@ function buildNexusString(alignedSeqs, partitions, outgroups, datatype, codonPos
         `    ${s.name.padEnd(maxNameLen + 2)}${s.seq}`
     ).join("\n");
 
+    const partitionMode = codonPartitionMode === true ? "all" : (codonPartitionMode || "genes");
     let charsets;
-    if (codonPositions) {
+    if (partitionMode === "all") {
         charsets = partitions.flatMap(p => {
-            const geneLen = p.end - p.start + 1;
+            const geneLen = p.len || (p.end - p.start + 1);
             if (geneLen % 3 !== 0) {
-                // Gene length not divisible by 3 — skip codon partition, use full gene
-                return [`    charset ${p.gene} = ${p.start}-${p.end}; [WARNING: length ${geneLen} bp not divisible by 3, codon positions skipped]`];
+                throw new Error(`Cannot create codon charsets for ${p.gene}: alignment length ${geneLen} is not divisible by 3`);
             }
             return [
                 `    charset ${p.gene}_pos1 = ${p.start}-${p.end}\\3;`,
                 `    charset ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\3;`,
                 `    charset ${p.gene}_pos3 = ${p.start + 2}-${p.end}\\3;`,
+            ];
+        }).join("\n");
+    } else if (partitionMode === "positions12") {
+        charsets = partitions.flatMap(p => {
+            const geneLen = p.len || (p.end - p.start + 1);
+            if (geneLen % 2 !== 0) {
+                throw new Error(`Cannot create 1+2 codon charsets for ${p.gene}: alignment length ${geneLen} is not divisible by 2`);
+            }
+            return [
+                `    charset ${p.gene}_pos1 = ${p.start}-${p.end}\\2;`,
+                `    charset ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\2;`,
             ];
         }).join("\n");
     } else {
@@ -6237,19 +7882,31 @@ end;
 ${outgroupBlock}`;
 }
 
-function buildPartitionString(partitions, codonPositions, datatype) {
+function buildPartitionString(partitions, codonPartitionMode, datatype) {
     const prefix = (datatype === "protein") ? "AA" : "DNA";
-    if (codonPositions) {
+    const partitionMode = codonPartitionMode === true ? "all" : (codonPartitionMode || "genes");
+    if (partitionMode === "all") {
         return partitions.flatMap(p => {
-            const geneLen = p.end - p.start + 1;
+            const geneLen = p.len || (p.end - p.start + 1);
             if (geneLen % 3 !== 0) {
-                // Fallback to full gene partition with a comment
-                return [`${prefix}, ${p.gene} = ${p.start}-${p.end}  # WARNING: length ${geneLen} bp not divisible by 3`];
+                throw new Error(`Cannot create codon partitions for ${p.gene}: alignment length ${geneLen} is not divisible by 3`);
             }
             return [
                 `${prefix}, ${p.gene}_pos1 = ${p.start}-${p.end}\\3`,
                 `${prefix}, ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\3`,
                 `${prefix}, ${p.gene}_pos3 = ${p.start + 2}-${p.end}\\3`,
+            ];
+        }).join("\n");
+    }
+    if (partitionMode === "positions12") {
+        return partitions.flatMap(p => {
+            const geneLen = p.len || (p.end - p.start + 1);
+            if (geneLen % 2 !== 0) {
+                throw new Error(`Cannot create 1+2 codon partitions for ${p.gene}: alignment length ${geneLen} is not divisible by 2`);
+            }
+            return [
+                `${prefix}, ${p.gene}_pos1 = ${p.start}-${p.end}\\2`,
+                `${prefix}, ${p.gene}_pos2 = ${p.start + 1}-${p.end}\\2`,
             ];
         }).join("\n");
     }
@@ -6275,6 +7932,17 @@ function renderConcatSection(markerResults, hasTrimal) {
     // Show codon partition option only when in codon mode
     const codonPartitionOpt = document.getElementById("codonPartitionOption");
     if (codonPartitionOpt) codonPartitionOpt.classList.toggle("hidden", !window._codonMode);
+    const excludeThirdOpt = document.getElementById("excludeThirdCodonOption");
+    const excludeThirdCheckbox = document.getElementById("excludeThirdCodonPosition");
+    if (excludeThirdOpt) excludeThirdOpt.classList.toggle("hidden", !window._codonMode);
+    if (!window._codonMode && excludeThirdCheckbox) excludeThirdCheckbox.checked = false;
+    toggleThirdCodonWarning();
+
+    const generationLog = document.getElementById("concatGenerationLog");
+    if (generationLog) {
+        generationLog.classList.add("hidden");
+        generationLog.textContent = "";
+    }
 
     // Populate outgroup list from all species across markers
     const speciesSet = new Set();
@@ -6338,12 +8006,17 @@ function buildIqtreeCommand() {
     const extra = (document.getElementById("iqtreeExtra")?.value || "").trim();
     const outgroups = window._nexusData?.outgroups || [];
     const dir = "~/Documents/SPLACE/iqtree";
+    const activeFiles = window._nexusData?.activeFiles || {
+        nexus: "concatenated.nex",
+        partition: "partitions.txt",
+        prefix: "concat_tree",
+    };
 
     const parts = [
         "iqtree3",
-        "-s", `${dir}/concat.nex`,
-        "-p", `${dir}/partition.txt`,
-        "--prefix", `${dir}/concat`,
+        "-s", `${dir}/${activeFiles.nexus}`,
+        "-p", `${dir}/${activeFiles.partition}`,
+        "--prefix", `${dir}/${activeFiles.prefix}`,
         "-T", threads,
         "-m", model === "custom" ? customModel : model,
         ...(bootstrap ? bootstrap.split(" ").filter(Boolean) : []),
@@ -6369,8 +8042,17 @@ window.generateNexus = function () {
     const isAaMode = window._alignmentMode === "aa";
     const datatype = isAaMode ? "protein" : "dna";
     const codonPositions = isCodonMode && (document.getElementById("codonPartitionByPosition")?.checked ?? false);
+    const excludeThirdPositions = isCodonMode && (document.getElementById("excludeThirdCodonPosition")?.checked ?? false);
 
     const result = buildConcat(_lastMarkerResultsUI, useTrimmed, allowMissing);
+
+    if (isCodonMode) {
+        const codonValidation = validateCodonPartitions(_lastMarkerResultsUI, useTrimmed);
+        if (!codonValidation.valid) {
+            showCodonPartitionValidationError(codonValidation.errors);
+            return;
+        }
+    }
 
     const warn = document.getElementById("concatMissingWarning");
     warn.classList.add("hidden");
@@ -6388,17 +8070,73 @@ window.generateNexus = function () {
         warn.classList.remove("hidden");
     }
 
-    const nexus = buildNexusString(result.alignedSeqs, result.partitions, outgroups, datatype, codonPositions);
-    const partition = buildPartitionString(result.partitions, codonPositions, datatype);
+    let nexus, partition;
+    let fasta;
+    let activeResult = result;
+    let activeFiles = { nexus: "concatenated.nex", partition: "partitions.txt", fasta: "concatenated.fasta", prefix: "concat_tree" };
+    let fullMatrix = null;
+    let noThirdMatrix = null;
+    let additionalFiles = {};
+    try {
+        const fullPartitionMode = resolveCodonPartitionMode(codonPositions, false);
+        fullMatrix = {
+            ...result,
+            nexus: buildNexusString(result.alignedSeqs, result.partitions, outgroups, datatype, fullPartitionMode),
+            partition: buildPartitionString(result.partitions, fullPartitionMode, datatype),
+            fasta: buildConcatenatedFasta(result.alignedSeqs),
+            files: { nexus: "concatenated.nex", partition: "partitions.txt", fasta: "concatenated.fasta", prefix: "concat_tree" },
+            thirdCodonPositionExcluded: false,
+            codonPositionMode: codonPositions ? "all positions" : "gene partitions",
+        };
+
+        if (excludeThirdPositions) {
+            const noThirdPartitionMode = resolveCodonPartitionMode(codonPositions, true);
+            const noThirdResult = buildNoThirdCodonMatrix(result);
+            noThirdMatrix = {
+                ...noThirdResult,
+                nexus: buildNexusString(noThirdResult.alignedSeqs, noThirdResult.partitions, outgroups, "dna", noThirdPartitionMode),
+                partition: buildPartitionString(noThirdResult.partitions, noThirdPartitionMode, "dna"),
+                fasta: buildConcatenatedFasta(noThirdResult.alignedSeqs),
+                files: { nexus: "concatenated_no3rd.nex", partition: "partitions_no3rd.txt", fasta: "concatenated_no3rd.fasta", prefix: "concat_tree_no3rd" },
+            };
+            activeResult = noThirdMatrix;
+            activeFiles = noThirdMatrix.files;
+            additionalFiles = {
+                [fullMatrix.files.nexus]: fullMatrix.nexus,
+                [fullMatrix.files.partition]: fullMatrix.partition,
+                [fullMatrix.files.fasta]: fullMatrix.fasta,
+            };
+        } else {
+            activeResult = fullMatrix;
+        }
+
+        nexus = activeResult.nexus;
+        partition = activeResult.partition;
+        fasta = activeResult.fasta;
+    } catch (error) {
+        showCodonPartitionValidationError([{ marker: "matrix", issues: [error.message] }]);
+        return;
+    }
 
     // Store for IQ-TREE section
-    window._nexusData = { nexus, partition, result, outgroups };
+    window._nexusData = {
+        nexus,
+        partition,
+        fasta,
+        result: activeResult,
+        outgroups,
+        activeFiles,
+        fullMatrix,
+        noThirdMatrix,
+        additionalFiles,
+        thirdCodonPositionExcluded: excludeThirdPositions,
+    };
 
     // Show sequence × marker heatmap table
     const tbl = document.getElementById("partitionTable");
     if (tbl) {
-        const markers = result.partitions.map(p => p.gene);
-        const allSp = result.allSpecies || [];
+        const markers = activeResult.partitions.map(p => p.gene);
+        const allSp = activeResult.allSpecies || [];
         const heatColor = (cov) => {
             const r = Math.round(254 - 34 * cov);
             const g = Math.round(226 + 26 * cov);
@@ -6408,11 +8146,11 @@ window.generateNexus = function () {
         const heatRows = allSp.map(sp => {
             const nameTd = `<td style="position:sticky;left:0;z-index:1;background:#f8fafc;font-weight:600;padding:4px 10px;border:1px solid #e5e7eb;white-space:nowrap;">${escHtml(sp)}</td>`;
             const dataTds = markers.map(gene => {
-                const seq = result.geneSeqs[gene]?.[sp];
+                const seq = activeResult.geneSeqs[gene]?.[sp];
                 if (!seq) return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:#f3f4f6;color:#9ca3af;text-align:center;">-</td>`;
                 const nonGap = seq.replace(/-/g, "").length;
                 const gaps = seq.length - nonGap;
-                const cov = result.geneLens[gene] > 0 ? nonGap / result.geneLens[gene] : 0;
+                const cov = activeResult.geneLens[gene] > 0 ? nonGap / activeResult.geneLens[gene] : 0;
                 return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:${heatColor(cov)};text-align:center;color:#1f2937;">${nonGap} (${gaps})</td>`;
             }).join("");
             return `<tr>${nameTd}${dataTds}</tr>`;
@@ -6443,8 +8181,19 @@ window.generateNexus = function () {
     // Show summary
     const summary = document.getElementById("concatSummary");
     if (summary) {
-        summary.textContent = `${result.alignedSeqs.length} species · ${result.partitions.length} genes · ${result.totalLen} bp`;
+        summary.textContent = `${activeResult.alignedSeqs.length} species · ${activeResult.partitions.length} genes · ${activeResult.totalLen} bp${excludeThirdPositions ? ` · positions 1 and 2 only (removed ${activeResult.removedThirdPositions} third positions)` : ""}`;
         summary.classList.remove("hidden");
+    }
+
+    const generationLog = document.getElementById("concatGenerationLog");
+    if (generationLog) {
+        if (excludeThirdPositions && activeResult.logs?.length) {
+            generationLog.textContent = `${activeResult.logs.join("\n")}\n[No-3rd] total removed third positions: ${activeResult.removedThirdPositions}`;
+            generationLog.classList.remove("hidden");
+        } else {
+            generationLog.classList.add("hidden");
+            generationLog.textContent = "";
+        }
     }
 
     // Update step badge for concat
@@ -6459,7 +8208,7 @@ window.downloadNexus = function () {
     const blob = new Blob([window._nexusData.nexus], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "concatenated.nex";
+    a.download = window._nexusData.activeFiles?.nexus || "concatenated.nex";
     a.click();
 };
 
@@ -6468,7 +8217,7 @@ window.downloadPartition = function () {
     const blob = new Blob([window._nexusData.partition], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "partitions.txt";
+    a.download = window._nexusData.activeFiles?.partition || "partitions.txt";
     a.click();
 };
 
@@ -6543,11 +8292,14 @@ window.runIqtree = async function () {
     window.electronAPI.runIqtree({
         nexus: window._nexusData.nexus,
         partition: window._nexusData.partition,
+        fasta: window._nexusData.fasta,
         params,
         threads,
         outgroup,
         perGene,
         geneFiles,
+        fileNames: window._nexusData.activeFiles,
+        extraFiles: window._nexusData.additionalFiles,
     });
 };
 
@@ -6555,10 +8307,12 @@ function openIqtreeModal() {
     const modal = document.getElementById("iqtreeModal");
     if (!modal) return;
     modal.classList.remove("hidden");
+    setModalEscapeEnabled("iqtreeModal", false);
     document.getElementById("iqtreeModalLog").textContent = "";
     document.getElementById("iqtreeModalTitle").textContent = "Running IQ-TREE…";
     document.getElementById("iqtreeModalClose").classList.add("hidden");
     document.getElementById("iqtreeModalIcon").className = "fa-solid fa-spinner fa-spin text-splace-blue-600 text-lg";
+    refreshManagedModalState("iqtreeModal");
 }
 
 if (window.electronAPI?.onIqtreeProgress) {
@@ -6569,6 +8323,7 @@ if (window.electronAPI?.onIqtreeProgress) {
             // scroll the overflow container (parent of <pre>), not the <pre> itself
             const logContainer = log.parentElement;
             if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+            refreshManagedModalState("iqtreeModal");
         }
     });
 }
@@ -6587,6 +8342,8 @@ if (window.electronAPI?.onIqtreeDone) {
             title.textContent = "IQ-TREE failed";
         }
         close.classList.remove("hidden");
+        setModalEscapeEnabled("iqtreeModal", true);
+        refreshManagedModalState("iqtreeModal");
         close.onclick = () => {
             document.getElementById("iqtreeModal").classList.add("hidden");
             if (result.success) {

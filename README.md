@@ -24,6 +24,8 @@
     - [Parameter Overview](#parameter-overview)
   - [Example Command](#example-command)
   - [Tool Configuration](#tool-configuration)
+  - [Remote Genome Retrieval](#remote-genome-retrieval)
+  - [Taxonomy and FASTA Header Metadata](#taxonomy-and-fasta-header-metadata)
   - [Gene Presence Report](#gene-presence-report)
   - [Sequence Identifiers](#sequence-identifiers)
 - [SPLACE Workflow](#splace-workflow)
@@ -80,6 +82,7 @@ Before you run **SPLACE**, make sure you have the following prerequisites instal
     - `trimal`    # For automated alignment trimming (REQUIRED for --trimal)
     - `iqtree`    # For phylogeny (REQUIRED for --iqtree)
     - `biopython` # For biological sequence handling and parsing
+    - `requests`  # For GBIF HTTP queries
     - `syngenes`  # For gene nomenclature standardization
 [^1]: These prerequisites are essential for running SPLACE effectively.
 
@@ -111,15 +114,24 @@ pip install -e .
 #### Parameter Overview
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 
-The basic syntax is `python splace.py [input_dir] [output_dir] [options]`.
+The basic syntax is `python splace.py [options]`.
 
 | Parameter | Function | Description |
 |-----------|-----------|-------------|
-| `input_dir` | Input | Path to directory containing **GenBank** or **Fasta** files. |
-| `output_dir` | Output | Directory where results will be saved. |
+| `-i`, `--input_dir` | Input | Path to a directory containing local **GenBank** or **FASTA** files. Optional when `--ncbi-search-term` is used. |
+| `-o`, `--output_dir` | Output | Directory where results will be saved. |
 | `--gb-type` | Extraction | Type of Genbank data: `mt` (mitochondrial) or `cp` (chloroplast). Default: `mt`. |
-| `--genes` | Filtering | Comma-separated gene names (e.g., `12S,16S,COI`) or path to a text file (one gene per line). Default: built-in list per `--gb-type`. |
-| `--feature-types` | Filtering | Comma-separated GenBank feature types to extract (e.g., `CDS,rRNA,tRNA`). Default: `CDS`. |
+| `--gbif` | Taxonomy | Query GBIF for valid binomial species names (`Genus species`) found in GenBank records and store the recovered ranks in the run metadata table. |
+| `--genes` | Filtering | Comma-separated gene names (e.g., `12S,16S,COI`) or path to a text file (one gene per line). Mutually exclusive with `--feature-types`. Default: built-in list per `--gb-type`. |
+| `--feature-types` | Filtering | Comma-separated GenBank feature types to extract (e.g., `CDS,rRNA,tRNA`). Mutually exclusive with `--genes`. Default: `CDS`. |
+| `--fasta-header-config` | FASTA Header | YAML file that defines the header template for FASTA records. Default: `fasta_header.yaml`. |
+| `--ncbi-search-term` | Remote Retrieval | Taxonomic name or rank used by SPLACE to build the NCBI genome query automatically, for example `Bufonidae`, `Coffea`, or `Coffea arabica`. |
+| `--apis-env` | Remote Retrieval | Optional path to an `apis.env` file containing `NCBI_API_KEY` and `NCBI_EMAIL`. Default: `apis.env`. |
+| `--ncbi-download-dir` | Remote Retrieval | Directory where downloaded GenBank files will be stored. Required with `--ncbi-search-term`. |
+| `--ncbi-complete` | Remote Retrieval | Include complete genomes in the automatically generated NCBI query. |
+| `--ncbi-partial` | Remote Retrieval | Include partial or incomplete genomes in the automatically generated NCBI query. You may combine it with `--ncbi-complete`. |
+| `--ncbi-refseq-only` | Remote Retrieval | Restrict the automatically generated NCBI query to RefSeq genomes only. |
+| `--download-only` | Remote Retrieval | Run only the NCBI search/download stage and stop before FASTA extraction or downstream analyses. |
 | `--align` | Alignment | Enable multiple sequence alignment using **MAFFT**. |
 | `--trimal` | Trimming | Enable trimming using **TrimAl**. |
 | `--iqtree` | Phylogeny | Enable phylogenetic inference using **IQ-TREE**. |
@@ -136,16 +148,43 @@ After installing **SPLACE** and activating the conda environment:
 
 **Full Pipeline (Extract -> Align -> Trim -> Tree)**
 ```shell
-python splace.py data/raw/ results/ --gb-type mt --align --trimal --iqtree --threads 8 --benchmark
+python splace.py -i data/raw/ -o results/ --gb-type mt --gbif --align --trimal --iqtree --threads 8 --benchmark
 ```
 
 **Extraction and Alignment Only**
 ```shell
-python splace.py data/raw/ results_aln/ --gb-type mt --align --threads 4
+python splace.py -i data/raw/ -o results_aln/ --gb-type mt --align --threads 4
+```
+
+**Download GenBank Files from NCBI and Then Process Them**
+```shell
+python splace.py \
+  --ncbi-search-term Bufonidae \
+  --ncbi-download-dir data/ncbi_bufonidae \
+  --ncbi-complete \
+  --apis-env apis.env \
+  --ncbi-refseq-only \
+  -o results_ncbi \
+  --gbif
+```
+
+**Search and Download Only**
+```shell
+python splace.py \
+  --ncbi-search-term Bufonidae \
+  --ncbi-download-dir data/ncbi_bufonidae \
+  --ncbi-complete \
+  --ncbi-partial \
+  --apis-env apis.env \
+  --ncbi-refseq-only \
+  --download-only
 ```
 
 > [!NOTE]
-> The script automatically detects input file formats (.gb, .fasta, etc).
+> Choose either `--genes` or `--feature-types` for GenBank extraction filters.
+
+> [!NOTE]
+> The script automatically detects input file formats (.gb, .fasta, etc.) across all declared sources.
 > `--iqtree` requires `--trimal` to be active.
 
 &nbsp;
@@ -210,6 +249,86 @@ iqtree:
 > If `--config` is not provided, SPLACE uses the default values shown above. You only need to include the sections you want to override — missing sections will use their defaults.
 
 &nbsp;
+## Remote Genome Retrieval
+##### [:rocket: Go to Contents Overview](#contents-overview)
+
+SPLACE can download nucleotide genomes directly from **NCBI** before scanning and processing the input sources. The Python CLI now performs this stage with **Bio.Entrez** from **Biopython**, which keeps the retrieval logic aligned with the package-oriented future of the project.
+
+SPLACE builds the Entrez query internally from the taxon given to `--ncbi-search-term`, the organelle selected by `--gb-type`, the genome scope flags `--ncbi-complete` and/or `--ncbi-partial`, and the optional `--ncbi-refseq-only` switch.
+
+At least one of `--ncbi-complete` or `--ncbi-partial` must be selected. Both can be used together in the same run.
+
+If an `apis.env` file is available and contains `NCBI_API_KEY`, SPLACE downloads at up to **10 requests per second**. Without that key, SPLACE limits itself to **2 requests per second**.
+
+#### apis.env format
+
+```dotenv
+NCBI_API_KEY=your_ncbi_api_key
+NCBI_EMAIL=your.email@example.org
+```
+
+#### Notes
+
+- The user does not need to write the full Entrez query manually. SPLACE generates it from the provided taxonomic name/rank and genome scope flags.
+- `--gb-type mt` builds a mitochondrial query, while `--gb-type cp` builds a chloroplast/plastid query.
+- Downloaded records are saved as `.gbk` files in the folder provided to `--ncbi-download-dir`.
+- Use `--download-only` when you want to stop after search and retrieval, without running FASTA extraction or any downstream analysis.
+- After the retrieval-only stage, this is the recommended moment to add any outgroup files to the input/download folder before running extraction, alignment, trimming, or phylogeny.
+- If both `--input_dir` and `--ncbi-search-term` are provided, SPLACE scans both sources in the same run.
+
+#### Two-Step Workflow
+
+1. Run the retrieval stage with `--ncbi-search-term`, `--ncbi-download-dir`, and at least one of `--ncbi-complete` or `--ncbi-partial`.
+2. Add any outgroup GenBank or FASTA files that should participate in the analysis.
+3. Re-run SPLACE with the usual extraction and analysis flags such as `--gbif`, `--align`, `--trimal`, and `--iqtree`.
+
+Because SPLACE is expected to become a Conda-distributed toolkit that can be embedded in other pipelines, the retrieval logic is intentionally exposed in small reusable functions under the Python package as well.
+
+&nbsp;
+## Taxonomy and FASTA Header Metadata
+##### [:rocket: Go to Contents Overview](#contents-overview)
+
+When `--gbif` is enabled, SPLACE reads the organism name from each GenBank record and validates whether it follows the binomial pattern `Genus species`. Valid names are queried against the GBIF species API, and the recovered ranks are stored in the metadata output.
+
+Invalid names are not queried. Instead, they are recorded in `logs/invalid_gbif_species.log` together with the source file and accession.
+
+#### FASTA Header Configuration
+
+SPLACE now reads the FASTA header structure from `fasta_header.yaml`. The default file created in the project root is:
+
+```yaml
+template: "{accession}_{family}_{genus}_{species}"
+missing_value: "?"
+```
+
+Supported placeholders are:
+
+| Placeholder | Description |
+|:---|:---|
+| `accession` | GenBank accession or record identifier |
+| `authorship` | GBIF authorship, when available |
+| `class` | GBIF class rank |
+| `family` | GBIF family rank, or a lineage-derived family fallback when available |
+| `file_name` | Source GenBank file name |
+| `genus` | Genus parsed from the organism name |
+| `kingdom` | GBIF kingdom rank |
+| `order` | GBIF order rank |
+| `organism` | Full organism name |
+| `phylum` | GBIF phylum rank |
+| `species` | Specific epithet parsed from the organism name |
+| `uid` | Sequential five-digit per-record identifier |
+
+If a placeholder has no value for a given record, SPLACE inserts `?` in the header and records the missing fields in `logs/fasta_header_missing_fields.log`, together with the source file, accession, and marker name.
+
+#### Metadata Outputs
+
+| File | Location | Description |
+|:---|:---|:---|
+| `genbank_metadata.tsv` | `metadata/` | One row per GenBank record with accession, organism, GBIF status, and retrieved taxonomy ranks. |
+| `invalid_gbif_species.log` | `logs/` | Records whose organism names did not match the required `Genus species` pattern for GBIF lookup. |
+| `fasta_header_missing_fields.log` | `logs/` | Marker-level log for sequences whose FASTA headers needed `?` placeholders. |
+
+&nbsp;
 ## Gene Presence Report
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 
@@ -238,31 +357,31 @@ The figure size adjusts dynamically based on the number of taxa and genes, ensur
 ## Sequence Identifiers
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 
-Each sequence extracted by SPLACE receives a unique **5-digit identifier** appended to its FASTA header. This ensures that every record is distinguishable, even when multiple GenBank files contain the same species and accession number (common in population-level studies).
+Each sequence extracted by SPLACE now receives its FASTA header from the template defined in `fasta_header.yaml`. This makes the Python workflow consistent with the desktop application's configurable header builder.
 
-#### Header Format
+#### Default Header Format
 
 ```
->Genus_species_AccessionID_00001
+>NC_008535.1_Rubiaceae_Coffea_arabica
 ```
 
 | Component | Example | Description |
 |:---|:---|:---|
-| Species name | `Coffea_arabica` | Organism name with underscores (spaces removed for compatibility with MAFFT/TrimAl). |
 | Accession | `NC_008535.1` | GenBank accession or source identifier. |
-| Unique ID | `00001` | Sequential 5-digit identifier, unique per record. |
+| Family | `Rubiaceae` | GBIF family rank, or `?` when unavailable. |
+| Genus | `Coffea` | Genus parsed from the organism name. |
+| Species | `arabica` | Specific epithet parsed from the organism name. |
 
 #### Examples
 
 ```
->Coffea_arabica_NC_008535.1_00003
->Carajasia_cangae_Asm_Contig_00001
->Carajasia_cangae_Asm_Contig_00002
->Cinchona_officinalis_OP946451.1_00004
+>NC_008535.1_Rubiaceae_Coffea_arabica
+>OP946451.1_?_Cinchona_officinalis
+>PX000001.1_?_?_?
 ```
 
 > [!NOTE]
-> The unique ID is generated at extraction time and remains consistent across all gene files for the same record. This means `Coffea_arabica_NC_008535.1_00003` will appear with the same ID in every gene FASTA file (e.g., `atpB.fasta`, `rbcL.fasta`, etc.).
+> If you need a guaranteed per-record suffix, include `{uid}` in `fasta_header.yaml`. Missing placeholders are always replaced with `?` and logged for review.
 
 &nbsp;
 ## SPLACE Workflow

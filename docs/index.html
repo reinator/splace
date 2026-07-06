@@ -14,7 +14,7 @@
     <meta property="og:site_name" content="SPLACE">
     <meta name="description" content="SPLACE — toolkit for phylogenomic analysis.">
     <meta name="author" content="Luan Rabelo and Renato Moreira-Oliveira">
-
+    <!-- Tailwind utilities, local subset for Electron production -->
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -50,6 +50,8 @@
     <!-- Plotly -->
     <script src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js"></script>
 
+    <!-- Marker-length heatmap is rendered locally by splace.js, without external CDN files. -->
+
     <!-- JSZip + FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -70,6 +72,845 @@
     <link rel="stylesheet" href="css/steps/step5.css">
     <link rel="stylesheet" href="css/steps/step6.css">
     <link rel="stylesheet" href="css/steps/step7.css">
+
+
+    <!-- SPLACE local layout refinements -->
+    <style>
+        .app-main {
+            width: 99%;
+            max-width: 99%;
+            margin-inline: auto;
+        }
+
+        #step1Section,
+        #step1Section .step1-card-text,
+        #step1Section .step1-field,
+        #step1Section input,
+        #step1Section select,
+        #taxonomyImportModal {
+            font-size: 1.03rem;
+        }
+
+        #taxonomyImportModal .taxonomy-import-panel {
+            width: 99vw;
+            max-width: 99vw;
+            height: 96vh;
+            max-height: 96vh;
+        }
+
+        #taxonomyImportModal .taxonomy-review-table {
+            font-size: 0.96rem;
+        }
+
+        .step1-api-hint {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .step1-api-hint-close {
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(209, 213, 219, 0.9);
+            transition: all 0.15s ease;
+            flex: 0 0 auto;
+        }
+
+        .step1-api-hint-close:hover {
+            color: #a50026;
+            border-color: #f9b3b3;
+            background: #fff;
+        }
+
+        .taxonomy-import-toolbar {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) auto;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .taxonomy-import-search {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.85rem;
+            padding: 0.55rem 0.8rem;
+        }
+
+        .taxonomy-import-search i {
+            color: #6b7280;
+            flex: 0 0 auto;
+        }
+
+        .taxonomy-import-search input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            font-size: 0.96rem;
+        }
+
+        .taxonomy-review-species {
+            display: block;
+            color: #111827;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .taxonomy-review-empty {
+            color: #6b7280;
+            text-align: center;
+            padding: 1.25rem;
+        }
+
+
+        .taxonomy-import-search input[type="search"] {
+            appearance: none;
+            -webkit-appearance: none;
+            box-shadow: none;
+            padding: 0;
+            line-height: 1.45;
+        }
+
+        .taxonomy-import-search input[type="search"]::-webkit-search-decoration,
+        .taxonomy-import-search input[type="search"]::-webkit-search-cancel-button,
+        .taxonomy-import-search input[type="search"]::-webkit-search-results-button,
+        .taxonomy-import-search input[type="search"]::-webkit-search-results-decoration {
+            display: none;
+        }
+
+        .taxonomy-search-mark {
+            background: #fde68a;
+            color: #78350f;
+            border-radius: 0.25rem;
+            padding: 0 0.15rem;
+            font-weight: 700;
+        }
+
+        .marker-heatmap-cell {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.6rem;
+            padding: 0.24rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid rgba(209, 213, 219, 0.9);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .marker-heatmap-cell.marker-neutral {
+            background: #f9fafb;
+            color: #374151;
+        }
+
+        .taxonomy-tree-panel {
+            border: 1px solid #d5d9f3;
+            background: linear-gradient(135deg, #eef0fb 0%, #ffffff 52%, #fef2f2 100%);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin: 0.9rem 0;
+            box-shadow: 0 10px 24px rgba(25, 27, 77, 0.06);
+        }
+
+        .taxonomy-tree-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .taxonomy-tree-title {
+            color: #191b4d;
+            font-weight: 800;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .taxonomy-tree-subtitle {
+            color: #4b5563;
+            font-size: 0.86rem;
+            margin-top: 0.2rem;
+        }
+
+        .taxonomy-tree-body {
+            max-height: 18rem;
+            overflow: auto;
+            border-radius: 0.85rem;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(213, 217, 243, 0.85);
+            padding: 0.45rem 0.65rem;
+        }
+
+        .taxonomy-tree-list,
+        .taxonomy-tree-list ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .taxonomy-tree-list ul {
+            margin-left: 1.05rem;
+            padding-left: 0.9rem;
+            border-left: 2px solid #d5d9f3;
+        }
+
+        .taxonomy-tree-node {
+            margin: 0.25rem 0;
+        }
+
+        .taxonomy-tree-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            padding: 0.35rem 0.45rem;
+            border-radius: 0.7rem;
+        }
+
+        .taxonomy-tree-row:hover {
+            background: #eef0fb;
+        }
+
+        .taxonomy-tree-name {
+            color: #111827;
+            font-weight: 700;
+        }
+
+        .taxonomy-tree-rank {
+            color: #6b7280;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-right: 0.35rem;
+        }
+
+        .taxonomy-tree-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.35rem;
+            color: #323795;
+            font-size: 0.78rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .taxonomy-tree-chip {
+            background: #eef0fb;
+            border: 1px solid #d5d9f3;
+            border-radius: 999px;
+            padding: 0.12rem 0.45rem;
+        }
+
+        .taxonomy-tree-chip.real {
+            background: #fef2f2;
+            border-color: #f9b3b3;
+            color: #8a001f;
+        }
+
+        .taxonomy-tree-children {
+            margin-top: 0.15rem;
+        }
+
+
+
+        /* v3 refinements */
+        .taxonomy-import-search {
+            min-height: 2.75rem;
+            box-shadow: none;
+        }
+
+        .taxonomy-import-search:focus-within {
+            border-color: #3a47ab;
+            box-shadow: 0 0 0 3px rgba(58, 71, 171, 0.16);
+        }
+
+        #taxonomyImportSearchInput,
+        #taxonomyImportSearchInput:focus,
+        #taxonomyImportSearchInput:focus-visible {
+            border: 0 !important;
+            outline: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        #taxonomyImportSearchInput::-webkit-search-decoration,
+        #taxonomyImportSearchInput::-webkit-search-cancel-button,
+        #taxonomyImportSearchInput::-webkit-search-results-button,
+        #taxonomyImportSearchInput::-webkit-search-results-decoration {
+            display: none;
+        }
+
+        #progressModal .progress-modal-card {
+            width: min(96vw, 84rem) !important;
+            max-width: min(96vw, 84rem) !important;
+        }
+
+        #progressModal .progress-modal-card.progress-modal-ncbi,
+        #progressModal .progress-modal-card.progress-modal-gbif {
+            width: min(96vw, 84rem) !important;
+            max-width: min(96vw, 84rem) !important;
+        }
+
+        #step1Section > .flex:first-child .text-base,
+        #recordsSection > div:first-child h2,
+        #featureTypesSection > h3,
+        #genesSection > div:first-child h3 {
+            font-size: 1rem !important;
+            line-height: 1.5rem !important;
+        }
+
+        #step1Section > .flex:first-child .step-badge,
+        #recordsSection > div:first-child .step-badge,
+        #featureTypesSection > h3 .step-badge,
+        #genesSection > div:first-child .step-badge {
+            font-size: 0.875rem !important;
+            line-height: 1rem !important;
+        }
+
+
+
+
+        /* v4 refinements */
+        .taxonomy-import-search {
+            display: grid !important;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            width: 100%;
+            min-width: 0;
+            border: 1px solid #d1d5db;
+            border-radius: 0.9rem;
+            background: #ffffff;
+            padding: 0.65rem 0.85rem;
+            box-shadow: none !important;
+        }
+
+        .taxonomy-import-search:focus-within {
+            border-color: #3a47ab;
+            box-shadow: 0 0 0 3px rgba(58, 71, 171, 0.16) !important;
+        }
+
+        .taxonomy-import-search input,
+        .taxonomy-import-search input[type="search"],
+        #taxonomyImportSearchInput,
+        #taxonomyImportSearchInput:focus,
+        #taxonomyImportSearchInput:focus-visible {
+            all: unset !important;
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            color: #111827 !important;
+            font-size: 1rem !important;
+            line-height: 1.5rem !important;
+            background: transparent !important;
+            border: 0 !important;
+            outline: 0 !important;
+            box-shadow: none !important;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+        }
+
+        .marker-heatmap-td {
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            border-inline: 1px solid rgba(255, 255, 255, 0.65);
+            transition: filter 0.15s ease, transform 0.15s ease;
+        }
+
+        .marker-heatmap-td:hover {
+            filter: brightness(0.96);
+        }
+
+        .step4-info-card,
+        .step4-info-card span {
+            font-size: 1rem !important;
+            line-height: 1.5rem !important;
+        }
+
+        .step4-info-card kbd {
+            font-size: 0.875rem !important;
+            line-height: 1.25rem !important;
+        }
+
+        #headerModal .splace-wide-modal,
+        .splace-wide-modal {
+            width: min(96vw, 84rem) !important;
+            max-width: min(96vw, 84rem) !important;
+        }
+
+        #heatmapContainer {
+            min-height: 24rem;
+            max-height: 72vh;
+            border: 1px solid #d5d9f3;
+            border-radius: 1rem;
+            background: #ffffff;
+            padding: 0.5rem;
+        }
+
+        #heatmapContainer .marker-length-heatmap-wrap {
+            overflow: auto;
+            max-height: 68vh;
+            border-radius: 0.75rem;
+        }
+
+        #heatmapContainer .marker-length-heatmap-table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        #heatmapContainer .marker-length-heatmap-table th,
+        #heatmapContainer .marker-length-heatmap-table td {
+            border-right: 1px solid #ffffff;
+            border-bottom: 1px solid #ffffff;
+        }
+
+        #heatmapContainer .marker-length-heatmap-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: #eef0fb;
+        }
+
+        #heatmapContainer .marker-length-heatmap-species {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background: #ffffff;
+            box-shadow: 1px 0 0 rgba(213, 217, 243, 0.9);
+        }
+
+        #heatmapContainer thead .marker-length-heatmap-species {
+            z-index: 30;
+            background: #eef0fb;
+        }
+
+        #heatmapContainer .marker-length-heatmap-cell {
+            min-width: 5.5rem;
+            font-variant-numeric: tabular-nums;
+            transition: filter 0.15s ease;
+        }
+
+        #heatmapContainer .marker-length-heatmap-cell:hover {
+            filter: brightness(0.95);
+        }
+
+
+
+        .taxonomy-tree-details > summary {
+            list-style: none;
+            cursor: pointer;
+            display: block;
+        }
+
+        .taxonomy-tree-details > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .taxonomy-tree-details > summary .taxonomy-tree-row::before {
+            content: "▸";
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1rem;
+            color: #191b4d;
+            font-weight: 800;
+            flex: 0 0 auto;
+        }
+
+        .taxonomy-tree-details[open] > summary .taxonomy-tree-row::before {
+            content: "▾";
+        }
+
+        .taxonomy-tree-row {
+            display: grid;
+            grid-template-columns: minmax(16rem, 1fr) auto;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .taxonomy-tree-identity {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            min-width: 0;
+        }
+
+        .taxonomy-tree-metrics {
+            justify-content: flex-end;
+            min-width: max-content;
+        }
+
+        .heatmap-scale-row,
+        .marker-length-scale-row {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #4b5563;
+            flex-wrap: wrap;
+        }
+
+        .presence-scale-bar,
+        .marker-length-scale-bar {
+            width: 10rem;
+            height: 0.7rem;
+            border-radius: 999px;
+            border: 1px solid rgba(209, 213, 219, 0.9);
+            overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);
+        }
+
+        .presence-scale-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .presence-scale-bar span:first-child {
+            background: #f26c41;
+        }
+
+        .presence-scale-bar span:last-child {
+            background: #4676b4;
+        }
+
+        .marker-length-scale-bar {
+            background: linear-gradient(90deg, #bf0030 0%, #fef2f2 46%, #eef0fb 54%, #3a47ab 100%);
+        }
+
+        #markerLengthHeatmapSection {
+            display: none;
+        }
+
+        html[data-runtime="desktop"] #markerLengthHeatmapSection:not(.hidden) {
+            display: block;
+        }
+
+        #markerLengthHeatmapContainer {
+            min-height: 24rem;
+            max-height: 72vh;
+            border: 1px solid #d5d9f3;
+            border-radius: 1rem;
+            background: #ffffff;
+            padding: 0.5rem;
+            overflow: auto;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-wrap {
+            overflow: auto;
+            max-height: 68vh;
+            border-radius: 0.75rem;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-table th,
+        #markerLengthHeatmapContainer .marker-length-heatmap-table td {
+            border-right: 1px solid #ffffff;
+            border-bottom: 1px solid #ffffff;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: #eef0fb;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-species {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background: #ffffff;
+            box-shadow: 1px 0 0 rgba(213, 217, 243, 0.9);
+        }
+
+        #markerLengthHeatmapContainer thead .marker-length-heatmap-species {
+            z-index: 30;
+            background: #eef0fb;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell {
+            min-width: 5.5rem;
+            font-variant-numeric: tabular-nums;
+            transition: filter 0.15s ease;
+        }
+
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell:hover {
+            filter: brightness(0.95);
+        }
+
+        @media (max-width: 1100px) {
+            .taxonomy-tree-row {
+                grid-template-columns: 1fr;
+            }
+            .taxonomy-tree-metrics {
+                justify-content: flex-start;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .taxonomy-import-toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .taxonomy-import-toolbar .taxonomy-import-actions {
+                justify-content: flex-start;
+            }
+        }
+    
+        /* v8 taxonomy tree, collapsed and compact */
+        .taxonomy-tree-panel {
+            display: block;
+        }
+        .taxonomy-tree-panel.hidden {
+            display: none;
+        }
+        .taxonomy-tree-panel > summary.taxonomy-tree-head {
+            cursor: pointer;
+            list-style: none;
+            margin-bottom: 0;
+        }
+        .taxonomy-tree-panel > summary.taxonomy-tree-head::-webkit-details-marker {
+            display: none;
+        }
+        .taxonomy-tree-panel > summary.taxonomy-tree-head::before {
+            content: "▸";
+            color: #191b4d;
+            font-weight: 900;
+            margin-right: 0.55rem;
+            line-height: 1.2;
+        }
+        .taxonomy-tree-panel[open] > summary.taxonomy-tree-head::before {
+            content: "▾";
+        }
+        .taxonomy-tree-panel[open] > summary.taxonomy-tree-head {
+            margin-bottom: 0.7rem;
+        }
+        .taxonomy-tree-toggle-label {
+            color: #323795;
+            font-size: 0.78rem;
+            font-weight: 800;
+            background: #eef0fb;
+            border: 1px solid #d5d9f3;
+            border-radius: 999px;
+            padding: 0.15rem 0.55rem;
+            white-space: nowrap;
+        }
+        .taxonomy-tree-panel[open] .taxonomy-tree-toggle-label {
+            display: none;
+        }
+        .taxonomy-tree-body {
+            max-height: 24rem;
+        }
+        .taxonomy-tree-list ul {
+            margin-left: 0.7rem;
+            padding-left: 0.85rem;
+        }
+        .taxonomy-tree-row {
+            display: flex !important;
+            align-items: center;
+            justify-content: flex-start !important;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            width: 100%;
+            min-width: 0;
+        }
+        .taxonomy-tree-details > summary .taxonomy-tree-row::before {
+            margin-right: 0.15rem;
+        }
+        .taxonomy-tree-identity {
+            flex: 0 1 auto;
+            min-width: 0;
+        }
+        .taxonomy-tree-metrics {
+            justify-content: flex-start !important;
+            min-width: 0 !important;
+            white-space: normal !important;
+            margin-left: 0.25rem;
+        }
+        .taxonomy-tree-chip {
+            white-space: nowrap;
+        }
+        @media (max-width: 900px) {
+            .taxonomy-tree-row {
+                align-items: flex-start;
+            }
+            .taxonomy-tree-metrics {
+                width: 100%;
+                margin-left: 1.35rem;
+            }
+        }
+
+        /* v8 marker length heatmap labels */
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell {
+            color: #ffffff;
+        }
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell.marker-length-equal {
+            background: #ffffff !important;
+            color: #111827 !important;
+        }
+
+
+        /* v9, compact taxonomy tree. Keep rows left aligned and prevent horizontal breakage. */
+        .taxonomy-tree-body {
+            overflow-x: hidden !important;
+        }
+        .taxonomy-tree-list,
+        .taxonomy-tree-children {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        .taxonomy-tree-details > summary,
+        .taxonomy-tree-node > .taxonomy-tree-row {
+            max-width: 100% !important;
+        }
+        .taxonomy-tree-row {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            width: auto !important;
+            max-width: 100% !important;
+            gap: 0.5rem !important;
+            flex-wrap: wrap !important;
+        }
+        .taxonomy-tree-identity {
+            display: inline-flex !important;
+            align-items: baseline !important;
+            gap: 0.25rem !important;
+            width: auto !important;
+            max-width: 100% !important;
+            flex: 0 1 auto !important;
+        }
+        .taxonomy-tree-metrics {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            width: auto !important;
+            max-width: 100% !important;
+            flex: 0 1 auto !important;
+            white-space: normal !important;
+            margin-left: 0 !important;
+        }
+        .taxonomy-tree-chip {
+            flex: 0 0 auto !important;
+        }
+        .taxonomy-tree-details > summary .taxonomy-tree-row::before {
+            flex: 0 0 auto;
+        }
+        .taxonomy-tree-list ul {
+            max-width: calc(100% - 1rem) !important;
+        }
+        @media (max-width: 900px) {
+            .taxonomy-tree-row,
+            .taxonomy-tree-metrics {
+                width: auto !important;
+                margin-left: 0 !important;
+            }
+        }
+
+        /* v9, Highcharts desktop marker heatmap, readable fallback and scroll. */
+        #markerLengthHeatmapContainer {
+            min-height: 220px;
+        }
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell {
+            color: #ffffff;
+        }
+        #markerLengthHeatmapContainer .marker-length-heatmap-cell.marker-length-equal {
+            background: #ffffff !important;
+            color: #111827 !important;
+        }
+
+
+        /* v11, Taxonomic tree behaves as a closed accordion title. */
+        #taxonomyTreePanel > summary.taxonomy-tree-head {
+            cursor: pointer;
+            user-select: none;
+        }
+        #taxonomyTreePanel:not([open]) > #taxonomyTreeBody {
+            display: none !important;
+        }
+        #taxonomyTreePanel:not([open]) {
+            padding-bottom: 0 !important;
+        }
+        #taxonomyTreePanel:not([open]) .taxonomy-tree-head {
+            border-bottom: 0 !important;
+        }
+        #markerLengthHeatmapSection .fa-th {
+            line-height: 1;
+        }
+
+
+        /* v12, Taxonomic tree uses a fixed left title and only top-level nodes start visible. */
+        #taxonomyTreePanel.taxonomy-tree-panel {
+            display: block;
+            padding: 1rem !important;
+        }
+        #taxonomyTreePanel.taxonomy-tree-panel.hidden {
+            display: none !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-head {
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            gap: 0.75rem !important;
+            width: 100% !important;
+            margin: 0 0 0.75rem 0 !important;
+            text-align: left !important;
+            border-bottom: 0 !important;
+            cursor: default !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-title,
+        #taxonomyTreePanel .taxonomy-tree-subtitle {
+            text-align: left !important;
+            justify-content: flex-start !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-body,
+        #taxonomyTreePanel.taxonomy-tree-panel > #taxonomyTreeBody {
+            display: block !important;
+            width: 100% !important;
+            max-height: 24rem !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-toggle-label {
+            display: none !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-list > .taxonomy-tree-node > .taxonomy-tree-details:not([open]) > .taxonomy-tree-children {
+            display: none !important;
+        }
+        #taxonomyTreePanel .taxonomy-tree-list > .taxonomy-tree-node > .taxonomy-tree-details > summary {
+            display: block !important;
+        }
+
+
+    </style>
+
 </head>
 <body>
 
@@ -380,8 +1221,11 @@
                         </button>
                     </div>
                     <p class="step1-card-text" data-i18n="step1.taxonomy.body">Search NCBI and download matching GenBank records automatically into the tool.</p>
-                    <div class="step1-api-hint">
-                        <span data-i18n="step1.taxonomy.apiHint">Add an NCBI API key to speed up imports.</span>
+                    <div id="taxonomyApiHint" class="step1-api-hint">
+                        <span data-i18n="step1.taxonomy.apiHint">Add an NCBI API key to speed up imports — find <i class="fa-solid fa-key"></i> in the top bar.</span>
+                        <button id="taxonomyApiHintClose" class="step1-api-hint-close" type="button" aria-label="Close NCBI API key hint" data-tippy-content="Hide this NCBI API key tip">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
 
                     <div class="step1-form-grid">
@@ -400,25 +1244,18 @@
 
                         <div class="step1-field step1-field-compact">
                             <span data-i18n="step1.taxonomy.completeness">Genome scope</span>
-                            <div class="step1-switch-stack step1-switch-stack-compact">
-                                <label class="step1-switch-row">
-                                    <input id="taxonomyCompleteCheckbox" type="checkbox">
-                                    <span class="switch-track"><span class="switch-knob"></span></span>
-                                    <span data-i18n="step1.taxonomy.completeness.complete">Complete genomes</span>
-                                </label>
-                                <label class="step1-switch-row">
-                                    <input id="taxonomyPartialCheckbox" type="checkbox">
-                                    <span class="switch-track"><span class="switch-knob"></span></span>
-                                    <span data-i18n="step1.taxonomy.completeness.partial">Partial genomes</span>
-                                </label>
-                            </div>
+                            <label class="step1-switch-row" data-tippy-content="Unchecked: search complete and partial genomes. Checked: search complete genomes only.">
+                                <input id="taxonomyCompleteCheckbox" type="checkbox">
+                                <span class="switch-track"><span class="switch-knob"></span></span>
+                                <span>Complete Only</span>
+                            </label>
                         </div>
 
                         <div class="step1-field step1-field-compact">
                             <span data-i18n="step1.taxonomy.database">Database</span>
                             <label class="step1-switch-row">
-                                <input id="taxonomyRefseqOnly" type="checkbox">
-                                <span class="switch-track"><span class="switch-knob"></span></span>
+                                <input id="taxonomyRefseqOnly" type="checkbox" data-tippy-content="Choose whether the NCBI search should be restricted to curated RefSeq records only. Leave it off to search GenBank and RefSeq together." aria-label="RefSeq only">
+                                <span class="switch-track" data-tippy-content="Choose whether the NCBI search should be restricted to curated RefSeq records only. Leave it off to search GenBank and RefSeq together."><span class="switch-knob"></span></span>
                                 <span data-i18n="step1.taxonomy.database.refseqOnly">RefSeq only</span>
                             </label>
                         </div>
@@ -529,6 +1366,16 @@
                 </div>
             </div>
 
+            <section id="taxonomyTreePanel" class="taxonomy-tree-panel hidden" aria-live="polite">
+                <div class="taxonomy-tree-head">
+                    <div>
+                        <div class="taxonomy-tree-title"><i class="fa-solid fa-sitemap"></i><span>Taxonomic tree</span></div>
+                        <div class="taxonomy-tree-subtitle">Indented taxonomy summary using the same records shown below.</div>
+                    </div>
+                </div>
+                <div id="taxonomyTreeBody" class="taxonomy-tree-body"></div>
+            </section>
+
             <!-- Column Visibility -->
             <div id="columnTogglesRow" class="step2-column-row">
                 <span class="step2-column-label"><i class="fa-solid fa-table-columns mr-1"></i><span data-i18n="step2.columns.label">Columns:</span></span>
@@ -620,7 +1467,7 @@
                 </div>
             </div>
             <!-- Button legend -->
-            <div class="bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2 mt-3 mb-3 text-splace-blue-800 flex items-start gap-2">
+            <div class="step4-info-card bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2 mt-3 mb-3 text-splace-blue-800 flex items-start gap-2">
                 <i class="fa-solid fa-circle-info mt-0.5 flex-shrink-0 text-splace-blue-500"></i>
                 <div class="flex flex-col gap-y-1.5">
                     <span><kbd class="bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 text-xs font-semibold font-sans" data-i18n="step4.action.all">Select All</kbd> — <span data-i18n="step4.legend.all">selects every visible marker</span></span>
@@ -634,23 +1481,41 @@
             <div id="geneDuplicateWarnings" class="mt-4 hidden"></div>
         </section>
 
-        <!-- Heatmap (visual extension of step 4) -->
+        <!-- Gene Presence Heatmap (visual extension of step 4) -->
         <section id="heatmapSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
                     <i class="fa-solid fa-th text-splace-blue-600"></i>
                     <span data-i18n="step4.heatmap.title">Gene Presence Heatmap</span>
                 </h3>
-                <div class="flex items-center gap-4 text-sm">
-                    <span class="flex items-center gap-1.5">
-                        <span class="inline-block w-3 h-3 rounded-sm" style="background:#4676b4;"></span> <span data-i18n="step4.heatmap.present">Present</span>
-                    </span>
-                    <span class="flex items-center gap-1.5">
-                        <span class="inline-block w-3 h-3 rounded-sm" style="background:#f26c41;"></span> <span data-i18n="step4.heatmap.absent">Absent</span>
+                <div class="flex items-center gap-4 text-sm flex-wrap">
+                    <span class="heatmap-scale-row" aria-label="Gene presence scale">
+                        <span data-i18n="step4.heatmap.absent">Absent</span>
+                        <span class="presence-scale-bar" aria-hidden="true"><span></span><span></span></span>
+                        <span data-i18n="step4.heatmap.present">Present</span>
                     </span>
                 </div>
             </div>
             <div id="heatmapContainer" class="overflow-x-auto overflow-y-auto max-h-96" style="cursor:grab;"></div>
+        </section>
+
+        <!-- Marker Length Heatmap (desktop only) -->
+        <section id="markerLengthHeatmapSection" class="step-section bg-white rounded-xl border border-gray-200 p-5 hidden">
+            <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-700 flex items-center gap-2">
+                        <i class="fa-solid fa-th text-splace-blue-600"></i>
+                        <span>Marker Length Heatmap</span>
+                    </h3>
+                    <p class="text-sm text-gray-500 mt-1">Desktop-only Highcharts view. Each selected marker is scaled independently by its own minimum and maximum length.</p>
+                </div>
+                <span class="marker-length-scale-row" aria-label="Marker length scale">
+                    <span>min</span>
+                    <span class="marker-length-scale-bar" aria-hidden="true"></span>
+                    <span>max</span>
+                </span>
+            </div>
+            <div id="markerLengthHeatmapContainer"></div>
         </section>
 
         <!-- Step 5 (Web): Download FASTA -->
@@ -706,37 +1571,57 @@
             <div id="panel6seq" class="bg-white rounded-xl border border-gray-200 p-5 hidden">
                 <div class="flex items-center gap-2 mb-3">
                     <span id="step6seq-badge" class="step-badge badge-optional">5b</span>
-                    <h3 class="text-base font-semibold text-gray-700">Sequence Type</h3>
+                    <h3 class="text-base font-semibold text-gray-700" data-i18n="step5.seqtype.title">Sequence Type</h3>
                 </div>
-                <p class="text-sm text-gray-500 mb-3">Choose how to align sequences. Codon-aware mode aligns protein translations via MAFFT then back-translates to DNA, preserving reading frame.</p>
+                <p class="text-sm text-gray-500 mb-3" data-i18n="step5.seqtype.body">Choose how to align sequences. Codon-aware mode aligns protein translations via MAFFT then back-translates to DNA, preserving reading frame.</p>
                 <div class="grid grid-cols-3 gap-3">
                     <label id="alignSeqNtLabel" class="flex items-center gap-3 cursor-pointer border-2 border-splace-blue-400 bg-splace-blue-50 rounded-xl p-3 transition-all">
                         <input type="radio" name="alignSeqType" id="alignSeqNt" value="nt" checked class="accent-splace-blue-600">
                         <div>
-                            <div class="font-semibold text-sm text-splace-blue-900">Nucleotide</div>
-                            <div class="text-xs text-gray-500">Align DNA/RNA sequences directly</div>
+                            <div class="font-semibold text-sm text-splace-blue-900" data-i18n="step5.seqtype.nt.title">Nucleotide</div>
+                            <div class="text-xs text-gray-500" data-i18n="step5.seqtype.nt.body">Align DNA/RNA sequences directly</div>
                         </div>
                     </label>
                     <label id="alignSeqAaLabel" class="flex items-center gap-3 cursor-pointer border-2 border-gray-200 rounded-xl p-3 transition-all">
                         <input type="radio" name="alignSeqType" id="alignSeqAa" value="aa" class="accent-splace-blue-600">
                         <div>
-                            <div class="font-semibold text-sm text-gray-800">Amino Acid</div>
-                            <div class="text-xs text-gray-500">Translate with seqkit, then align</div>
+                            <div class="font-semibold text-sm text-gray-800" data-i18n="step5.seqtype.aa.title">Amino Acid</div>
+                            <div class="text-xs text-gray-500" data-i18n="step5.seqtype.aa.body">Translate with seqkit, then align</div>
                         </div>
                     </label>
                     <label id="alignSeqCodonLabel" class="flex items-center gap-3 cursor-pointer border-2 border-gray-200 rounded-xl p-3 transition-all">
                         <input type="radio" name="alignSeqType" id="alignSeqCodon" value="codon" class="accent-splace-blue-600">
                         <div>
-                            <div class="font-semibold text-sm text-gray-800">Codon Aware</div>
-                            <div class="text-xs text-gray-500">Protein-guided codon alignment (CDS only)</div>
+                            <div class="font-semibold text-sm text-gray-800" data-i18n="step5.seqtype.codon.title">Codon-aware</div>
+                            <div class="text-xs text-gray-500" data-i18n="step5.seqtype.codon.body">Protein-guided codon alignment (CDS only)</div>
                         </div>
                     </label>
                 </div>
                 <div id="codonModeWarning" class="hidden mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p class="text-sm text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
+                    <p class="text-sm text-amber-800" data-i18n="step5.seqtype.warning"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
+                </div>
+                <div id="pythonRuntimeCard" class="hidden mt-3 bg-white border border-splace-blue-100 rounded-xl p-4">
+                    <div class="flex items-start justify-between gap-3 flex-wrap">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-splace-blue-900 flex items-center gap-2">
+                                <i class="fa-brands fa-python text-splace-blue-600"></i>
+                                <span>Python tools for codon trimming</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Desktop only. ClipKIT can be used as an optional codon-aware trimming backend after MAFFT protein alignment. trimAl remains available.</p>
+                            <div id="pythonRuntimeStatus" class="text-xs text-gray-500 mt-2">Python status was not checked yet.</div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="checkPythonBtn" class="step1-inline-btn" type="button" data-tippy-content="Check whether Python and ClipKIT are available for desktop codon-aware trimming.">
+                                <i class="fa-solid fa-magnifying-glass mr-1"></i>Check Python
+                            </button>
+                            <button id="installPythonPackagesBtn" class="step1-inline-btn" type="button" data-tippy-content="Install or upgrade ClipKIT with the detected Python interpreter using pip.">
+                                <i class="fa-solid fa-download mr-1"></i>Install ClipKIT
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div id="alignGeneticCodeSection" class="hidden mt-3 bg-splace-blue-50 border border-splace-blue-100 rounded-lg p-3">
-                    <label class="block text-sm font-medium text-gray-600 mb-1">Genetic Code</label>
+                    <label class="block text-sm font-medium text-gray-600 mb-1" data-i18n="step5.seqtype.geneticCode">Genetic Code</label>
                     <select id="alignGeneticCode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
                         <option value="1">Standard (NCBI 1)</option>
                         <option value="2" selected>Vertebrate mitochondrial (NCBI 2)</option>
@@ -752,7 +1637,30 @@
                         <option value="21">Trematode mitochondrial (NCBI 21)</option>
                         <option value="24">Pterobranchia mitochondrial (NCBI 24)</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-1.5"><i class="fa-solid fa-circle-info mr-1"></i>Sequences are translated before alignment. MAFFT runs in <code class="bg-white border border-gray-200 px-1 rounded">--amino</code> mode.</p>
+                    <p class="text-xs text-gray-500 mt-1.5" data-i18n="step5.seqtype.translationInfo"><i class="fa-solid fa-circle-info mr-1"></i>Sequences are translated before alignment. MAFFT runs in <code class="bg-white border border-gray-200 px-1 rounded">--amino</code> mode.</p>
+                    <div id="codonPolicySection" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label class="flex items-start gap-3 rounded-xl border border-splace-blue-100 bg-white px-3 py-3 cursor-pointer">
+                            <input type="checkbox" id="codonAllowPseudo" class="mt-0.5 accent-splace-blue-600 rounded">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800" data-i18n="step5.seqtype.codon.allowPseudo.title">Allow /pseudo and /pseudogene CDS</div>
+                                <div class="text-xs text-gray-500 mt-0.5" data-i18n="step5.seqtype.codon.allowPseudo.body">Disabled by default. When off, pseudo CDS are excluded before translation.</div>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-3 rounded-xl border border-splace-blue-100 bg-white px-3 py-3 cursor-pointer">
+                            <input type="checkbox" id="codonAllowInternalStops" class="mt-0.5 accent-splace-blue-600 rounded">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800" data-i18n="step5.seqtype.codon.allowInternalStops.title">Allow internal stop codons</div>
+                                <div class="text-xs text-gray-500 mt-0.5" data-i18n="step5.seqtype.codon.allowInternalStops.body">Disabled by default. When on, sequences with internal stops stay in the run and are reported with warnings.</div>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-3 rounded-xl border border-splace-blue-100 bg-white px-3 py-3 cursor-pointer md:col-span-2">
+                            <input type="checkbox" id="codonAllowBacktranslationWarnings" class="mt-0.5 accent-splace-blue-600 rounded">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800">Continue when amino acid and codon checks report warnings</div>
+                                <div class="text-xs text-gray-500 mt-0.5">Disabled by default. When off, any amino acid versus codon mismatch after MAFFT blocks successful completion. When on, the run continues but the warnings stay recorded in the log and pipeline metadata.</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -863,6 +1771,24 @@
                             <option value="manual" data-i18n="step5.trimal.mode.manual">Manual thresholds</option>
                         </select>
                     </div>
+                    <div id="codonTrimToolSection" class="md:col-span-2 hidden rounded-xl border border-splace-blue-100 bg-splace-blue-50 p-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Codon trimming backend</label>
+                        <select id="codonTrimTool" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
+                            <option value="auto">Auto, trimAl then ClipKIT if needed</option>
+                            <option value="trimal">trimAl, protein alignment with back-translation</option>
+                            <option value="clipkit">ClipKIT, Python required</option>
+                        </select>
+                        <div id="clipkitModeRow" class="mt-2 hidden">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">ClipKIT mode</label>
+                            <select id="clipkitMode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-splace-blue-400 outline-none bg-white">
+                                <option value="gappy">gappy, conservative gap trimming</option>
+                                <option value="kpic">kpic</option>
+                                <option value="kpic-gappy">kpic-gappy</option>
+                                <option value="smart-gap">smart-gap</option>
+                            </select>
+                        </div>
+                        <p class="text-xs text-splace-blue-700 mt-2">For codon-aware runs, MAFFT aligns proteins first. The selected trimmer trims the protein alignment, then SPLACE back-translates the result to codon-preserving DNA and validates the frame.</p>
+                    </div>
                     <div id="trimalManualFields" class="md:col-span-2 hidden grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1"><span data-i18n="step5.trimal.gapThreshold">Gap Threshold</span> <span class="text-gray-400">(-gt, 0–1)</span></label>
@@ -967,8 +1893,19 @@
                 <div id="codonPartitionOption" class="hidden bg-splace-blue-50 border border-splace-blue-100 rounded-lg px-3 py-2">
                     <label class="flex items-center gap-2 cursor-pointer text-sm text-splace-blue-900">
                         <input type="checkbox" id="codonPartitionByPosition" class="accent-splace-blue-600 rounded">
-                        <span><strong>Partition by codon position</strong> &mdash; generate separate charsets for positions 1, 2 and 3 per gene</span>
+                        <span data-i18n="step5.seqtype.codonPartition"><strong>Partition by codon position</strong> &mdash; generate separate charsets for positions 1, 2 and 3 per gene</span>
                     </label>
+                </div>
+
+                <div id="excludeThirdCodonOption" class="hidden bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
+                    <label class="flex items-start gap-2 cursor-pointer text-sm text-amber-900">
+                        <input type="checkbox" id="excludeThirdCodonPosition" class="mt-0.5 accent-amber-600 rounded" onchange="toggleThirdCodonWarning()">
+                        <div>
+                            <div class="font-semibold text-gray-800">Exclude third codon position</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Generate an alternative DNA matrix using only codon positions 1 and 2 after codon integrity validation passes.</div>
+                        </div>
+                    </label>
+                    <p id="excludeThirdCodonWarning" class="hidden text-xs text-amber-800">This will remove only the third position of each validated codon, preserving codon positions 1 and 2. This option is commonly used in some phylogenetic workflows to reduce saturation, but it should be reported explicitly in the methods.</p>
                 </div>
 
                 <button onclick="generateNexus()"
@@ -977,6 +1914,7 @@
                 </button>
 
                 <div id="concatSummary" class="hidden text-sm text-gray-500 text-center"></div>
+                <div id="concatGenerationLog" class="hidden text-xs rounded-lg px-3 py-2 border bg-gray-50 border-gray-200 text-gray-700 whitespace-pre-wrap"></div>
                 <div id="partitionTable" class="hidden rounded-xl border border-gray-200 overflow-hidden"></div>
             </div>
 
@@ -1108,11 +2046,11 @@
 <!-- MODALS — preserved as-is (splace.js depends on these IDs)          -->
 <!-- ================================================================== -->
 
-<div id="iqtreeModal" class="fixed inset-0 z-50 hidden">
+<div id="iqtreeModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="iqtreeModalTitle" data-escape-enabled="false">
     <div class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
-    <div class="fixed inset-0 flex flex-col p-4 md:p-6">
-        <div class="bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col overflow-hidden">
-            <div class="modal-header flex-shrink-0">
+    <div class="fixed inset-0 flex items-center justify-center p-3 sm:p-4 md:p-6">
+        <div id="iqtreeModalCard" class="modal-viewport-card bg-white rounded-2xl shadow-2xl w-full overflow-hidden">
+            <div class="modal-header modal-viewport-header flex-shrink-0">
                 <div class="modal-header-icon">
                     <i id="iqtreeModalIcon" class="fa-solid fa-spinner fa-spin"></i>
                 </div>
@@ -1121,10 +2059,14 @@
                     <p class="modal-header-subtitle">This may take a few minutes depending on dataset size.</p>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto bg-gray-900 p-4">
+            <div id="iqtreeModalBody" class="modal-viewport-body bg-gray-900 p-4">
                 <pre class="text-green-400 font-mono text-sm whitespace-pre-wrap leading-relaxed" id="iqtreeModalLog"></pre>
             </div>
-            <div class="px-6 py-4 border-t border-gray-100 flex-shrink-0">
+            <div id="iqtreeModalFooter" class="modal-viewport-footer px-6 py-4 border-t border-gray-100 flex-shrink-0">
+                <div id="iqtreeModalScrollCue" class="analysis-modal-scroll-cue hidden" aria-live="polite">
+                    <i class="fa-solid fa-arrow-down"></i>
+                    <span>Scroll to review the full IQ-TREE log.</span>
+                </div>
                 <button id="iqtreeModalClose" class="hidden w-full px-4 py-2.5 rounded-xl bg-splace-blue-600 hover:bg-splace-blue-700 text-white text-base font-medium transition-colors" type="button">
                     <i class="fa-solid fa-check mr-1"></i> Done
                 </button>
@@ -1133,11 +2075,11 @@
     </div>
 </div>
 
-<div id="analysisModal" class="fixed inset-0 z-50 hidden">
+<div id="analysisModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="analysisModalTitle" data-escape-enabled="false">
     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
-    <div class="fixed inset-0 p-3 sm:p-4">
-        <div class="analysis-modal-shell bg-white rounded-2xl shadow-2xl relative overflow-hidden">
-            <div class="modal-header" style="grid-column: 1 / -1; border-radius: 1rem 1rem 0 0;">
+    <div class="fixed inset-0 flex items-center justify-center p-3 sm:p-4">
+        <div id="analysisModalShell" class="analysis-modal-shell bg-white rounded-2xl shadow-2xl relative overflow-hidden">
+            <div class="modal-header analysis-modal-header" style="border-radius: 1rem 1rem 0 0;">
                 <div class="modal-header-icon">
                     <i id="analysisModalIcon" class="fa-solid fa-spinner fa-spin"></i>
                 </div>
@@ -1146,40 +2088,49 @@
                     <p id="analysisModalSubtitle" class="modal-header-subtitle"></p>
                 </div>
             </div>
-            <section class="analysis-modal-main">
-                <div class="mb-4">
-                    <div id="analysisProgressStack" class="flex flex-col gap-1.5 mb-2 empty:hidden"></div>
-                    <div id="analysisModalProgressBarWrapper" style="display:none">
-                        <div class="flex justify-between text-sm text-gray-500 mb-1">
-                            <span id="analysisModalProgressLabel">0 / 0 markers</span>
-                            <span id="analysisModalProgressPct">0%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2 rounded-full" style="width:0%"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="analysisModalBadges" class="hidden flex flex-wrap gap-1.5 mb-3"></div>
-
-                <div class="analysis-modal-marker-panel">
-                    <div class="analysis-modal-section-head">
-                        <div>
-                            <h4 class="analysis-modal-section-title">Markers in queue</h4>
-                            <p id="analysisModalSectionCopy" class="analysis-modal-section-copy">Track each marker while it runs.</p>
+            <div class="analysis-modal-body">
+                <section id="analysisModalBody" class="analysis-modal-main">
+                    <div class="mb-4">
+                        <div id="analysisProgressStack" class="flex flex-col gap-1.5 mb-2 empty:hidden"></div>
+                        <div id="analysisModalProgressBarWrapper" style="display:none">
+                            <div class="flex justify-between text-sm text-gray-500 mb-1">
+                                <span id="analysisModalProgressLabel">0 / 0 markers</span>
+                                <span id="analysisModalProgressPct">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="analysisModalProgressBar" class="bg-splace-blue-600 h-2 rounded-full" style="width:0%"></div>
+                            </div>
                         </div>
                     </div>
-                    <div id="analysisModalMarkerList" class="analysis-modal-marker-list"></div>
-                </div>
 
+                    <div id="analysisModalBadges" class="hidden flex flex-wrap gap-1.5 mb-3"></div>
+
+                    <div class="analysis-modal-marker-panel">
+                        <div class="analysis-modal-section-head">
+                            <div>
+                                <h4 class="analysis-modal-section-title">Markers in queue</h4>
+                                <p id="analysisModalSectionCopy" class="analysis-modal-section-copy">Track each marker while it runs.</p>
+                            </div>
+                        </div>
+                        <div id="analysisModalMarkerList" class="analysis-modal-marker-list"></div>
+                    </div>
+
+                </section>
+
+                <aside class="analysis-modal-log-panel" aria-label="Analysis log">
+                    <div id="analysisModalLog" class="analysis-modal-log"></div>
+                </aside>
+            </div>
+
+            <div id="analysisModalFooter" class="analysis-modal-footer">
+                <div id="analysisModalScrollCue" class="analysis-modal-scroll-cue hidden" aria-live="polite">
+                    <i class="fa-solid fa-arrow-down"></i>
+                    <span>Scroll to review all queued markers and analysis details.</span>
+                </div>
                 <button id="analysisModalClose" class="hidden analysis-modal-close-btn" type="button">
                     <i class="fa-solid fa-check mr-1"></i> Done
                 </button>
-            </section>
-
-            <aside class="analysis-modal-log-panel" aria-label="Analysis log">
-                <div id="analysisModalLog" class="analysis-modal-log"></div>
-            </aside>
+            </div>
         </div>
     </div>
 </div>
@@ -1372,7 +2323,7 @@
 <div id="taxonomyImportModal" class="fixed inset-0 z-50 hidden">
     <div id="taxonomyImportOverlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-center justify-center p-3">
-        <div class="bg-white rounded-2xl shadow-xl w-full h-full overflow-hidden flex flex-col">
+        <div class="taxonomy-import-panel bg-white rounded-2xl shadow-xl w-full h-full overflow-hidden flex flex-col">
             <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-white flex-shrink-0">
                 <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-splace-blue-50 text-splace-blue-600 text-xl flex-shrink-0">
                     <i class="fa-solid fa-filter-circle-dollar"></i>
@@ -1385,12 +2336,18 @@
             <div id="taxonomyImportSummary" class="taxonomy-review-summary px-6 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0"></div>
 
             <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
-                <div class="flex flex-wrap gap-2 justify-end">
-                    <button id="taxonomyImportSelectAll" class="step1-filter-chip" type="button" data-i18n="step1.review.selectAll">Enable all</button>
-                    <button id="taxonomyImportSelectNone" class="step1-filter-chip" type="button" data-i18n="step1.review.selectNone">Disable all</button>
-                    <button id="taxonomyImportDisableUnverified" class="step1-filter-chip" type="button" data-i18n="step1.review.disableUnverified">Disable UNVERIFIED</button>
-                    <button id="taxonomyImportSelectComplete" class="step1-filter-chip" type="button" data-i18n="step1.review.selectComplete">Only complete</button>
-                    <button id="taxonomyImportSelectPartial" class="step1-filter-chip" type="button" data-i18n="step1.review.selectPartial">Only partial</button>
+                <div class="taxonomy-import-toolbar">
+                    <div class="taxonomy-import-search" role="search" aria-label="Filter genomes before importing">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input id="taxonomyImportSearchInput" type="search" autocomplete="off" placeholder="Search species or accession code">
+                    </div>
+                    <div class="taxonomy-import-actions flex flex-wrap gap-2 justify-end">
+                        <button id="taxonomyImportSelectAll" class="step1-filter-chip" type="button" data-i18n="step1.review.selectAll" data-tippy-content="Turn on the import switch for every genome in the current review list.">Enable all</button>
+                        <button id="taxonomyImportSelectNone" class="step1-filter-chip" type="button" data-i18n="step1.review.selectNone" data-tippy-content="Turn off the import switch for every genome in the current review list.">Disable all</button>
+                        <button id="taxonomyImportDisableUnverified" class="step1-filter-chip" type="button" data-i18n="step1.review.disableUnverified" data-tippy-content="Keep your current choices, but disable genomes whose NCBI title contains UNVERIFIED.">Disable UNVERIFIED</button>
+                        <button id="taxonomyImportSelectComplete" class="step1-filter-chip" type="button" data-i18n="step1.review.selectComplete" data-tippy-content="Import only records classified as complete and not marked as UNVERIFIED.">Only complete</button>
+                        <button id="taxonomyImportSelectPartial" class="step1-filter-chip" type="button" data-i18n="step1.review.selectPartial" data-tippy-content="Import only records classified as partial and not marked as UNVERIFIED.">Only partial</button>
+                    </div>
                 </div>
                 <div id="taxonomyImportSelectionCount" class="text-sm font-medium text-splace-blue-700"></div>
             </div>
@@ -1478,7 +2435,7 @@
 <div id="headerModal" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" id="headerModalOverlay"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="splace-wide-modal bg-white rounded-2xl shadow-xl w-full overflow-hidden max-h-[90vh] flex flex-col">
             <div class="modal-header">
                 <div class="modal-header-icon">
                     <i class="fa-solid fa-pen-ruler"></i>
