@@ -6561,7 +6561,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const seqLen = sequences[0].seq.length || 1;
 
     // ── constants ──────────────────────────────────────────────────────────
-    const RULER_H = 24;
+    const RULER_H = 34;
     const CONS_SEQ_H = Math.max(14, Math.min(22, Math.floor(480 / nSeq)));
     const CONS_BAR_H = 52;
     const BASE_COMP_H = 44;
@@ -6577,12 +6577,12 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const labels = options.labels || { zoom: "ZOOM", consensus: "CONSENSUS", conservation: "CONSERVATION" };
     const DEFAULT_COLOR = "#cbd5e1";
     const codonGrid = !!options.codonGrid;
-    const codonGridLabel = options.codonGridLabel || "Codon frame: spacing marks each 3-base codon.";
+    const codonGridLabel = options.codonGridLabel || "Codon frame: spacing separates each 3-base codon; ruler labels mark the first and last base of each codon.";
     let codonSpacingEnabled = codonGrid;
 
     function getCodonGap() {
         return codonGrid && codonSpacingEnabled && seqLen > 3
-            ? Math.max(4, Math.min(9, Math.round(cellW * 0.35)))
+            ? Math.max(8, Math.min(18, Math.round(cellW * 0.75)))
             : 0;
     }
 
@@ -6656,7 +6656,10 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const zoomInBtn = makeBtn("+", "Zoom in (or Ctrl+scroll)", () => { cellW = Math.min(28, Math.ceil(cellW * 1.55)); redraw(); });
     const zoomFitBtn = makeBtn("Fit", "Fit to view", () => {
         const avail = seqOuter.clientWidth || container.clientWidth - nameW;
-        cellW = Math.max(1, Math.floor(avail / seqLen));
+        const codonGapFactor = codonGrid && codonSpacingEnabled ? 0.75 : 0;
+        const codonGroups = Math.floor(Math.max(0, seqLen - 1) / 3);
+        const widthUnits = seqLen + codonGroups * codonGapFactor;
+        cellW = Math.max(1, Math.floor(avail / Math.max(1, widthUnits)));
         redraw();
     });
 
@@ -6823,20 +6826,53 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         const rCtx = rulerCanvas.getContext("2d");
         rCtx.fillStyle = "#f3f4f6";
         rCtx.fillRect(0, 0, W, RULER_H);
-        rCtx.font = "10px monospace";
+        rCtx.font = codonGrid && codonSpacingEnabled ? "bold 10px monospace" : "10px monospace";
         rCtx.textAlign = "center";
-        // tick interval: minimum every 2 positions, then nice steps
-        const minTickPx = 35;
-        const rawStep = Math.ceil(minTickPx / cellW);
-        const niceSteps = [2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
-        const tickStep = niceSteps.find(s => s >= rawStep) || rawStep;
-        for (let p = 0; p < seqLen; p++) {
-            if (p === 0 || (p + 1) % tickStep === 0) {
-                const x = xForPosition(p) + cellW / 2;
-                rCtx.fillStyle = "#9ca3af";
-                rCtx.fillRect(x - 0.5, RULER_H - 6, 1, 6);
-                rCtx.fillStyle = "#374151";
-                rCtx.fillText(p + 1, x, RULER_H - 9);
+        rCtx.textBaseline = "middle";
+
+        if (codonGrid && codonSpacingEnabled) {
+            rCtx.fillStyle = "#64748b";
+            rCtx.font = "bold 9px monospace";
+            for (let codonStart = 0; codonStart < seqLen; codonStart += 3) {
+                const codonEnd = Math.min(codonStart + 2, seqLen - 1);
+                const startX = xForPosition(codonStart) + cellW / 2;
+                const endX = xForPosition(codonEnd) + cellW / 2;
+                const codonLeft = xForPosition(codonStart);
+                const codonRight = xForPosition(codonEnd) + cellW;
+
+                // Subtle codon bracket. Numbers are anchored to the center of
+                // the first and last base cells, so they remain aligned at any zoom.
+                rCtx.strokeStyle = "#cbd5e1";
+                rCtx.lineWidth = 1;
+                rCtx.beginPath();
+                rCtx.moveTo(codonLeft + 1, RULER_H - 7);
+                rCtx.lineTo(codonRight - 1, RULER_H - 7);
+                rCtx.moveTo(codonLeft + 1, RULER_H - 11);
+                rCtx.lineTo(codonLeft + 1, RULER_H - 5);
+                rCtx.moveTo(codonRight - 1, RULER_H - 11);
+                rCtx.lineTo(codonRight - 1, RULER_H - 5);
+                rCtx.stroke();
+
+                rCtx.fillStyle = "#334155";
+                rCtx.fillText(String(codonStart + 1), startX, 9);
+                if (codonEnd !== codonStart) {
+                    rCtx.fillText(String(codonEnd + 1), endX, 9);
+                }
+            }
+        } else {
+            // tick interval: minimum every 2 positions, then nice steps
+            const minTickPx = 35;
+            const rawStep = Math.ceil(minTickPx / cellW);
+            const niceSteps = [2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
+            const tickStep = niceSteps.find(s => s >= rawStep) || rawStep;
+            for (let p = 0; p < seqLen; p++) {
+                if (p === 0 || (p + 1) % tickStep === 0) {
+                    const x = xForPosition(p) + cellW / 2;
+                    rCtx.fillStyle = "#9ca3af";
+                    rCtx.fillRect(x - 0.5, RULER_H - 6, 1, 6);
+                    rCtx.fillStyle = "#374151";
+                    rCtx.fillText(p + 1, x, RULER_H - 9);
+                }
             }
         }
 
@@ -7012,12 +7048,13 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         if (!e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
         const prevW = cellW;
+        const prevTotalW = alignmentWidth();
         if (e.deltaY < 0) cellW = Math.min(28, Math.ceil(cellW * 1.4));
         else cellW = Math.max(1, Math.floor(cellW * 0.72));
         if (cellW !== prevW) {
-            const mouseRatio = (seqOuter.scrollLeft + e.offsetX) / (seqLen * prevW);
+            const mouseRatio = (seqOuter.scrollLeft + e.offsetX) / Math.max(1, prevTotalW);
             redraw();
-            seqOuter.scrollLeft = mouseRatio * seqLen * cellW - e.offsetX;
+            seqOuter.scrollLeft = mouseRatio * alignmentWidth() - e.offsetX;
         }
     }, { passive: false });
 

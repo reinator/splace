@@ -7,16 +7,20 @@
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
-    "build:win": "node scripts/run-build.js --win",
-    "build:mac": "node scripts/run-build.js --mac",
-    "build:linux": "node scripts/run-build.js --linux",
-    "build:wsl:win": "bash build-wsl.sh --win",
-    "build:wsl:mac": "bash build-wsl.sh --mac",
-    "build:wsl:linux": "bash build-wsl.sh --linux"
+    "build:win": "npm run copy:highcharts && electron-builder --win",
+    "build:mac": "npm run copy:highcharts && electron-builder --mac",
+    "build:linux": "npm run copy:highcharts && electron-builder --linux",
+    "build:wsl:win": "npm run copy:highcharts && electron-builder --win",
+    "build:wsl:mac": "npm run copy:highcharts && electron-builder --mac",
+    "build:wsl:linux": "npm run copy:highcharts && electron-builder --linux",
+    "build:css": "npx @tailwindcss/cli -i ./docs/css/tailwind.input.css -o ./docs/css/tailwind.generated.css --minify",
+    "copy:highcharts": "node scripts/copy-highcharts.js"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.2",
     "electron": "^42.2.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "tailwindcss": "^4.3.2"
   },
   "build": {
     "appId": "io.github.luanrabelo.splace",
@@ -27,12 +31,14 @@
     "files": [
       "main.js",
       "preload.js",
-      "package.json",
-      "node_modules/highcharts/**/*"
+      "requirements.txt",
+      "PYTHON_REQUIREMENT.md",
+      "WORKFLOWS.md",
+      "README_V11.md"
     ],
     "extraResources": [
       {
-        "from": "../docs",
+        "from": "docs/",
         "to": "docs",
         "filter": [
           "**/*"
@@ -46,11 +52,8 @@
         ]
       },
       {
-        "from": "node_modules/highcharts",
-        "to": "node_modules/highcharts",
-        "filter": [
-          "**/*"
-        ]
+        "from": "scripts/run_clipkit.py",
+        "to": "scripts/run_clipkit.py"
       }
     ],
     "win": {
@@ -62,7 +65,7 @@
           ]
         }
       ],
-      "icon": "../docs/assets/SPLACE.png"
+      "icon": "./docs/assets/SPLACE.png"
     },
     "mac": {
       "target": [
@@ -73,7 +76,7 @@
           ]
         }
       ],
-      "icon": "../docs/assets/SPLACE.png"
+      "icon": "./docs/assets/SPLACE.png"
     },
     "linux": {
       "target": [
@@ -84,10 +87,11 @@
           ]
         }
       ],
-      "icon": "../docs/assets/SPLACE.png"
+      "icon": "./docs/assets/SPLACE.png"
     }
   },
   "dependencies": {
-    "highcharts": "^12.6.0"
+    "archiver": "^7.0.1",
+    "highcharts": "12.4.0"
   }
 }
