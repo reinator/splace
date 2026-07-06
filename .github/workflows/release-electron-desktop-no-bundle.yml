@@ -1,0 +1,110 @@
+name: Build desktop release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            target: win
+            platform_slug: windows-x64
+            output_glob: "dist/**/*.exe"
+            output_ext: "exe"
+          - os: macos-latest
+            label: macOS universal
+            target: mac
+            platform_slug: macos-universal
+            output_glob: "dist/**/*.zip"
+            output_ext: "zip"
+          - os: ubuntu-latest
+            label: Linux x64
+            target: linux
+            platform_slug: linux-x64
+            output_glob: "dist/**/*.AppImage"
+            output_ext: "AppImage"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - name: Find Electron package
+        id: appdir
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package.json ] && node -e "const p=require('./package.json'); process.exit(p.name==='splace-desktop'?0:1)"; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          elif [ -f electron/package.json ]; then
+            echo "dir=electron" >> "$GITHUB_OUTPUT"
+          else
+            echo "Could not find the SPLACE Electron package.json" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        working-directory: ${{ steps.appdir.outputs.dir }}
+        run: npm ci
+
+      - name: Build app
+        shell: bash
+        working-directory: ${{ steps.appdir.outputs.dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run build:${{ matrix.target }}
+
+      - name: Normalize artifact name
+        id: artifact
+        shell: bash
+        working-directory: ${{ steps.appdir.outputs.dir }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME:-manual}"
+          safe_tag="${tag//\//-}"
+          file="$(find dist -type f -name '*.${{ matrix.output_ext }}' | head -n 1)"
+          if [ -z "$file" ]; then
+            echo "No build output found for pattern ${{ matrix.output_glob }}" >&2
+            find dist -type f >&2 || true
+            exit 1
+          fi
+          out="SPLACE-${safe_tag}-${{ matrix.platform_slug }}.${{ matrix.output_ext }}"
+          cp "$file" "$out"
+          echo "path=${{ steps.appdir.outputs.dir }}/$out" >> "$GITHUB_OUTPUT"
+          echo "name=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Upload file to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ${{ steps.artifact.outputs.path }}
+
+      - name: Upload workflow artifact for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ steps.artifact.outputs.path }}
+          if-no-files-found: error
