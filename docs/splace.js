@@ -2816,7 +2816,11 @@ function renderHighchartsMarkerLengthHeatmap(container, selectedGenes, rows) {
                 y,
                 value,
                 color: colorInfo.bg,
-                dataLabels: { style: { color: colorInfo.color, textOutline: "none" } },
+                labelColor: colorInfo.color,
+                dataLabels: {
+                    enabled: true,
+                    style: { color: colorInfo.color, textOutline: "none" },
+                },
                 equalColumn: colorInfo.equalColumn === true,
                 columnMin: stat?.min ?? 0,
                 columnMax: stat?.max ?? 0,
@@ -2917,11 +2921,14 @@ function renderHighchartsMarkerLengthHeatmap(container, selectedGenes, rows) {
                 borderColor: "#ffffff",
                 nullColor: "#f3f4f6",
                 dataLabels: {
-                    enabled: !manyCells,
+                    enabled: true,
+                    crop: false,
+                    overflow: "allow",
+                    allowOverlap: true,
                     formatter: function () {
                         return this.point.value ? Number(this.point.value).toLocaleString() : "";
                     },
-                    style: { textOutline: "none", fontSize: "10px", fontWeight: "700" },
+                    style: { textOutline: "none", fontSize: manyCells ? "9px" : "10px", fontWeight: "700" },
                 },
             },
         },
@@ -2984,6 +2991,8 @@ function renderFallbackMarkerLengthHeatmap(container, selectedGenes, rows) {
 
 let highchartsAssetLoadPromise = null;
 let markerLengthHeatmapRenderToken = 0;
+let pythonRuntimeAutoCheckStarted = false;
+let pythonRuntimeLastResult = null;
 
 function isDesktopRuntime() {
     return Boolean(window.isElectron && window.electronAPI);
@@ -2997,7 +3006,19 @@ function syncPythonRuntimeCard() {
     const card = document.getElementById("pythonRuntimeCard");
     if (!card) return;
     const isCodon = document.getElementById("alignSeqCodon")?.checked === true;
-    card.classList.toggle("hidden", !(isDesktopRuntime() && isCodon));
+    const shouldShow = isDesktopRuntime() && isCodon;
+    card.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) maybeAutoCheckPythonRuntime();
+}
+
+function maybeAutoCheckPythonRuntime() {
+    if (pythonRuntimeAutoCheckStarted) return;
+    if (!isDesktopRuntime()) return;
+    if (document.getElementById("alignSeqCodon")?.checked !== true) return;
+    const statusEl = document.getElementById("pythonRuntimeStatus");
+    if (statusEl) statusEl.textContent = "Checking Python and ClipKIT automatically…";
+    pythonRuntimeAutoCheckStarted = true;
+    window.setTimeout(() => checkPythonRuntime({ automatic: true }), 150);
 }
 
 function syncCodonTrimToolUi() {
@@ -3009,7 +3030,7 @@ function syncCodonTrimToolUi() {
     if (modeRow) modeRow.classList.toggle("hidden", !(isCodon && tool === "clipkit"));
 }
 
-async function checkPythonRuntime() {
+async function checkPythonRuntime(options = {}) {
     const statusEl = document.getElementById("pythonRuntimeStatus");
     if (!statusEl) return;
     if (!window.electronAPI?.checkPythonEnvironment) {
@@ -3019,6 +3040,7 @@ async function checkPythonRuntime() {
     statusEl.textContent = "Checking Python and ClipKIT…";
     try {
         const result = await window.electronAPI.checkPythonEnvironment();
+        pythonRuntimeLastResult = result || null;
         if (result?.ipcError) {
             statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Desktop Python bridge is not registered.</span><br><span class="text-gray-500">${escHtml(result.error || "Replace electron/main.js and restart SPLACE.")}</span>`;
             return;
@@ -3031,6 +3053,7 @@ async function checkPythonRuntime() {
             : "ClipKIT is not installed.";
         statusEl.innerHTML = `<span class="font-semibold ${result?.pythonFound ? "text-splace-blue-700" : "text-splace-red-700"}">${escHtml(pythonText)}</span><br><span class="${result?.clipkitFound ? "text-splace-blue-700" : "text-amber-700"}">${escHtml(clipkitText)}</span>`;
     } catch (error) {
+        if (!options?.automatic) pythonRuntimeAutoCheckStarted = false;
         statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Python check failed.</span><br><span class="text-gray-500">${escHtml(error?.message || String(error))}</span><br><span class="text-gray-500">Make sure the updated <code>electron/main.js</code> is in place and restart the Electron app.</span>`;
     }
 }
@@ -3047,6 +3070,7 @@ async function installPythonPackagesForSplace() {
         const result = await window.electronAPI.installPythonPackages({ packages: ["clipkit"] });
         if (result?.success) {
             statusEl.innerHTML = `<span class="font-semibold text-splace-blue-700">ClipKIT installed or upgraded successfully.</span><br><span class="text-gray-500">${escHtml(result.output || "")}</span>`;
+            pythonRuntimeAutoCheckStarted = false;
             await checkPythonRuntime();
         } else {
             statusEl.innerHTML = `<span class="font-semibold text-splace-red-700">Install failed.</span><br><span class="text-gray-500 whitespace-pre-wrap">${escHtml(result?.error || result?.output || "Unknown error")}</span>`;
@@ -5516,9 +5540,9 @@ function openAnalysisModal(phase, markers, options) {
     window._activeIpcPhase = phase === "trimAl" ? "trimal" : "mafft";
 
     list.innerHTML = markers.map(m =>
-        `<div id="modal-marker-${CSS.escape(m)}" class="flex items-center gap-2 px-2 py-1 rounded text-xs text-gray-600">
-            <i class="fa-solid fa-clock text-gray-300 w-3"></i>
-            <span class="font-mono">${m}</span>
+        `<div id="modal-marker-${CSS.escape(m)}" class="analysis-marker-row text-gray-600">
+            <i class="fa-solid fa-clock text-gray-300"></i>
+            <span class="font-mono" title="${escHtml(m)}">${escHtml(m)}</span>
         </div>`
     ).join("");
 
@@ -5622,15 +5646,15 @@ function updateAnalysisModal(data) {
         if (row) {
             const icon = row.querySelector("i");
             if (data.status === "running") {
-                icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500 w-3";
+                icon.className = "fa-solid fa-spinner fa-spin text-splace-blue-500";
             } else if (data.status === "done") {
-                icon.className = "fa-solid fa-check text-green-500 w-3";
+                icon.className = "fa-solid fa-check text-green-500";
                 if (data.info) {
                     const span = row.querySelector("span");
                     span.innerHTML += ` <span class="text-gray-400">${data.info}</span>`;
                 }
             } else if (data.status === "error") {
-                icon.className = "fa-solid fa-xmark text-red-500 w-3";
+                icon.className = "fa-solid fa-xmark text-red-500";
             }
         }
     }
@@ -6359,62 +6383,9 @@ function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
     if (!container) return;
     const rows = sequences || [];
     if (!rows.length) {
-        container.innerHTML = `<div class="alignment-preview"><div class="alignment-preview-empty">${i18nText("step5.results.preview.empty", "No sequences available for this view.")}</div></div>`;
+        container.innerHTML = "";
         return;
     }
-
-    const totalStops = mode === "aa" ? rows.reduce((acc, seq) => acc + (seq.stopCount || 0), 0) : 0;
-    const summaryKey = mode === "aa" ? "step5.results.preview.summaryStops" : "step5.results.preview.summary";
-    const summaryFallback = mode === "aa"
-        ? "{seqs} sequences rendered; {stops} possible stop codon(s)"
-        : "{seqs} sequences rendered";
-    const summary = i18nText(summaryKey, summaryFallback, { seqs: rows.length, stops: totalStops });
-
-    // Helper: extract start or stop codon (first/last 3 non-gap bases) from a raw DNA sequence
-    function getDnaCodon(rawSeq, fromEnd) {
-        if (!rawSeq || !rawSeq.seq) return { codon: "---", incomplete: false };
-        const dna = rawSeq.seq.replace(/-/g, "").toUpperCase();
-        if (!dna) return { codon: "---", incomplete: false };
-        const raw = fromEnd ? dna.slice(-3) : dna.slice(0, 3);
-        const incomplete = raw.length < 3;
-        const codon = fromEnd ? raw.padStart(3, "-") : raw.padEnd(3, "-");
-        return { codon, incomplete };
-    }
-
-    // Helper: render a 3-base codon as colored spans using NT_COLORS
-    function renderCodon(codon, incomplete) {
-        const title = incomplete ? ' title="Incomplete codon"' : "";
-        return Array.from(codon).map(ch => {
-            const col = incomplete && ch === "-" ? "#fef3c7" : (NT_COLORS[ch] || "#e2e8f0");
-            const fg = (ch === "-") ? (incomplete ? "#d97706" : "#94a3b8") : "rgba(0,0,0,0.72)";
-            return `<span class="alignment-residue" style="background:${col};color:${fg};"${title}>${ch}</span>`;
-        }).join("");
-    }
-
-    const codonStats = window._codonPipelineStats?.[geneName];
-
-    const previewRows = rows.slice(0, 12).map((seq, i) => {
-        const length = seq.seq.length;
-        const stopDisplay = mode === "aa"
-            ? String(seq.stopCount || 0)
-            : i18nText("step5.results.preview.none", "none");
-        const rawSeq = rawSeqs ? rawSeqs[i] : seq;
-        const { codon: startCodon, incomplete: startIncomplete } = getDnaCodon(rawSeq, false);
-        const { codon: stopCodon, incomplete: stopIncomplete } = getDnaCodon(rawSeq, true);
-
-        const stopCodonHtml = codonStats
-            ? `<span style="font-size:0.68rem;padding:1px 5px;background:#f1f5f9;border-radius:3px;color:#94a3b8;white-space:nowrap;" title="Stop codon removed during preprocessing">removed</span>`
-            : renderCodon(stopCodon, stopIncomplete);
-
-        return `
-            <div class="alignment-preview-row">
-                <div class="alignment-preview-name" title="${seq.name}">${seq.name}</div>
-                <div class="alignment-preview-metric">${length}</div>
-                <div class="alignment-preview-metric">${stopDisplay}</div>
-                <div class="alignment-preview-codon">${renderCodon(startCodon, startIncomplete)}</div>
-                <div class="alignment-preview-codon">${stopCodonHtml}</div>
-            </div>`;
-    }).join("");
 
     const alignedNames = new Set(rows.map(s => s.name));
     const missing = [];
@@ -6431,31 +6402,15 @@ function renderAlignmentPreview(container, sequences, mode, rawSeqs, geneName) {
         }
     }
 
-    const missingHtml = missing.length > 0 ? `
-        <div class="alignment-preview-missing">
-            <div class="alignment-preview-missing-title">Missing (${missing.length})</div>
-            <div class="alignment-preview-missing-list">
-                ${missing.map(m => `<div class="alignment-preview-missing-row" title="${m.name}">${m.organism || m.name}</div>`).join("")}
+    container.innerHTML = missing.length > 0 ? `
+        <div class="alignment-preview">
+            <div class="alignment-preview-missing">
+                <div class="alignment-preview-missing-title">Missing (${missing.length})</div>
+                <div class="alignment-preview-missing-list">
+                    ${missing.map(m => `<div class="alignment-preview-missing-row" title="${escHtml(m.name)}">${escHtml(m.organism || m.name)}</div>`).join("")}
+                </div>
             </div>
         </div>` : "";
-
-    container.innerHTML = `
-        <div class="alignment-preview">
-            <div class="alignment-preview-summary">
-                <strong>${summary}</strong>
-            </div>
-            <div class="alignment-preview-table">
-                <div class="alignment-preview-row alignment-preview-head">
-                    <div>${i18nText("step5.results.preview.name", "Sequence")}</div>
-                    <div>${i18nText("step5.results.preview.length", "Length")}</div>
-                    <div>${i18nText("step5.results.preview.stops", "Stops")}</div>
-                    <div>Start Codon</div>
-                    <div>Stop Codon</div>
-                </div>
-                ${previewRows}
-            </div>
-            ${missingHtml}
-        </div>`;
 }
 
 function getAlignmentViewOptions(mode) {
@@ -6540,7 +6495,12 @@ async function renderAlignmentTab(markerData, tab, mode) {
         displaySequences = sequences;
     }
 
-    renderAlignmentPlotly(wrap, displaySequences, getAlignmentViewOptions(mode));
+    const renderOptions = getAlignmentViewOptions(mode);
+    if (markerData.pipeline?.mode === "codon" && mode === "nt") {
+        renderOptions.codonGrid = true;
+        renderOptions.codonGridLabel = i18nText("step5.results.codonGrid", "Codon frame: optional spacing marks each 3-base codon.");
+    }
+    renderAlignmentPlotly(wrap, displaySequences, renderOptions);
     renderAlignmentPreview(preview, displaySequences, mode, sequences, markerData.id);
     wrap.dataset.rendered = "1";
     wrap.dataset.view = mode;
@@ -6616,6 +6576,35 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     const legendItems = options.legend || [["A", "#22c55e"], ["T/U", "#ef4444"], ["G", "#f59e0b"], ["C", "#3b82f6"], ["Gap", "#e2e8f0"]];
     const labels = options.labels || { zoom: "ZOOM", consensus: "CONSENSUS", conservation: "CONSERVATION" };
     const DEFAULT_COLOR = "#cbd5e1";
+    const codonGrid = !!options.codonGrid;
+    const codonGridLabel = options.codonGridLabel || "Codon frame: spacing marks each 3-base codon.";
+    let codonSpacingEnabled = codonGrid;
+
+    function getCodonGap() {
+        return codonGrid && codonSpacingEnabled && seqLen > 3
+            ? Math.max(4, Math.min(9, Math.round(cellW * 0.35)))
+            : 0;
+    }
+
+    function xForPosition(positionIndex) {
+        const codonGap = getCodonGap();
+        return positionIndex * cellW + Math.floor(positionIndex / 3) * codonGap;
+    }
+
+    function alignmentWidth() {
+        const codonGap = getCodonGap();
+        return seqLen * cellW + Math.floor(Math.max(0, seqLen - 1) / 3) * codonGap;
+    }
+
+    function positionFromCanvasX(x) {
+        const codonGap = getCodonGap();
+        if (!codonGap) return Math.floor(x / cellW);
+        const blockW = 3 * cellW + codonGap;
+        const block = Math.floor(x / blockW);
+        const inside = x - block * blockW;
+        if (inside >= 3 * cellW) return -1;
+        return block * 3 + Math.floor(inside / cellW);
+    }
 
     // ── precompute consensus + conservation (independent of zoom) ──────────
     const consensusSeq = [];
@@ -6686,6 +6675,24 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         legend.appendChild(chip);
     });
     toolbar.appendChild(legend);
+
+    if (codonGrid) {
+        const codonNote = document.createElement("div");
+        codonNote.className = "codon-boundary-note";
+        codonNote.innerHTML = `
+            <i class="fa-solid fa-grip-lines-vertical"></i>
+            <span>${codonGridLabel}</span>
+            <label style="display:inline-flex;align-items:center;gap:.35rem;margin-left:.6rem;font-weight:600;color:#323795;cursor:pointer;">
+                <input type="checkbox" checked style="accent-color:#323795;">
+                <span>Show codon spacing</span>
+            </label>`;
+        const spacingToggle = codonNote.querySelector("input");
+        spacingToggle?.addEventListener("change", () => {
+            codonSpacingEnabled = spacingToggle.checked;
+            redraw();
+        });
+        container.appendChild(codonNote);
+    }
 
     // ── ruler row ──────────────────────────────────────────────────────────
     const rulerRow = document.createElement("div");
@@ -6802,7 +6809,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
 
     // ── redraw function ────────────────────────────────────────────────────
     function redraw() {
-        const W = seqLen * cellW;
+        const W = alignmentWidth();
         const H = nSeq * cellH;
         const gapX = cellW > 3 ? 1 : 0;
         const gapY = 1;
@@ -6825,9 +6832,9 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         const tickStep = niceSteps.find(s => s >= rawStep) || rawStep;
         for (let p = 0; p < seqLen; p++) {
             if (p === 0 || (p + 1) % tickStep === 0) {
-                const x = p * cellW + cellW / 2;
+                const x = xForPosition(p) + cellW / 2;
                 rCtx.fillStyle = "#9ca3af";
-                rCtx.fillRect(p * cellW + cellW / 2 - 0.5, RULER_H - 6, 1, 6);
+                rCtx.fillRect(x - 0.5, RULER_H - 6, 1, 6);
                 rCtx.fillStyle = "#374151";
                 rCtx.fillText(p + 1, x, RULER_H - 9);
             }
@@ -6869,10 +6876,11 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
             for (let pi = 0; pi < seqLen; pi++) {
                 const ch = (sequences[si].seq[pi] || "-").toUpperCase();
                 mCtx.fillStyle = palette[ch] || DEFAULT_COLOR;
-                mCtx.fillRect(pi * cellW, y + gapY, cellW - gapX, cellH - gapY * 2);
+                const x = xForPosition(pi);
+                mCtx.fillRect(x, y + gapY, cellW - gapX, cellH - gapY * 2);
                 if (showLetter) {
                     mCtx.fillStyle = (ch === "-" || ch === "?") ? "#94a3b8" : "rgba(0,0,0,0.65)";
-                    mCtx.fillText(ch, pi * cellW + cellW / 2, y + cellH / 2);
+                    mCtx.fillText(ch, x + cellW / 2, y + cellH / 2);
                 }
             }
         }
@@ -6890,10 +6898,11 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
         for (let pi = 0; pi < seqLen; pi++) {
             const ch = consensusSeq[pi];
             csCtx.fillStyle = palette[ch] || DEFAULT_COLOR;
-            csCtx.fillRect(pi * cellW, gapY, cellW - gapX, CONS_SEQ_H - gapY * 2);
+            const x = xForPosition(pi);
+            csCtx.fillRect(x, gapY, cellW - gapX, CONS_SEQ_H - gapY * 2);
             if (showLetter) {
                 csCtx.fillStyle = (ch === "-" || ch === "?") ? "#94a3b8" : "rgba(0,0,0,0.65)";
-                csCtx.fillText(ch, pi * cellW + cellW / 2, CONS_SEQ_H / 2);
+                csCtx.fillText(ch, x + cellW / 2, CONS_SEQ_H / 2);
             }
         }
 
@@ -6906,7 +6915,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
             const score = consScores[pi];
             const barH = Math.round(score * (CONS_BAR_H - 6));
             cbCtx.fillStyle = score >= 0.8 ? "#16a34a" : score >= 0.5 ? "#d97706" : "#dc2626";
-            cbCtx.fillRect(pi * cellW, CONS_BAR_H - barH - 2, Math.max(1, cellW - gapX), barH);
+            cbCtx.fillRect(xForPosition(pi), CONS_BAR_H - barH - 2, Math.max(1, cellW - gapX), barH);
         }
 
         // --- Base composition: sequence logo (letters scaled by frequency) ---
@@ -6942,7 +6951,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
                 // Only draw letter if tall enough to be legible (≥6px)
                 if (cellW >= 4 && bh >= 6) {
                     bcCtx.save();
-                    const cx = pi * cellW + cellW / 2;
+                    const cx = xForPosition(pi) + cellW / 2;
                     const cy = yPos - bh / 2;
                     const yScale = bh / refSize;
                     const xScale = Math.min(1.2, (cellW - gapX) / (refSize * 0.65));
@@ -6956,7 +6965,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
                     bcCtx.restore();
                 } else {
                     bcCtx.fillStyle = compColors[res] || "#cbd5e1";
-                    bcCtx.fillRect(pi * cellW, yPos - bh, Math.max(1, cellW - gapX), bh);
+                    bcCtx.fillRect(xForPosition(pi), yPos - bh, Math.max(1, cellW - gapX), bh);
                 }
                 yPos -= bh;
             }
@@ -7036,7 +7045,7 @@ function renderAlignmentPlotly(wrapper, sequences, options = {}) {
     mainCanvas.addEventListener("mousemove", (e) => {
         if (dragging) { tip.style.display = "none"; return; }
         const rect = mainCanvas.getBoundingClientRect();
-        const pi = Math.floor((e.clientX - rect.left + seqOuter.scrollLeft) / cellW);
+        const pi = positionFromCanvasX(e.clientX - rect.left);
         const si = Math.floor((e.clientY - rect.top + bodyRow.scrollTop) / cellH);
         if (pi >= 0 && pi < seqLen && si >= 0 && si < nSeq) {
             const ch = (sequences[si].seq[pi] || "-").toUpperCase();
@@ -7628,92 +7637,138 @@ window.toggleMarkerResult = function (id) {
 // State for concatenation
 let _lastMarkerResultsUI = []; // mirror of backend results, kept in JS
 
+function getExcludedCodonPositions() {
+    return [
+        document.getElementById("excludeFirstCodonPosition")?.checked === true ? 1 : null,
+        document.getElementById("excludeSecondCodonPosition")?.checked === true ? 2 : null,
+        document.getElementById("excludeThirdCodonPosition")?.checked === true ? 3 : null,
+    ].filter(Boolean);
+}
+
 window.toggleThirdCodonWarning = function () {
     const warning = document.getElementById("excludeThirdCodonWarning");
-    const checked = document.getElementById("excludeThirdCodonPosition")?.checked === true;
-    if (warning) warning.classList.toggle("hidden", !checked);
+    const excluded = getExcludedCodonPositions();
+    if (warning) {
+        warning.classList.toggle("hidden", excluded.length === 0);
+        if (excluded.length > 0) {
+            const kept = [1, 2, 3].filter((pos) => !excluded.includes(pos));
+            warning.textContent = kept.length > 0
+                ? `Removing codon position(s) ${excluded.join(", ")}. Exported matrix will keep position(s) ${kept.join(", ")}. The original codon-aware alignment is preserved.`
+                : "At least one codon position must remain. Uncheck one position before generating the matrix.";
+        }
+    }
 };
 
 function buildConcatenatedFasta(alignedSeqs) {
     return (alignedSeqs || []).map((seq) => `>${seq.name}\n${seq.seq}`).join("\n") + "\n";
 }
 
-function removeThirdCodonPositionsFromSequence(sequence) {
+function filterCodonPositionsFromSequence(sequence, excludedPositions = [3]) {
     if (!sequence) return "";
-    if (sequence.length % 3 !== 0) {
-        throw new Error(`Cannot remove third codon positions from sequence length ${sequence.length}: length is not divisible by 3`);
+    const excluded = new Set((excludedPositions || []).map(Number).filter((pos) => [1, 2, 3].includes(pos)));
+    const kept = [1, 2, 3].filter((pos) => !excluded.has(pos));
+    if (kept.length === 0) {
+        throw new Error("Cannot remove all codon positions. Keep at least one position.");
     }
-    let trimmed = "";
+    if (sequence.length % 3 !== 0) {
+        throw new Error(`Cannot filter codon positions from sequence length ${sequence.length}: length is not divisible by 3`);
+    }
+    let filtered = "";
     for (let idx = 0; idx < sequence.length; idx += 3) {
         const codon = sequence.slice(idx, idx + 3);
         if (codon.length !== 3) {
             throw new Error(`Incomplete codon chunk encountered at offset ${idx + 1}`);
         }
-        trimmed += codon[0] + codon[1];
+        for (const pos of kept) filtered += codon[pos - 1];
     }
-    return trimmed;
+    return filtered;
 }
 
-function buildNoThirdCodonMatrix(concatResult) {
+function removeThirdCodonPositionsFromSequence(sequence) {
+    return filterCodonPositionsFromSequence(sequence, [3]);
+}
+
+function buildFilteredCodonPositionMatrix(concatResult, excludedPositions = [3]) {
+    const excluded = [...new Set((excludedPositions || []).map(Number).filter((pos) => [1, 2, 3].includes(pos)))].sort((a, b) => a - b);
+    const kept = [1, 2, 3].filter((pos) => !excluded.includes(pos));
+    if (excluded.length === 0) return concatResult;
+    if (kept.length === 0) {
+        throw new Error("Cannot remove codon positions 1, 2 and 3. Keep at least one position.");
+    }
+
     const geneSeqs = {};
     const geneLens = {};
     const partitions = [];
     const logs = [];
     let pos = 1;
-    let removedThirdPositions = 0;
+    let removedPositions = 0;
 
     for (const gene of concatResult.geneOrder) {
         const originalLength = concatResult.geneLens[gene];
         if (!originalLength) continue;
         if (originalLength % 3 !== 0) {
-            throw new Error(`Cannot exclude third codon positions for ${gene}: alignment length ${originalLength} is not divisible by 3`);
+            throw new Error(`Cannot exclude codon positions for ${gene}: alignment length ${originalLength} is not divisible by 3`);
         }
-        const noThirdLength = (originalLength / 3) * 2;
-        const removedForGene = originalLength / 3;
-        removedThirdPositions += removedForGene;
-        logs.push(`[No-3rd] [${gene}] removed ${removedForGene} third positions (${originalLength} bp → ${noThirdLength} bp)`);
+        const codons = originalLength / 3;
+        const filteredLength = codons * kept.length;
+        const removedForGene = codons * excluded.length;
+        removedPositions += removedForGene;
+        logs.push(`[Codon positions] [${gene}] removed position(s) ${excluded.join(", ")} (${originalLength} bp → ${filteredLength} bp; kept ${kept.join(", ")})`);
 
         geneSeqs[gene] = {};
         for (const [species, seq] of Object.entries(concatResult.geneSeqs[gene] || {})) {
-            geneSeqs[gene][species] = removeThirdCodonPositionsFromSequence(seq);
+            geneSeqs[gene][species] = filterCodonPositionsFromSequence(seq, excluded);
         }
-        geneLens[gene] = noThirdLength;
+        geneLens[gene] = filteredLength;
         partitions.push({
             gene,
             start: pos,
-            end: pos + noThirdLength - 1,
-            len: noThirdLength,
+            end: pos + filteredLength - 1,
+            len: filteredLength,
             originalLength,
-            noThirdLength,
-            removedThirdPositions: removedForGene,
-            thirdCodonPositionExcluded: true,
-            codonPositionMode: "positions 1 and 2 only",
+            filteredLength,
+            removedCodonPositions: removedForGene,
+            excludedCodonPositions: excluded,
+            keptCodonPositions: kept,
+            codonPositionFiltered: true,
+            codonPositionMode: `kept positions ${kept.join("+")}`,
         });
-        pos += noThirdLength;
+        pos += filteredLength;
     }
 
     return {
         ...concatResult,
         alignedSeqs: concatResult.alignedSeqs.map((seq) => ({
             name: seq.name,
-            seq: removeThirdCodonPositionsFromSequence(seq.seq),
+            seq: filterCodonPositionsFromSequence(seq.seq, excluded),
         })),
         partitions,
         totalLen: pos - 1,
         geneSeqs,
         geneLens,
-        thirdCodonPositionExcluded: true,
+        codonPositionFiltered: true,
+        excludedCodonPositions: excluded,
+        keptCodonPositions: kept,
+        thirdCodonPositionExcluded: excluded.length === 1 && excluded[0] === 3,
         originalLength: concatResult.totalLen,
-        noThirdLength: pos - 1,
-        removedThirdPositions,
-        codonPositionMode: "positions 1 and 2 only",
+        filteredLength: pos - 1,
+        removedCodonPositions: removedPositions,
+        removedThirdPositions: excluded.includes(3) ? (concatResult.totalLen / 3) : 0,
+        codonPositionMode: `kept positions ${kept.join("+")}`,
         logs,
     };
 }
 
-function resolveCodonPartitionMode(codonPositions, excludeThirdPositions) {
+function buildNoThirdCodonMatrix(concatResult) {
+    return buildFilteredCodonPositionMatrix(concatResult, [3]);
+}
+
+function resolveCodonPartitionMode(codonPositions, excludedPositions = []) {
     if (!codonPositions) return "genes";
-    return excludeThirdPositions ? "positions12" : "all";
+    const excluded = Array.isArray(excludedPositions)
+        ? excludedPositions
+        : (excludedPositions ? [3] : []);
+    return excluded.length ? "keptPositions" : "all";
 }
 
 function buildConcat(markerResults, useTrimmed, allowMissing) {
@@ -7845,6 +7900,19 @@ function buildNexusString(alignedSeqs, partitions, outgroups, datatype, codonPar
                 `    charset ${p.gene}_pos3 = ${p.start + 2}-${p.end}\\3;`,
             ];
         }).join("\n");
+    } else if (partitionMode === "keptPositions") {
+        charsets = partitions.flatMap(p => {
+            const kept = Array.isArray(p.keptCodonPositions) && p.keptCodonPositions.length ? p.keptCodonPositions : [1, 2, 3];
+            const stride = kept.length;
+            const geneLen = p.len || (p.end - p.start + 1);
+            if (stride < 1) {
+                throw new Error(`Cannot create codon charsets for ${p.gene}: no codon positions kept`);
+            }
+            if (geneLen % stride !== 0) {
+                throw new Error(`Cannot create filtered codon charsets for ${p.gene}: alignment length ${geneLen} is not divisible by kept-position count ${stride}`);
+            }
+            return kept.map((originalPos, idx) => `    charset ${p.gene}_pos${originalPos} = ${p.start + idx}-${p.end}\${stride};`);
+        }).join("\n");
     } else if (partitionMode === "positions12") {
         charsets = partitions.flatMap(p => {
             const geneLen = p.len || (p.end - p.start + 1);
@@ -7898,6 +7966,20 @@ function buildPartitionString(partitions, codonPartitionMode, datatype) {
             ];
         }).join("\n");
     }
+    if (partitionMode === "keptPositions") {
+        return partitions.flatMap(p => {
+            const kept = Array.isArray(p.keptCodonPositions) && p.keptCodonPositions.length ? p.keptCodonPositions : [1, 2, 3];
+            const stride = kept.length;
+            const geneLen = p.len || (p.end - p.start + 1);
+            if (stride < 1) {
+                throw new Error(`Cannot create codon partitions for ${p.gene}: no codon positions kept`);
+            }
+            if (geneLen % stride !== 0) {
+                throw new Error(`Cannot create filtered codon partitions for ${p.gene}: alignment length ${geneLen} is not divisible by kept-position count ${stride}`);
+            }
+            return kept.map((originalPos, idx) => `${prefix}, ${p.gene}_pos${originalPos} = ${p.start + idx}-${p.end}\${stride}`);
+        }).join("\n");
+    }
     if (partitionMode === "positions12") {
         return partitions.flatMap(p => {
             const geneLen = p.len || (p.end - p.start + 1);
@@ -7933,9 +8015,13 @@ function renderConcatSection(markerResults, hasTrimal) {
     const codonPartitionOpt = document.getElementById("codonPartitionOption");
     if (codonPartitionOpt) codonPartitionOpt.classList.toggle("hidden", !window._codonMode);
     const excludeThirdOpt = document.getElementById("excludeThirdCodonOption");
-    const excludeThirdCheckbox = document.getElementById("excludeThirdCodonPosition");
+    const codonPositionCheckboxes = [
+        document.getElementById("excludeFirstCodonPosition"),
+        document.getElementById("excludeSecondCodonPosition"),
+        document.getElementById("excludeThirdCodonPosition"),
+    ].filter(Boolean);
     if (excludeThirdOpt) excludeThirdOpt.classList.toggle("hidden", !window._codonMode);
-    if (!window._codonMode && excludeThirdCheckbox) excludeThirdCheckbox.checked = false;
+    if (!window._codonMode) codonPositionCheckboxes.forEach((checkbox) => { checkbox.checked = false; });
     toggleThirdCodonWarning();
 
     const generationLog = document.getElementById("concatGenerationLog");
@@ -7943,6 +8029,8 @@ function renderConcatSection(markerResults, hasTrimal) {
         generationLog.classList.add("hidden");
         generationLog.textContent = "";
     }
+    const saveButtons = document.getElementById("concatSaveButtons");
+    if (saveButtons) saveButtons.classList.add("hidden");
 
     // Populate outgroup list from all species across markers
     const speciesSet = new Set();
@@ -8032,9 +8120,27 @@ window.updateIqtreeCommand = function () {
     if (el) el.textContent = buildIqtreeCommand();
 };
 
+function replaceGapsWithMissingInMatrix(concatResult) {
+    if (!concatResult) return concatResult;
+    const convertSeq = (seq) => String(seq || "").replace(/-/g, "?");
+    const alignedSeqs = (concatResult.alignedSeqs || []).map((entry) => ({
+        ...entry,
+        seq: convertSeq(entry.seq),
+    }));
+    const geneSeqs = {};
+    Object.entries(concatResult.geneSeqs || {}).forEach(([gene, speciesMap]) => {
+        geneSeqs[gene] = {};
+        Object.entries(speciesMap || {}).forEach(([species, seq]) => {
+            geneSeqs[gene][species] = convertSeq(seq);
+        });
+    });
+    return { ...concatResult, alignedSeqs, geneSeqs, gapsConvertedToMissing: true };
+}
+
 window.generateNexus = function () {
     const useTrimmed = document.getElementById("concatUseTrimmedYes")?.checked ?? true;
     const allowMissing = document.getElementById("concatAllowMissing")?.checked ?? false;
+    const replaceGapsWithMissing = document.getElementById("concatReplaceGapsWithMissing")?.checked ?? false;
     const outgroups = [...document.querySelectorAll(".outgroup-cb:checked")].map(c => c.value);
 
     // Detect alignment mode for NEXUS datatype and codon partitions
@@ -8042,9 +8148,13 @@ window.generateNexus = function () {
     const isAaMode = window._alignmentMode === "aa";
     const datatype = isAaMode ? "protein" : "dna";
     const codonPositions = isCodonMode && (document.getElementById("codonPartitionByPosition")?.checked ?? false);
-    const excludeThirdPositions = isCodonMode && (document.getElementById("excludeThirdCodonPosition")?.checked ?? false);
+    const excludedCodonPositions = isCodonMode ? getExcludedCodonPositions() : [];
+    const positionFilterActive = excludedCodonPositions.length > 0;
 
-    const result = buildConcat(_lastMarkerResultsUI, useTrimmed, allowMissing);
+    let result = buildConcat(_lastMarkerResultsUI, useTrimmed, allowMissing);
+    if (replaceGapsWithMissing) {
+        result = replaceGapsWithMissingInMatrix(result);
+    }
 
     if (isCodonMode) {
         const codonValidation = validateCodonPartitions(_lastMarkerResultsUI, useTrimmed);
@@ -8078,7 +8188,7 @@ window.generateNexus = function () {
     let noThirdMatrix = null;
     let additionalFiles = {};
     try {
-        const fullPartitionMode = resolveCodonPartitionMode(codonPositions, false);
+        const fullPartitionMode = resolveCodonPartitionMode(codonPositions, []);
         fullMatrix = {
             ...result,
             nexus: buildNexusString(result.alignedSeqs, result.partitions, outgroups, datatype, fullPartitionMode),
@@ -8089,15 +8199,19 @@ window.generateNexus = function () {
             codonPositionMode: codonPositions ? "all positions" : "gene partitions",
         };
 
-        if (excludeThirdPositions) {
-            const noThirdPartitionMode = resolveCodonPartitionMode(codonPositions, true);
-            const noThirdResult = buildNoThirdCodonMatrix(result);
+        if (positionFilterActive) {
+            const filteredPartitionMode = resolveCodonPartitionMode(codonPositions, excludedCodonPositions);
+            let filteredResult = buildFilteredCodonPositionMatrix(result, excludedCodonPositions);
+            if (replaceGapsWithMissing) {
+                filteredResult = replaceGapsWithMissingInMatrix(filteredResult);
+            }
+            const suffix = `_no_pos${excludedCodonPositions.join("")}`;
             noThirdMatrix = {
-                ...noThirdResult,
-                nexus: buildNexusString(noThirdResult.alignedSeqs, noThirdResult.partitions, outgroups, "dna", noThirdPartitionMode),
-                partition: buildPartitionString(noThirdResult.partitions, noThirdPartitionMode, "dna"),
-                fasta: buildConcatenatedFasta(noThirdResult.alignedSeqs),
-                files: { nexus: "concatenated_no3rd.nex", partition: "partitions_no3rd.txt", fasta: "concatenated_no3rd.fasta", prefix: "concat_tree_no3rd" },
+                ...filteredResult,
+                nexus: buildNexusString(filteredResult.alignedSeqs, filteredResult.partitions, outgroups, "dna", filteredPartitionMode),
+                partition: buildPartitionString(filteredResult.partitions, filteredPartitionMode, "dna"),
+                fasta: buildConcatenatedFasta(filteredResult.alignedSeqs),
+                files: { nexus: `concatenated${suffix}.nex`, partition: `partitions${suffix}.txt`, fasta: `concatenated${suffix}.fasta`, prefix: `concat_tree${suffix}` },
             };
             activeResult = noThirdMatrix;
             activeFiles = noThirdMatrix.files;
@@ -8129,47 +8243,77 @@ window.generateNexus = function () {
         fullMatrix,
         noThirdMatrix,
         additionalFiles,
-        thirdCodonPositionExcluded: excludeThirdPositions,
+        thirdCodonPositionExcluded: excludedCodonPositions.includes(3),
+        excludedCodonPositions,
+        codonPositionFiltered: positionFilterActive,
+        gapsConvertedToMissing: replaceGapsWithMissing,
     };
 
-    // Show sequence × marker heatmap table
+    // Show sequence × marker gap heatmap table
     const tbl = document.getElementById("partitionTable");
     if (tbl) {
         const markers = activeResult.partitions.map(p => p.gene);
         const allSp = activeResult.allSpecies || [];
-        const heatColor = (cov) => {
-            const r = Math.round(254 - 34 * cov);
-            const g = Math.round(226 + 26 * cov);
-            const b = Math.round(226 + 5 * cov);
-            return `rgb(${r},${g},${b})`;
-        };
-        const heatRows = allSp.map(sp => {
-            const nameTd = `<td style="position:sticky;left:0;z-index:1;background:#f8fafc;font-weight:600;padding:4px 10px;border:1px solid #e5e7eb;white-space:nowrap;">${escHtml(sp)}</td>`;
-            const dataTds = markers.map(gene => {
+        const gapCountsByMarker = {};
+        markers.forEach((gene) => {
+            const values = allSp.map((sp) => {
                 const seq = activeResult.geneSeqs[gene]?.[sp];
-                if (!seq) return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:#f3f4f6;color:#9ca3af;text-align:center;">-</td>`;
-                const nonGap = seq.replace(/-/g, "").length;
-                const gaps = seq.length - nonGap;
-                const cov = activeResult.geneLens[gene] > 0 ? nonGap / activeResult.geneLens[gene] : 0;
-                return `<td style="padding:4px 8px;border:1px solid #e5e7eb;background:${heatColor(cov)};text-align:center;color:#1f2937;">${nonGap} (${gaps})</td>`;
+                if (!seq) return null;
+                return (String(seq).match(/[-?]/g) || []).length;
+            });
+            const nonZero = values.filter((value) => Number.isFinite(value) && value > 0);
+            gapCountsByMarker[gene] = {
+                values,
+                min: nonZero.length ? Math.min(...nonZero) : 0,
+                max: nonZero.length ? Math.max(...nonZero) : 0,
+            };
+        });
+
+        const interpolateGapColor = (value, min, max) => {
+            if (!Number.isFinite(value) || value <= 0) {
+                return { background: "#ffffff", color: "#111827", border: "#e5e7eb" };
+            }
+            if (min === max) {
+                return { background: "#dc2626", color: "#ffffff", border: "#ffffff" };
+            }
+            const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+            const blue = { r: 37, g: 99, b: 235 };
+            const red = { r: 220, g: 38, b: 38 };
+            const r = Math.round(blue.r + (red.r - blue.r) * t);
+            const g = Math.round(blue.g + (red.g - blue.g) * t);
+            const b = Math.round(blue.b + (red.b - blue.b) * t);
+            return { background: `rgb(${r},${g},${b})`, color: "#ffffff", border: "#ffffff" };
+        };
+
+        const heatRows = allSp.map(sp => {
+            const nameTd = `<td style="position:sticky;left:0;z-index:1;background:#f8fafc;font-weight:600;padding:6px 10px;border:1px solid #e5e7eb;white-space:nowrap;">${escHtml(sp)}</td>`;
+            const dataTds = markers.map((gene) => {
+                const seq = activeResult.geneSeqs[gene]?.[sp];
+                if (!seq) return `<td style="padding:6px 8px;border:1px solid #e5e7eb;background:#f3f4f6;color:#9ca3af;text-align:center;">-</td>`;
+                const gapCount = (String(seq).match(/[-?]/g) || []).length;
+                const ungappedLength = String(seq).replace(/[-?]/g, "").length;
+                const stats = gapCountsByMarker[gene] || { min: 0, max: 0 };
+                const style = interpolateGapColor(gapCount, stats.min, stats.max);
+                return `<td style="padding:6px 8px;border:1px solid ${style.border};background:${style.background};color:${style.color};text-align:center;font-weight:700;min-width:6rem;" title="${escHtml(gene)} · ${escHtml(sp)} · ${ungappedLength} bp, ${gapCount} gap/missing characters">${ungappedLength} (${gapCount})</td>`;
             }).join("");
             return `<tr>${nameTd}${dataTds}</tr>`;
         }).join("");
         tbl.innerHTML = `
-            <div style="margin-bottom:6px;font-size:0.72rem;color:#6b7280;display:flex;align-items:center;gap:6px;">
-                Cells: <strong>bp (gaps)</strong>
-                <span style="display:inline-flex;align-items:center;gap:4px;">
-                    <span style="display:inline-block;width:60px;height:8px;background:linear-gradient(to right,#fee2e2,#dcfce7);border-radius:2px;"></span>
-                    <span>low → high coverage</span>
-                    <span style="background:#f3f4f6;color:#9ca3af;padding:1px 6px;border-radius:3px;">-</span><span>missing</span>
+            <div style="width:100%;margin-bottom:8px;font-size:0.76rem;color:#6b7280;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <span>Cells show <strong>aligned bp retained</strong> with <strong>gap/missing counts</strong> in parentheses: <code>bp (gaps)</code>.</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;">
+                    <span style="color:#2563eb;font-weight:700;">min gaps</span>
+                    <span style="display:inline-block;width:88px;height:9px;background:linear-gradient(to right,#2563eb,#dc2626);border-radius:999px;border:1px solid #e5e7eb;"></span>
+                    <span style="color:#dc2626;font-weight:700;">max gaps</span>
+                    <span style="background:#ffffff;color:#111827;padding:1px 7px;border:1px solid #e5e7eb;border-radius:999px;">0 gaps</span>
                 </span>
             </div>
-            <div style="overflow:auto;max-height:420px;">
-                <table style="border-collapse:collapse;font-size:0.72rem;white-space:nowrap;">
+            <div style="overflow:auto;max-height:420px;width:100%;">
+                <table style="border-collapse:collapse;font-size:0.76rem;white-space:nowrap;width:100%;min-width:max-content;">
                     <thead>
                         <tr>
-                            <th style="position:sticky;left:0;top:0;z-index:3;background:#f3f4f6;padding:6px 10px;border:1px solid #e5e7eb;font-weight:700;text-align:left;">Sequence</th>
-                            ${markers.map(g => `<th style="position:sticky;top:0;z-index:2;background:#f3f4f6;padding:6px 8px;border:1px solid #e5e7eb;font-weight:700;text-align:center;" title="${escHtml(g)}">${escHtml(g)}</th>`).join("")}
+                            <th style="position:sticky;left:0;top:0;z-index:3;background:#f3f4f6;padding:7px 10px;border:1px solid #e5e7eb;font-weight:700;text-align:left;min-width:12rem;">Sequence</th>
+                            ${markers.map(g => `<th style="position:sticky;top:0;z-index:2;background:#f3f4f6;padding:7px 8px;border:1px solid #e5e7eb;font-weight:700;text-align:center;" title="${escHtml(g)}">${escHtml(g)}</th>`).join("")}
                         </tr>
                     </thead>
                     <tbody>${heatRows}</tbody>
@@ -8178,17 +8322,25 @@ window.generateNexus = function () {
         tbl.classList.remove("hidden");
     }
 
+
+    const saveButtons = document.getElementById("concatSaveButtons");
+    if (saveButtons) saveButtons.classList.remove("hidden");
+
     // Show summary
     const summary = document.getElementById("concatSummary");
     if (summary) {
-        summary.textContent = `${activeResult.alignedSeqs.length} species · ${activeResult.partitions.length} genes · ${activeResult.totalLen} bp${excludeThirdPositions ? ` · positions 1 and 2 only (removed ${activeResult.removedThirdPositions} third positions)` : ""}`;
+        const filterSummary = positionFilterActive
+            ? ` · kept codon position(s) ${activeResult.keptCodonPositions?.join(", ") || "?"} (removed ${activeResult.removedCodonPositions || 0} positions)`
+            : "";
+        summary.textContent = `${activeResult.alignedSeqs.length} species · ${activeResult.partitions.length} genes · ${activeResult.totalLen} bp${filterSummary}`;
         summary.classList.remove("hidden");
     }
 
     const generationLog = document.getElementById("concatGenerationLog");
     if (generationLog) {
-        if (excludeThirdPositions && activeResult.logs?.length) {
-            generationLog.textContent = `${activeResult.logs.join("\n")}\n[No-3rd] total removed third positions: ${activeResult.removedThirdPositions}`;
+        if (positionFilterActive && activeResult.logs?.length) {
+            generationLog.textContent = `${activeResult.logs.join("\n")}
+[Codon positions] total removed positions: ${activeResult.removedCodonPositions || 0}`;
             generationLog.classList.remove("hidden");
         } else {
             generationLog.classList.add("hidden");

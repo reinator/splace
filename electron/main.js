@@ -380,7 +380,7 @@ ipcMain.on("run-analysis", async (event, { files, params, threads }) => {
 // -----------------------------------------------------------------------
 let _lastMarkerResults = [];
 
-ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, alignmentMode, trimTool = "auto", clipkitMode = "gappy" }) => {
+ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, alignmentMode, trimTool = "auto", clipkitMode = "gappy", codonTrimAction = "trim-codons" }) => {
     const sender = event.sender;
     const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
 
@@ -471,6 +471,70 @@ ipcMain.on("run-trimal", async (event, { markers, params, codonMode, cdsFastas, 
                 };
 
                 const requestedTrimTool = String(trimTool || "auto").toLowerCase();
+                const requestedCodonAction = String(codonTrimAction || "trim-codons").toLowerCase();
+                const positionMatch = requestedCodonAction.match(/^remove-pos-([123])$/);
+                if (positionMatch) {
+                    const removedPosition = Number(positionMatch[1]);
+                    try {
+                        send("analysis-progress", { message: `[${name}] Back-translating protein alignment before removing codon position ${removedPosition}…` });
+                        const proteinAlignmentContent = mr.alignedContent || fs.readFileSync(inputFile, "utf8");
+                        const built = buildCodonAlignedDnaFromProteinAlignment(proteinAlignmentContent, dnaCdsContent);
+                        if (!built.dnaFasta) throw new Error("Back-translation produced no DNA output");
+                        const validation = validateCodonPreservingTrimmedAlignment(built.dnaFasta, dnaCdsContent);
+                        if (!validation.valid) throw new Error(validation.issues.join("; "));
+                        const filteredFasta = removeCodonPositionFromFasta(built.dnaFasta, removedPosition);
+                        fs.writeFileSync(trimmedFile, filteredFasta);
+                        const filteredStats = parseFastaStats(filteredFasta);
+                        mr.trimmedContent = filteredFasta;
+                        mr.trimmedFile = trimmedFile;
+                        mr.trimmedStats = filteredStats;
+                        mr.trimMethod = `remove-codon-position-${removedPosition}`;
+                        mr.trimValidation = {
+                            valid: true,
+                            issues: [],
+                            equalLengths: true,
+                            allLengthsMultipleOf3: false,
+                            gapBlocksAreTriplets: true,
+                            headersMatch: true,
+                            dnaCompatible: true,
+                            frameDisrupted: false,
+                            positionFiltered: true,
+                            removedCodonPosition: removedPosition,
+                        };
+                        mr.trimMetadata = {
+                            trimmingTool: "splace-internal",
+                            trimmingMode: `remove-codon-position-${removedPosition}`,
+                            removedCodonPosition: removedPosition,
+                            positionFilter: true,
+                            inputAlignment: `${name}_protein_aligned.fasta`,
+                            backtransInput: `${name}_cds_validated.fasta`,
+                            outputAlignment: `${name}_codon_position_${removedPosition}_removed.fasta`,
+                            outputType: "codon-position-filtered DNA",
+                            codonIntegrityValidated: true,
+                        };
+                        done++;
+                        trimmed++;
+                        send("analysis-progress", {
+                            marker: name,
+                            status: "done",
+                            info: `${filteredStats.numSeqs} seq · ${filteredStats.length} bp (position ${removedPosition} removed)`,
+                            message: `[${name}] ✓ Removed codon position ${removedPosition} → ${filteredStats.numSeqs} seq · ${filteredStats.length} bp`,
+                            done,
+                            total: markers.length,
+                        });
+                    } catch (error) {
+                        failCodonTrim(error?.message || String(error), {
+                            trimmingTool: "splace-internal",
+                            trimmingMode: `remove-codon-position-${removedPosition}`,
+                            removedCodonPosition,
+                            positionFilter: true,
+                            ...logicalTrimMetadata,
+                            outputType: "codon-position-filtered DNA",
+                            codonIntegrityValidated: false,
+                        }, `remove codon position ${removedPosition}`);
+                    }
+                    continue;
+                }
                 const preferClipkit = requestedTrimTool === "clipkit";
                 const allowTrimal = requestedTrimTool !== "clipkit";
                 const allowClipkitFallback = requestedTrimTool === "auto" || requestedTrimTool === "clipkit";
@@ -1034,6 +1098,51 @@ function validateCodonPreservingTrimmedAlignment(trimmedContent, originalDnaCont
         extraHeaders,
         subsequenceIssues,
     };
+}
+
+function removeCodonPositionFromFasta(codonDnaContent, positionToRemove) {
+    const position = Number(positionToRemove);
+    if (![1, 2, 3].includes(position)) {
+        throw new Error(`Invalid codon position to remove: ${positionToRemove}`);
+    }
+    const seqs = parseFastaArr(codonDnaContent);
+    if (!seqs.length) throw new Error("No sequences available for codon-position filtering");
+    const filtered = [];
+    const lengths = [];
+    for (const seq of seqs) {
+        const raw = String(seq.seq || "");
+        if (raw.length % 3 !== 0) {
+            throw new Error(`${seq.name}: codon-aligned DNA length ${raw.length} is not divisible by 3`);
+        }
+        let output = "";
+        for (let i = 0; i < raw.length; i += 3) {
+            const codon = raw.slice(i, i + 3);
+            if (codon.length !== 3) throw new Error(`${seq.name}: incomplete codon block at position ${i + 1}`);
+            output += codon.split("").filter((_, idx) => idx !== position - 1).join("");
+        }
+        filtered.push({ name: seq.name, seq: output });
+        lengths.push(output.length);
+    }
+    const equalLengths = lengths.every((len) => len === lengths[0]);
+    if (!equalLengths) throw new Error("Position-filtered sequences do not all have equal length");
+    return filtered.map((seq) => `>${seq.name}\n${seq.seq}`).join("\n") + "\n";
+}
+
+function buildCodonAlignedDnaFromProteinAlignment(proteinAlignmentContent, originalDnaContent) {
+    const protSeqs = parseFastaArr(proteinAlignmentContent);
+    const dnaSeqs = parseFastaArr(originalDnaContent);
+    const dnaMap = {};
+    for (const s of dnaSeqs) dnaMap[s.name] = s.seq.replace(/-/g, "");
+    let dnaFasta = "";
+    let skipped = 0;
+    for (const ps of protSeqs) {
+        const dna = dnaMap[ps.name];
+        if (!dna) { skipped++; continue; }
+        dnaFasta += `>${ps.name}
+${backTranslateJS(ps.seq, dna)}
+`;
+    }
+    return { dnaFasta, skipped };
 }
 
 function isTrimAlUnavailableError(message) {

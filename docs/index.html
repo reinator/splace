@@ -911,6 +911,142 @@
 
     </style>
 
+
+<style id="splace-v15-alignment-fixes">
+    .sequence-type-recommendations {
+        display:grid;
+        grid-template-columns:repeat(1,minmax(0,1fr));
+        gap:.75rem;
+        margin-top:.75rem;
+    }
+    @media (min-width: 900px) {
+        .sequence-type-recommendations { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    }
+    .sequence-type-recommendation-card {
+        border:1px solid #dbe3fb;
+        background:linear-gradient(180deg,#ffffff 0%,#f8faff 100%);
+        border-radius:.9rem;
+        padding:.85rem;
+        display:flex;
+        gap:.75rem;
+        align-items:flex-start;
+        min-height:100%;
+    }
+    .sequence-type-recommendation-card i {
+        font-size:1.35rem;
+        color:#3a47ab;
+        margin-top:.1rem;
+        flex:0 0 auto;
+    }
+    .codon-workflow {
+        margin-top:.9rem;
+        padding:.85rem;
+        border:1px solid #dbe3fb;
+        border-radius:.9rem;
+        background:#f8faff;
+    }
+    .codon-workflow-grid {
+        display:grid;
+        grid-template-columns:repeat(1,minmax(0,1fr));
+        gap:.65rem;
+        margin-top:.65rem;
+    }
+    @media (min-width: 900px) {
+        .codon-workflow-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+    }
+    .codon-workflow-step {
+        background:#fff;
+        border:1px solid #e3e8fb;
+        border-radius:.85rem;
+        padding:.75rem;
+        min-height:100%;
+    }
+    .codon-workflow-step i {
+        font-size:1.65rem;
+        color:#3a47ab;
+        display:block;
+        margin-bottom:.45rem;
+    }
+    .codon-position-guide {
+        margin-top:.75rem;
+        display:grid;
+        grid-template-columns:repeat(1,minmax(0,1fr));
+        gap:.65rem;
+    }
+    @media (min-width: 900px) {
+        .codon-position-guide { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    .codon-position-guide-card {
+        border:1px solid #fde68a;
+        background:#fffbeb;
+        border-radius:.85rem;
+        padding:.75rem;
+        font-size:.82rem;
+        color:#78350f;
+    }
+    #analysisModal .analysis-modal-log-panel { display:none !important; }
+    #analysisModal .analysis-modal-body { display:block !important; }
+    #analysisModal .analysis-modal-main { width:100%; max-width:none; }
+    #analysisModalMarkerList.analysis-modal-marker-list {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+        gap:.45rem;
+    }
+    #analysisModalMarkerList .analysis-marker-row {
+        display:flex;
+        align-items:center;
+        gap:.55rem;
+        min-width:0;
+        padding:.45rem .55rem;
+        border:1px solid #eef0fb;
+        border-radius:.75rem;
+        background:#fff;
+        font-size:.82rem;
+    }
+    #analysisModalMarkerList .analysis-marker-row i {
+        font-size:1.2rem;
+        width:1.45rem;
+        text-align:center;
+        flex:0 0 auto;
+    }
+    #analysisModalMarkerList .analysis-marker-row span {
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+    .analysis-modal-footer {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:.75rem;
+        min-height:4.2rem;
+        padding:.8rem 1rem;
+        background:#fff;
+        border-top:1px solid #e5e7eb;
+    }
+    .analysis-modal-close-btn {
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:.35rem;
+        min-height:2.5rem;
+        padding:.65rem 1rem;
+        border-radius:.8rem;
+        background:#3a47ab;
+        color:#fff;
+        font-weight:700;
+        line-height:1;
+        white-space:nowrap;
+    }
+    .codon-boundary-note {
+        margin:.35rem 0 .5rem;
+        font-size:.76rem;
+        color:#475569;
+        display:flex;
+        align-items:center;
+        gap:.35rem;
+    }
+</style>
 </head>
 <body>
 
@@ -1597,6 +1733,29 @@
                         </div>
                     </label>
                 </div>
+                <div class="sequence-type-recommendations" aria-label="Sequence type recommendations">
+                    <div class="sequence-type-recommendation-card">
+                        <i class="fa-solid fa-dna"></i>
+                        <div>
+                            <div class="text-sm font-bold text-gray-800">Nucleotide, direct DNA alignment</div>
+                            <p class="text-xs text-gray-500 mt-1">Best for rRNAs, tRNAs, non-coding regions and exploratory datasets. It preserves the original bases and sends the FASTA directly to MAFFT.</p>
+                        </div>
+                    </div>
+                    <div class="sequence-type-recommendation-card">
+                        <i class="fa-solid fa-language"></i>
+                        <div>
+                            <div class="text-sm font-bold text-gray-800">Amino Acid, protein alignment</div>
+                            <p class="text-xs text-gray-500 mt-1">Best when coding genes are divergent. DNA is translated first, MAFFT aligns proteins, and the result is inspected as protein sequences.</p>
+                        </div>
+                    </div>
+                    <div class="sequence-type-recommendation-card">
+                        <i class="fa-solid fa-cubes-stacked"></i>
+                        <div>
+                            <div class="text-sm font-bold text-gray-800">Codon-aware, CDS phylogenetics</div>
+                            <p class="text-xs text-gray-500 mt-1">Recommended for CDS matrices when you need DNA output with codons preserved. SPLACE validates CDS length, removes terminal stops, aligns proteins and back-translates.</p>
+                        </div>
+                    </div>
+                </div>
                 <div id="codonModeWarning" class="hidden mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p class="text-sm text-amber-800" data-i18n="step5.seqtype.warning"><i class="fa-solid fa-triangle-exclamation mr-1"></i><strong>Codon-aware mode</strong> only processes <strong>CDS</strong> features. Genes with no annotated CDS (rRNA, tRNA, etc.) will be skipped. The resulting alignment has a reading frame preserved and can be partitioned by codon position.</p>
                 </div>
@@ -1617,6 +1776,20 @@
                             <button id="installPythonPackagesBtn" class="step1-inline-btn" type="button" data-tippy-content="Install or upgrade ClipKIT with the detected Python interpreter using pip.">
                                 <i class="fa-solid fa-download mr-1"></i>Install ClipKIT
                             </button>
+                        </div>
+                    </div>
+                    <div class="codon-workflow">
+                        <div class="text-sm font-bold text-splace-blue-900 flex items-center gap-2">
+                            <i class="fa-solid fa-route text-splace-blue-600"></i>
+                            <span>Codon-aware workflow</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Each CDS marker follows the same validated path before the alignment is shown to the user.</p>
+                        <div class="codon-workflow-grid">
+                            <div class="codon-workflow-step"><i class="fa-solid fa-scissors"></i><div class="text-xs font-bold text-gray-800">1. Extract CDS</div><p class="text-xs text-gray-500 mt-1">Only annotated CDS features are used. rRNAs and tRNAs are skipped in this mode.</p></div>
+                            <div class="codon-workflow-step"><i class="fa-solid fa-check-double"></i><div class="text-xs font-bold text-gray-800">2. Validate frame</div><p class="text-xs text-gray-500 mt-1">Sequences must be divisible by 3 after codon_start and terminal stop handling.</p></div>
+                            <div class="codon-workflow-step"><i class="fa-solid fa-language"></i><div class="text-xs font-bold text-gray-800">3. Translate</div><p class="text-xs text-gray-500 mt-1">The selected NCBI genetic code is used to create protein FASTA files.</p></div>
+                            <div class="codon-workflow-step"><i class="fa-solid fa-align-left"></i><div class="text-xs font-bold text-gray-800">4. MAFFT protein</div><p class="text-xs text-gray-500 mt-1">Proteins are aligned with MAFFT --amino to avoid frame-shifting gaps.</p></div>
+                            <div class="codon-workflow-step"><i class="fa-solid fa-code-branch"></i><div class="text-xs font-bold text-gray-800">5. Back-translate</div><p class="text-xs text-gray-500 mt-1">The protein alignment guides a codon-preserving DNA alignment.</p></div>
                         </div>
                     </div>
                 </div>
@@ -1787,6 +1960,16 @@
                                 <option value="smart-gap">smart-gap</option>
                             </select>
                         </div>
+                        <div class="codon-position-guide">
+                            <div class="codon-position-guide-card">
+                                <strong>Codon trimming</strong><br>
+                                Use trimAl or ClipKIT to remove poorly aligned codon blocks. This should happen before concatenation and before optional codon-position filtering.
+                            </div>
+                            <div class="codon-position-guide-card">
+                                <strong>Codon-position filtering</strong><br>
+                                Removing codon positions is an export/concatenation decision. Keep the trimmed codon DNA, then generate a separate matrix with selected positions removed so the original trim is not lost.
+                            </div>
+                        </div>
                         <p class="text-xs text-splace-blue-700 mt-2">For codon-aware runs, MAFFT aligns proteins first. The selected trimmer trims the protein alignment, then SPLACE back-translates the result to codon-preserving DNA and validates the frame.</p>
                     </div>
                     <div id="trimalManualFields" class="md:col-span-2 hidden grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1877,6 +2060,14 @@
                     </div>
                 </label>
 
+                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                    <input type="checkbox" id="concatReplaceGapsWithMissing" class="rounded text-splace-blue-600">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Replace alignment gaps with <code class="bg-gray-200 px-1 rounded">?</code></p>
+                        <p class="text-sm text-gray-500">Use this when the downstream program should treat alignment gaps as missing data in the exported NEXUS and concatenated FASTA files. Partition coordinates are preserved.</p>
+                    </div>
+                </label>
+
                 <div>
                     <p class="text-sm font-semibold text-gray-700 mb-1.5">
                         <i class="fa-solid fa-tree-deciduous text-splace-blue-500 mr-1"></i>
@@ -1897,15 +2088,26 @@
                     </label>
                 </div>
 
-                <div id="excludeThirdCodonOption" class="hidden bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
-                    <label class="flex items-start gap-2 cursor-pointer text-sm text-amber-900">
-                        <input type="checkbox" id="excludeThirdCodonPosition" class="mt-0.5 accent-amber-600 rounded" onchange="toggleThirdCodonWarning()">
-                        <div>
-                            <div class="font-semibold text-gray-800">Exclude third codon position</div>
-                            <div class="text-xs text-gray-500 mt-0.5">Generate an alternative DNA matrix using only codon positions 1 and 2 after codon integrity validation passes.</div>
-                        </div>
-                    </label>
-                    <p id="excludeThirdCodonWarning" class="hidden text-xs text-amber-800">This will remove only the third position of each validated codon, preserving codon positions 1 and 2. This option is commonly used in some phylogenetic workflows to reduce saturation, but it should be reported explicitly in the methods.</p>
+                <div id="excludeThirdCodonOption" class="hidden bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-3">
+                    <div>
+                        <div class="font-semibold text-gray-800">Exclude codon positions</div>
+                        <div class="text-xs text-gray-500 mt-0.5">Generate an alternative codon-aware DNA matrix by removing selected positions after codon integrity validation. Keep at least one codon position selected in the final matrix.</div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-amber-900 rounded-lg border border-amber-200 bg-white/70 px-3 py-2">
+                            <input type="checkbox" id="excludeFirstCodonPosition" class="accent-amber-600 rounded" onchange="toggleThirdCodonWarning()">
+                            <span>Remove 1st position</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-amber-900 rounded-lg border border-amber-200 bg-white/70 px-3 py-2">
+                            <input type="checkbox" id="excludeSecondCodonPosition" class="accent-amber-600 rounded" onchange="toggleThirdCodonWarning()">
+                            <span>Remove 2nd position</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-amber-900 rounded-lg border border-amber-200 bg-white/70 px-3 py-2">
+                            <input type="checkbox" id="excludeThirdCodonPosition" class="accent-amber-600 rounded" onchange="toggleThirdCodonWarning()">
+                            <span>Remove 3rd position</span>
+                        </label>
+                    </div>
+                    <p id="excludeThirdCodonWarning" class="hidden text-xs text-amber-800">Selected codon positions will be removed from a separate exported matrix. The original codon-aware alignment is preserved so you can compare matrices with and without position filtering.</p>
                 </div>
 
                 <button onclick="generateNexus()"
@@ -1916,6 +2118,14 @@
                 <div id="concatSummary" class="hidden text-sm text-gray-500 text-center"></div>
                 <div id="concatGenerationLog" class="hidden text-xs rounded-lg px-3 py-2 border bg-gray-50 border-gray-200 text-gray-700 whitespace-pre-wrap"></div>
                 <div id="partitionTable" class="hidden rounded-xl border border-gray-200 overflow-hidden"></div>
+                <div id="concatSaveButtons" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button onclick="downloadNexus()" class="bg-splace-blue-600 hover:bg-splace-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors" type="button">
+                        <i class="fa-solid fa-file-code mr-2"></i>Save NEXUS
+                    </button>
+                    <button onclick="downloadPartition()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors" type="button">
+                        <i class="fa-solid fa-table-list mr-2"></i>Save partition table
+                    </button>
+                </div>
             </div>
 
             <!-- Step 7: IQ-TREE -->
