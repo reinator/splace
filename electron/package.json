@@ -7,12 +7,10 @@
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
-    "build:win": "npm run copy:highcharts && electron-builder --win",
-    "build:mac": "npm run copy:highcharts && electron-builder --mac",
-    "build:linux": "npm run copy:highcharts && electron-builder --linux",
-    "build:wsl:win": "npm run copy:highcharts && electron-builder --win",
-    "build:wsl:mac": "npm run copy:highcharts && electron-builder --mac",
-    "build:wsl:linux": "npm run copy:highcharts && electron-builder --linux",
+    "build:win": "npm run copy:highcharts && electron-builder --win --x64 --publish never",
+    "build:linux": "npm run copy:highcharts && electron-builder --linux --x64 --publish never",
+    "build:wsl:win": "npm run copy:highcharts && electron-builder --win --x64 --publish never",
+    "build:wsl:linux": "npm run copy:highcharts && electron-builder --linux --x64 --publish never",
     "build:css": "npx @tailwindcss/cli -i ./docs/css/tailwind.input.css -o ./docs/css/tailwind.generated.css --minify",
     "copy:highcharts": "node scripts/copy-highcharts.js"
   },
@@ -38,7 +36,7 @@
     ],
     "extraResources": [
       {
-        "from": "docs/",
+        "from": "../docs/",
         "to": "docs",
         "filter": [
           "**/*"
@@ -46,7 +44,7 @@
       },
       {
         "from": "bin/",
-        "to": "bin/",
+        "to": "bin",
         "filter": [
           "**/*"
         ]
@@ -65,18 +63,7 @@
           ]
         }
       ],
-      "icon": "./docs/assets/SPLACE.png"
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "universal"
-          ]
-        }
-      ],
-      "icon": "./docs/assets/SPLACE.png"
+      "icon": "../docs/assets/SPLACE.png"
     },
     "linux": {
       "target": [
@@ -87,7 +74,7 @@
           ]
         }
       ],
-      "icon": "./docs/assets/SPLACE.png"
+      "icon": "../docs/assets/SPLACE.png"
     }
   },
   "dependencies": {
