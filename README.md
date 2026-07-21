@@ -8,11 +8,83 @@
 
 ### Platform Compatibility
 
-| Operating System | Status |
-|:---|:---|
-| Ubuntu | ![Tests (Ubuntu)](https://github.com/luanrabelo/splace/actions/workflows/test-ubuntu.yml/badge.svg?branch=main) |
-| macOS | ![Tests (macOS)](https://github.com/luanrabelo/splace/actions/workflows/test-macos.yml/badge.svg?branch=main) |
-| Windows | ![Tests (Windows)](https://github.com/luanrabelo/splace/actions/workflows/test-windows.yml/badge.svg?branch=main) |
+## Platform Compatibility
+
+
+<table width="100%">
+  <thead>
+    <tr>
+      <th align="center" width="25%">Operating System</th>
+      <th align="center" width="25%">Automated Tests</th>
+      <th align="center" width="25%">Distribution</th>
+      <th align="center" width="25%">Downloads</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="left">
+        <img src="https://img.shields.io/badge/Ubuntu-Linux-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Ubuntu" height="28">
+      </td>
+      <td align="center">
+        <a href="https://github.com/luanrabelo/splace/actions/workflows/test-ubuntu.yml"><img src="https://github.com/luanrabelo/splace/actions/workflows/test-ubuntu.yml/badge.svg?branch=main" alt="Ubuntu tests" height="28"></a>
+      </td>
+      <td align="center">
+        <img src="https://img.shields.io/badge/Installation-Source_Code-E95420?style=for-the-badge&logo=github&logoColor=white" alt="Install from source" height="28">
+      </td>
+      <td align="center">
+        <img src="https://img.shields.io/badge/Downloads-Not_Available-lightgrey?style=for-the-badge" alt="Ubuntu downloads not available" height="28">
+      </td>
+    </tr>
+    <tr>
+      <td align="left">
+        <img src="https://img.shields.io/badge/macOS-Apple-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS" height="28">
+      </td>
+      <td align="center">
+        <a href="https://github.com/luanrabelo/splace/actions/workflows/test-macos.yml"><img src="https://github.com/luanrabelo/splace/actions/workflows/test-macos.yml/badge.svg?branch=main" alt="macOS tests" height="28"></a>
+      </td>
+      <td align="center">
+        <img src="https://img.shields.io/badge/Installation-Source_Code-000000?style=for-the-badge&logo=github&logoColor=white" alt="Install from source" height="28">
+      </td>
+      <td align="center">
+        <img
+          src="https://img.shields.io/badge/Downloads-Not_Available-lightgrey?style=for-the-badge"
+          alt="macOS downloads not available"
+          height="28"
+        >
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img
+          src="https://img.shields.io/badge/Windows-Desktop-0078D4?style=for-the-badge&logo=windows&logoColor=white"
+          alt="Windows"
+          height="28"
+        >
+      </td>
+      <td align="center">
+        <a href="https://github.com/luanrabelo/splace/actions/workflows/test-windows.yml">
+          <img
+            src="https://github.com/luanrabelo/splace/actions/workflows/test-windows.yml/badge.svg?branch=main"
+            alt="Windows tests"
+            height="28"
+          >
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/luanrabelo/splace/releases/latest/download/SPLACE.4.0.1_Windows.exe">
+          <img
+            src="https://img.shields.io/badge/Download-Windows_EXE-0078D4?style=for-the-badge&logo=windows&logoColor=white"
+            alt="Download Windows installer"
+            height="28"
+          >
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/luanrabelo/splace/releases/latest"><img src="https://img.shields.io/github/downloads/luanrabelo/splace/latest/SPLACE.4.0.1_Windows.exe?style=for-the-badge&logo=windows&logoColor=white&label=Downloads&color=0078D4" alt="Windows downloads" height="28"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 # Contents Overview
 - [System Overview](#system-overview)
@@ -68,6 +140,89 @@ It integrates with **SynGenes** for gene name standardization, **MAFFT** for ali
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 **SPLACE** is released under the **GPL-3.0 License**.
 &nbsp;
+
+## SPLACE GUI
+##### [:rocket: Go to Contents Overview](#contents-overview)
+The **SPLACE GUI** provides a user friendly graphical interface for the SPLACE toolkit. It allows users to import organellar genomes, inspect their annotations, select molecular markers and perform phylogenomic analyses without manually writing command line instructions.
+
+SPLACE can be used in two different modes:
+
+1. **SPLACE Web**, which allows users to import GenBank records, inspect available markers and export individual FASTA files.
+2. **SPLACE Desktop**, which provides the complete workflow, including sequence alignment with MAFFT, alignment trimming with trimAl, matrix concatenation, NEXUS generation and phylogenetic inference with IQ-TREE3.
+
+Click in the buttons below to view steps for installing and running the SPLACE GUI on your operating system.
+
+<details>
+<summary>First Step - Download and Welcome Screen</summary>
+
+1. Download the latest **SPLACE Desktop** installer for your operating system from the [Releases page](https://github.com/luanrabelo/splace/releases/latest).
+2. Run the installer or open the executable provided for your operating system.
+3. Wait while SPLACE initializes the interface and verifies the programs required by the Desktop workflow.
+4. When necessary, SPLACE will report missing dependencies and provide instructions for installing or configuring them.
+The main external programs used by the Desktop workflow include:
+  - **MAFFT**, for multiple sequence alignment.
+  - **trimAl**, for removing poorly aligned positions.
+  - **IQ-TREE3**, for maximum likelihood phylogenetic inference.
+  - **seqkit**, for translation and sequence processing in amino acid and Codon-aware workflows.
+  - Python and **ClipKIT** are optional and are required only when ClipKIT is selected as the trimming backend for a Codon-aware analysis.
+After the initial verification, select the interface language and click **Start SPLACE**.
+
+![SPLACE Welcome Screen](docs/gifs/splace_welcome_screen.gif)
+
+</details>
+
+<details>
+<summary>Second Step - Interface Overview</summary>
+
+The SPLACE interface is organized into four main areas.
+### Top Bar
+
+The top bar provides quick access to the main application controls.
+
+  - a. **Pipeline navigator**, represented by the menu icon, shows or hides the left navigation panel.
+  - b. **Language selector** changes the interface between English, Portuguese and Spanish.
+  - c. **NCBI API key** opens the API key configuration window.
+  - d. **Display settings** control the theme, interface density and text size.
+  - e. **Activity log** shows or hides the execution log panel.
+  - f. **Help** opens the welcome screen again.
+  - g. **GitHub** opens the SPLACE repository.
+
+The selected language, theme, density and font size are retained by the application.
+
+![SPLACE Top Menu](docs/gifs/splace_top_menu.png)
+
+### Pipeline Navigator
+The panel on the left displays the seven steps of the SPLACE workflow.
+
+The progress indicator is updated automatically as the analysis advances. Completed steps receive a confirmation symbol, while unavailable steps remain locked until the required previous steps have been completed.
+
+Clicking an available step scrolls the workspace directly to the corresponding section.
+
+![SPLACE Left Menu](docs/gifs/splace_left_menu.gif)
+
+### Main Workspace
+
+The central area contains the controls for each stage of the analysis. Sections are progressively displayed as data are imported and the required selections are completed.
+
+### Activity Log
+
+The activity log records searches, downloads, taxonomy queries, sequence processing, alignment, trimming and phylogenetic inference.
+
+The buttons at the top of the log panel allow you to:
+
+1. Copy the complete log.
+
+2. Download the log as a text file.
+
+3. Clear the current log.
+
+4. Hide the log panel.
+
+The log is especially useful for identifying invalid records, skipped sequences, missing annotations or errors reported by external programs.
+
+![SPLACE Activity Log](docs/gifs/splace_log.gif)
+
+</details>
 
 ## Getting Started
 ##### [:rocket: Go to Contents Overview](#contents-overview)
