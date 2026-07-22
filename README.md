@@ -6,8 +6,6 @@
     <h1 align="center">SPLACE (<b>SP</b>Lit, <b>A</b>lign and <b>C</b>oncatenat<b>E</b>)</h1>
 </p>
 
-### Platform Compatibility
-
 ## Platform Compatibility
 
 
@@ -80,7 +78,7 @@
   - [Alignment - Desktop](#alignment---desktop)
   - [Concatenate and Generate NEXUS](#concatenate-and-generate-nexus)
   - [Phylogenetic Inference](#phylogenetic-inference)
-- [Getting Started](#getting-started)
+- [SPLACE Terminal Mode](#terminal-mode-usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
@@ -817,7 +815,7 @@ Click **Save Results as ZIP** to package the complete results.
 
 </details>
 
-## Getting Started
+## SPLACE Terminal Mode
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 ### Prerequisites
 Before you run **SPLACE**, make sure you have the following prerequisites installed on your system:
@@ -832,6 +830,10 @@ Before you run **SPLACE**, make sure you have the following prerequisites instal
     - `biopython` # For biological sequence handling and parsing
     - `requests`  # For GBIF HTTP queries
     - `syngenes`  # For gene nomenclature standardization
+    - `pyyaml`    # For YAML configuration file parsing
+    - `seqkit`    # For sequence processing and translation
+    - `clipkit`   # Optional for codon-aware trimming (REQUIRED if ClipKIT is selected as the trimming backend)
+
 [^1]: These prerequisites are essential for running SPLACE effectively.
 
 &nbsp;
@@ -841,7 +843,7 @@ Before you run **SPLACE**, make sure you have the following prerequisites instal
 
 1. Clone the repository:
 ```shell
-git clone https://github.com/luanrabelo/SPLACE.git
+git clone https://github.com/itvgenomics/SPLACE.git
 cd SPLACE  
 ```
 
