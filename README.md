@@ -143,6 +143,7 @@ It integrates with **SynGenes** for gene name standardization, **MAFFT** for ali
 
 ## SPLACE GUI
 ##### [:rocket: Go to Contents Overview](#contents-overview)
+
 The **SPLACE GUI** provides a user friendly graphical interface for the SPLACE toolkit. It allows users to import organellar genomes, inspect their annotations, select molecular markers and perform phylogenomic analyses without manually writing command line instructions.
 
 SPLACE can be used in two different modes:
@@ -150,9 +151,10 @@ SPLACE can be used in two different modes:
 1. **SPLACE Web**, which allows users to import GenBank records, inspect available markers and export individual FASTA files.
 2. **SPLACE Desktop**, which provides the complete workflow, including sequence alignment with MAFFT, alignment trimming with trimAl, matrix concatenation, NEXUS generation and phylogenetic inference with IQ-TREE3.
 
-Click in the buttons below to view steps for installing and running the SPLACE GUI on your operating system.
+> [!NOTE]
+> Click in the buttons below to view steps for installing and running the SPLACE GUI on your operating system.
 
-<details>
+<details open>
 <summary>First Step - Download and Welcome Screen</summary>
 
 1. Download the latest **SPLACE Desktop** installer for your operating system from the [Releases page](https://github.com/luanrabelo/splace/releases/latest).
@@ -165,6 +167,7 @@ The main external programs used by the Desktop workflow include:
   - **IQ-TREE3**, for maximum likelihood phylogenetic inference.
   - **seqkit**, for translation and sequence processing in amino acid and Codon-aware workflows.
   - Python and **ClipKIT** are optional and are required only when ClipKIT is selected as the trimming backend for a Codon-aware analysis.
+
 After the initial verification, select the interface language and click **Start SPLACE**.
 
 ![SPLACE Welcome Screen](docs/gifs/splace_welcome_screen.gif)
@@ -221,6 +224,358 @@ The buttons at the top of the log panel allow you to:
 The log is especially useful for identifying invalid records, skipped sequences, missing annotations or errors reported by external programs.
 
 ![SPLACE Activity Log](docs/gifs/splace_log.gif)
+
+</details>
+
+<details>
+<summary>Load Data</summary>
+
+## Step 1: Load Data
+
+The first step imports GenBank records into SPLACE. Three complementary import methods are available, and records imported using different methods can be combined in the same dataset.
+
+### Option 1: Search by Taxonomic Name
+
+Use this option when you want SPLACE to search NCBI for genomes belonging to a taxonomic group.
+
+Enter a taxonomic name such as a species, genus, family or another supported taxonomic rank. Then configure the search using the following fields:
+
+1. **Taxonomic name**, the scientific or higher taxonomic name used in the NCBI query.
+2. **Genome type**, either mitochondrial or chloroplast.
+3. **Complete Only**, restricts the search to records identified as complete genomes.
+4. **RefSeq only**, restricts the search to curated RefSeq records.
+
+The **Query preview** displays the NCBI query that will be submitted.
+
+The **Example** button automatically fills the fields with a demonstration search, allowing new users to understand how the query is constructed.
+
+After clicking **Search**, SPLACE retrieves the matching accessions and opens a review window before downloading the complete GenBank records.
+
+![SPLACE Search](docs/gifs/splace_search.gif)
+
+### Reviewing Search Results
+
+The genome review window allows you to inspect the records returned by NCBI before importing them.
+
+All records are enabled initially. The available controls allow you to:
+
+1. Enable all records.
+2. Disable all records.
+3. Disable records containing `UNVERIFIED` in their NCBI title.
+4. Select only complete genomes.
+5. Select only partial genomes.
+
+The table displays the accession number, genome description and title based classification of each result.
+
+Review the selected records and click **Import selected genomes** to continue.
+
+> Records marked as `UNVERIFIED` should be inspected carefully before inclusion in phylogenetic analyses.
+
+![SPLACE Import](docs/gifs/splace_import.gif)
+
+### Option 2: Paste Accession Numbers
+
+Use this option when the NCBI accession numbers are already known.
+
+Accession numbers can be separated by:
+
+1. Commas.
+
+2. Spaces.
+
+3. Line breaks.
+
+For example:
+
+```text
+NC_061537
+NC_023122
+NC_042724
+```
+
+Click **Fetch** to download the corresponding GenBank records.
+
+The **Example** button inserts a demonstration accession list that can be used to test the workflow.
+
+![SPLACE Fetch](docs/gifs/splace_fetch.png)
+
+### Option 3: Use Local GenBank Files
+
+Use this option when the GenBank records are already stored on your computer.
+
+SPLACE accepts the following extensions:
+
+```text
+.gb
+.gbk
+.genbank
+```
+
+Files or folders can be dragged directly into the import area. You may also click the area to browse your computer.
+
+When a folder is selected, SPLACE searches it for compatible GenBank files and imports the valid records.
+
+Local records and records downloaded from NCBI may be combined in the same analysis.
+
+
+### Using an NCBI API Key
+
+An NCBI API key is not required, but it can make large imports faster.
+
+Without an API key, SPLACE performs approximately three NCBI requests per second. With a saved valid API key, it can use up to ten requests per second.
+
+To configure the key:
+
+1. Click the key icon in the top bar.
+
+2. Paste your NCBI API key.
+
+3. Click **Save key**.
+
+The saved key is used by both the taxonomic search and accession import options.
+
+The progress window displays whether the API key is active and shows the request rate used during the import.
+
+![SPLACE API Key](docs/gifs/splace_api_key.gif)
+
+</details>
+
+<details>
+<summary>Step 2: Select Markers</summary>
+
+## Step 2: Loaded Records
+
+After importing at least one GenBank record, SPLACE displays the **Loaded Records** table.
+
+This step should be used to verify species names, inspect the number of annotated markers and retrieve taxonomic information.
+
+### Records Table
+
+Each row represents one imported genome. Depending on the visible columns, the table can display:
+
+1. Accession.
+2. Kingdom.
+3. Phylum.
+4. Class.
+5. Order.
+6. Family.
+7. Genus.
+8. Species.
+9. Authorship.
+10. Number of protein coding genes.
+11. Number of rRNA genes.
+12. Number of tRNA genes.
+13. Record source, either NCBI or a local file.
+
+Use the column buttons above the table to show or hide individual fields.
+The search field can be used to filter records by accession, species, family or other displayed information.
+
+![SPLACE Show Columns](docs/gifs/splace_show_columns.gif)
+
+### Editing a Record
+
+Click the edit button associated with a record to open the record editor.
+
+The editor allows you to modify:
+
+1. Genus.
+2. Species.
+3. Kingdom.
+4. Phylum.
+5. Class.
+6. Order.
+7. Family.
+
+You can also retrieve the taxonomy of an individual record directly from GBIF by clicking **Fetch Taxonomy from GBIF**.
+
+Species names should be reviewed before continuing. Incorrect names, special characters and duplicated identifiers may cause problems when FASTA headers and concatenated matrices are generated.
+
+![SPLACE Edit Record](docs/gifs/splace_edit_record.gif)
+
+### Fetching Taxonomy
+
+Click **Fetch Taxonomy** to retrieve classification ranks from GBIF through **dataFishing (Rabelo et al. 2025)**.
+
+SPLACE groups repeated species names into unique queries, retrieves the corresponding taxonomy and updates the records as matches are confirmed.
+
+The progress window displays:
+
+1. The current species.
+2. The number of completed queries.
+3. Successful matches.
+4. Failed queries.
+
+After taxonomy retrieval, SPLACE also displays a hierarchical taxonomic tree summarizing the imported records.
+
+Taxonomy retrieval requires an internet connection.
+
+![SPLACE Fetch Taxonomy](docs/gifs/splace_fetch_taxonomy.gif)
+
+### Skipping Taxonomy
+
+Taxonomy retrieval can be skipped by clicking **Skip taxonomy and proceed**.
+A confirmation window will explain that invalid species names, special characters or duplicated entries may produce errors in later analyses.
+Skipping taxonomy does not prevent marker extraction, but reviewing the species names is strongly recommended.
+
+### Removing or Clearing Records
+
+Individual genomes can be removed using the remove button in their table row.
+The **Clear all** button removes every loaded record and resets the current workflow.
+These operations require confirmation because they cannot be undone.
+
+</details>
+
+<details>
+<summary>Select Markers</summary>
+
+## Step 3: Feature Types
+
+SPLACE extracts annotated features from the imported GenBank records and groups them into the following categories:
+
+1. **CDS**, protein coding sequences.
+2. **rRNA**, ribosomal RNA genes.
+3. **tRNA**, transfer RNA genes.
+
+Activate the categories that should be included in the marker selection step.
+For example, a mitochondrial phylogeny based only on protein coding genes can be configured by activating **CDS** and disabling the other categories.
+Gene names are standardized using **SynGenes (Rabelo et al., 2024)**, reducing differences caused by alternative names, abbreviations and annotation conventions.
+
+### Unknown Gene Names
+
+When a gene name cannot be standardized automatically, SPLACE opens the **Gene Names Not Found in SynGenes** window.
+For each unrecognized annotation, the window displays:
+
+1. Species.
+2. File or accession.
+3. Original gene name.
+4. Standardized name selector.
+
+Select the appropriate standardized name or choose **skip** to exclude that annotation from the analysis.
+
+Use **Apply Corrections** to save the selected names or **Skip All** to exclude all unresolved annotations.
+
+![SPLACE Fix Gene Names](docs/gifs/splace_fix_gene_names.png)
+
+## Step 4: Select Markers
+
+The **Select Markers** section displays all markers found within the active feature categories.
+Each marker card shows the marker name and the number of genomes in which it was detected.
+Click a marker to select or deselect it.
+The number of currently selected markers is displayed beside the section title.
+
+### Selection Shortcuts
+
+The following buttons simplify marker selection:
+
+1. **Select All**, selects every visible marker.
+2. **None**, clears the complete marker selection.
+3. **Shared Only**, selects markers present in every imported genome.
+4. **Default to Phylogeny**, selects the recommended marker set according to the detected genome type.
+
+For mitochondrial datasets, the default selection includes the commonly used mitochondrial protein coding genes.
+For chloroplast datasets, the default selection includes a predefined set of frequently used plastid markers.
+
+![SPLACE Select Markers](docs/gifs/splace_select_markers.gif)
+
+### Missing Markers
+
+When a selected marker is absent from one or more records, SPLACE displays a **Missing Genes** warning.
+The warning identifies the affected marker and the genomes in which it was not detected.
+This information should be reviewed before concatenation, especially when a complete matrix without missing loci is required.
+
+![SPLACE Missing Markers](docs/gifs/splace_missing_markers.png)
+
+### Duplicated Markers
+
+Some genomes may contain more than one annotation for the same protein coding or rRNA gene.
+When duplicates are detected, SPLACE displays:
+
+1. Species or accession.
+2. Number and length of the available copies.
+3. Mean marker length in the other genomes.
+4. The copy that will be used.
+
+Only one copy is used for each genome. By default, the longest copy is selected, but the user can choose another copy when appropriate.
+
+![SPLACE Duplicated Markers](docs/gifs/splace_duplicated_markers.png)
+
+### Gene Presence Heatmap
+
+The **Gene Presence Heatmap** summarizes the distribution of markers among the imported genomes.
+Rows represent genomes or species, while columns represent markers.
+The heatmap uses contrasting colors to distinguish present and absent markers. It can be used to identify:
+
+1. Markers shared by all genomes.
+2. Records with incomplete annotations.
+3. Genes that occur only in part of the dataset.
+4. Potential outliers or problematic genome records.
+
+### Marker Length Heatmap
+
+The Desktop version also displays a **Marker Length Heatmap** for the selected markers.
+Each marker is scaled independently using its minimum and maximum length. This makes it easier to identify unusually short or long sequences within each locus.
+
+Because each column uses its own scale, colors should be compared within a marker, not between different markers.
+
+![SPLACE Gene Presence Heatmap](docs/gifs/splace_gene_presence_heatmap.gif)
+
+</details>
+
+<details>
+<summary>Export FASTA</summary>
+
+## Step 5 in SPLACE Web: Export FASTA Files
+
+In the Web version, the workflow ends with the export of unaligned FASTA files.
+Click **Download FASTA Files** to open the FASTA Header Builder.
+The Web version creates one FASTA file for each selected marker. These files can then be used in external alignment and phylogenetic programs.
+For alignment, trimming, concatenation and tree inference within SPLACE, use the Desktop version.
+
+## FASTA Header Builder
+
+The FASTA Header Builder defines the sequence identifiers used in exported and aligned FASTA files.
+Available fields may include accession, taxonomy ranks and species information.
+
+To construct a header:
+
+1. Click an available field to add it to the header.
+2. Click a selected field to remove it.
+3. Drag selected fields to change their order.
+4. Choose a separator, such as underscore, pipe or dash.
+5. Inspect the generated preview.
+
+For example, a header composed of accession, family, genus, and species may be displayed as:
+
+```text
+>NC_024166_Anura_Rhinella_Rhinella_marina
+```
+
+![SPLACE Export FASTA Header](docs/gifs/splace_export_fasta_header.png)
+
+SPLACE checks whether the selected fields produce duplicated headers. When duplicates are detected, add another identifying field, such as the accession number.
+
+![SPLACE Export FASTA Duplicated](docs/gifs/splace_export_fasta_duplicated.png)
+
+In the Web version, FASTA files can be downloaded as:
+
+1. A single ZIP archive.
+2. Individual FASTA files.
+
+In the Desktop version, confirming the header unlocks the sequence alignment controls.
+
+## Step 5 in SPLACE Desktop: Sequence Alignment
+
+The Desktop workflow continues from marker selection to sequence alignment.
+
+Step 5 is divided into header configuration, sequence type selection, MAFFT configuration, execution and optional trimming.
+
+### Step 5a: Configure the FASTA Header
+
+Open the FASTA Header Builder and define a unique identifier for every sequence.
+
+The header must be confirmed before the remaining alignment settings are unlocked.
+
+A preview of the selected format is displayed directly in the workspace after confirmation.
 
 </details>
 
