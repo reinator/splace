@@ -1,11 +1,8 @@
 name: Build SPLACE Desktop
 
-# Trigger on version tag pushes (e.g. git tag v4.0.1 && git push --tags)
-# and on manual dispatch for testing.
+# Legacy Electron desktop app. Version tags (v*) now publish the SPLACE GUI
+# packages (build-gui.yml); this build runs only by hand.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 jobs:

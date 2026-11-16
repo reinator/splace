@@ -1,0 +1,116 @@
+name: Build SPLACE GUI
+
+# Desktop packages of the SPLACE GUI (GUI/), each with the bundled tools:
+#   Windows  SPLACE-<version>-windows-x64.exe   (portable, no installation)
+#   Linux    splace_<version>_amd64.deb and SPLACE-<version>-x86_64.AppImage
+#   macOS    SPLACE-<version>-macos-universal.dmg (Apple silicon and Intel)
+# Run it by hand (Actions > Build SPLACE GUI > Run workflow): the packages
+# are attached to the run as artifacts. Push a version tag to publish them
+# in the GitHub release of that tag:
+#   git tag v4.2.2 && git push origin v4.2.2
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  FLUTTER_VERSION: "3.47.2"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  windows:
+    name: Windows (.exe)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: GUI
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build the portable program
+        run: powershell -ExecutionPolicy Bypass -File tool\package\windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPLACE-windows-x64
+          path: GUI/dist/*.exe
+          if-no-files-found: error
+
+  linux:
+    name: Linux (.deb and .AppImage)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: GUI
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build dependencies
+        working-directory: .
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev \
+            dpkg-dev gcc make curl file
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build the .deb
+        run: bash tool/package/linux.sh
+      - name: Build the AppImage (same release build)
+        run: SKIP_BUILD=1 bash tool/package/appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPLACE-linux-x64
+          path: |
+            GUI/dist/*.deb
+            GUI/dist/*.AppImage
+          if-no-files-found: error
+
+  macos:
+    name: macOS (.dmg)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: GUI
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build the disk image
+        run: bash tool/package/macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPLACE-macos-universal
+          path: GUI/dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Attach to the release
+    needs: [windows, linux, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - run: ls -la packages
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*
