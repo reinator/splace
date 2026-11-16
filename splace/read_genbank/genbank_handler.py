@@ -59,6 +59,28 @@ _uid_counter = 0
 _gbif_lock = threading.Lock()
 
 
+_LABEL_SUFFIX = re.compile(
+    r"(\s*-\s*(truncated|partial|pseudo(gene)?)\s*)$|(\s+(cds|gene|trna|rrna|mrna|exon|intron|orf|ncrna|misc_rna|misc_feature)\s*)$",
+    re.IGNORECASE,
+)
+_ORF_LABEL = re.compile(r"^orf\s+\d+\s*\(frame", re.IGNORECASE)
+
+
+def gene_from_label(label):
+    """Gene name in a /label qualifier written by editors such as Geneious when a
+    feature is curated by hand ("ycf1 CDS", "trnC-GCA tRNA", "ycf2 gene - Truncated",
+    "rps12"). Automatic ORF-finder labels ("ORF 4 (frame 2)") are not genes."""
+    value = re.sub(r"\s+", " ", label or "").strip()
+    if not value or _ORF_LABEL.match(value):
+        return None
+    for _ in range(3):
+        stripped = _LABEL_SUFFIX.sub("", value).strip()
+        if stripped == value:
+            break
+        value = stripped
+    return value or None
+
+
 def _next_uid():
     """Return the next unique 5-digit ID string, thread-safe."""
     global _uid_counter
@@ -313,6 +335,8 @@ async def genbank_to_fasta(**kwargs):
 
                     product = feature.qualifiers.get("product", [None])[0]
                     gene_qualifier = feature.qualifiers.get("gene", [None])[0]
+                    if not gene_qualifier:
+                        gene_qualifier = gene_from_label(feature.qualifiers.get("label", [None])[0])
                     raw_name = gene_qualifier or product
 
                     if not raw_name:
