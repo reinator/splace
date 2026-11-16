@@ -1,0 +1,9 @@
+tags:
+  network:
+    # Live NCBI/GBIF requests (SPLACE_NETWORK=1).
+  screenshots:
+    # PNG renders of the UI (SPLACE_SCREENSHOTS=out_dir).
+  integration:
+    # Needs external tools; see test/integration/pipeline_test.dart.
+  dataset:
+    # Needs SPLACE_DATASET pointing to the extracted datasets/inputs folder.

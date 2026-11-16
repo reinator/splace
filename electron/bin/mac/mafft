@@ -1,0 +1,7 @@
+#!/bin/sh
+# Launcher for the bundled MAFFT (official universal macOS build, Intel and
+# Apple silicon): MAFFT needs MAFFT_BINARIES to find its helper programs.
+here=$(cd "$(dirname "$0")" && pwd)
+MAFFT_BINARIES="$here/mafft-mac/mafftdir/libexec"
+export MAFFT_BINARIES
+exec "$here/mafft-mac/mafftdir/bin/mafft" "$@"
