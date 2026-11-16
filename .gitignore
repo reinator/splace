@@ -105,3 +105,16 @@ datasets/
 Dockerfile/
 test_singularity.sh
 *.fasta
+
+# SPLACE GUI (Flutter desktop app in GUI/)
+GUI/build/
+GUI/dist/
+GUI/.dart_tool/
+GUI/.flutter-plugins
+GUI/.flutter-plugins-dependencies
+GUI/coverage/
+GUI/**/flutter/ephemeral/
+GUI/macos/Pods/
+GUI/*.log
+# Local test data sets (large or unpublished)
+GUI/teste/

@@ -26,7 +26,7 @@
         <a href="https://github.com/luanrabelo/splace/actions/workflows/test-ubuntu.yml"><img src="https://github.com/luanrabelo/splace/actions/workflows/test-ubuntu.yml/badge.svg?branch=main" alt="Ubuntu tests" height="28"></a>
       </td>
       <td align="left">
-        <img src="https://img.shields.io/badge/Downloads-Not_Available-lightgrey?style=for-the-badge" alt="Ubuntu downloads not available" height="28">
+        <a href="https://github.com/luanrabelo/splace/releases/latest"><img src="https://img.shields.io/badge/Download-.deb_%2F_AppImage-E95420?style=for-the-badge&logo=linux&logoColor=white" alt="Linux downloads (.deb and AppImage)" height="28"></a>
       </td>
     </tr>
     <tr>
@@ -37,11 +37,7 @@
         <a href="https://github.com/luanrabelo/splace/actions/workflows/test-macos.yml"><img src="https://github.com/luanrabelo/splace/actions/workflows/test-macos.yml/badge.svg?branch=main" alt="macOS tests" height="28"></a>
       </td>
       <td align="left">
-        <img
-          src="https://img.shields.io/badge/Downloads-Not_Available-lightgrey?style=for-the-badge"
-          alt="macOS downloads not available"
-          height="28"
-        >
+        <a href="https://github.com/luanrabelo/splace/releases/latest"><img src="https://img.shields.io/badge/Download-.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS download (.dmg)" height="28"></a>
       </td>
     </tr>
     <tr>
@@ -62,7 +58,7 @@
         </a>
       </td>
       <td align="left">
-        <a href="https://github.com/luanrabelo/splace/releases/latest"><img src="https://img.shields.io/github/downloads/luanrabelo/splace/latest/SPLACE.4.0.1_Windows.exe?style=for-the-badge&logo=windows&logoColor=white&label=Downloads&color=0078D4" alt="Windows downloads" height="28"></a>
+        <a href="https://github.com/luanrabelo/splace/releases/latest"><img src="https://img.shields.io/badge/Download-.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows download (.exe)" height="28"></a>
       </td>
     </tr>
   </tbody>
@@ -72,13 +68,18 @@
 - [System Overview](#system-overview)
 - [Licence](#licence)
 - [SPLACE GUI](#splace-gui)
-  - [Load Data](#load-data)
-  - [Select Markers](#select-markers)
-  - [Export FASTA](#export-fasta)
-  - [Alignment - Desktop](#alignment---desktop)
-  - [Concatenate and Generate NEXUS](#concatenate-and-generate-nexus)
-  - [Phylogenetic Inference](#phylogenetic-inference)
-- [SPLACE Terminal Mode](#terminal-mode-usage)
+  - [Download and installation](#download-and-installation)
+  - [Welcome screen and interface](#welcome-screen)
+  - [Step 1: Load Data](#step-1-load-data)
+  - [Step 2: Loaded Records](#step-2-loaded-records)
+  - [Step 3: Feature Types](#step-3-feature-types)
+  - [Step 4: Select Markers](#step-4-select-markers)
+  - [Step 5: Sequence Alignment](#step-5-sequence-alignment)
+  - [Step 6: Saturation Test](#step-6-saturation-test)
+  - [Step 7: Concatenate and NEXUS](#step-7-concatenate-and-nexus)
+  - [Step 8: Phylogenetic Inference](#step-8-phylogenetic-inference)
+  - [Step 9: Tree Viewer](#step-9-tree-viewer)
+- [SPLACE Terminal Mode](#splace-terminal-mode)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
@@ -171,687 +172,257 @@ It integrates with **SynGenes** for gene name standardization, **MAFFT** for ali
 ## SPLACE GUI
 ##### [:rocket: Go to Contents Overview](#contents-overview)
 
-The **SPLACE GUI** provides a user friendly graphical interface for the SPLACE toolkit. It allows users to import organellar genomes, inspect their annotations, select molecular markers and perform phylogenomic analyses without manually writing command line instructions.
+The **SPLACE GUI** is the desktop application of SPLACE (source in [`GUI/`](GUI/)). It runs the whole phylogenomic workflow without the command line: it imports organellar genomes, individual markers or your own FASTA files, standardizes gene names, aligns, trims, tests saturation, builds the supermatrix, infers trees with IQ-TREE3 and RAxML-NG and lets you edit the final figure.
 
-SPLACE can be used in two different modes:
-
-1. **SPLACE Web**, which allows users to import GenBank records, inspect available markers and export individual FASTA files.
-2. **SPLACE Desktop**, which provides the complete workflow, including sequence alignment with MAFFT, alignment trimming with trimAl, matrix concatenation, NEXUS generation and phylogenetic inference with IQ-TREE3.
-
-<details open>
-<summary>First Step - Download and Welcome Screen</summary>
-
-1. Download the latest **SPLACE Desktop** installer for your operating system from the [Releases page](https://github.com/luanrabelo/splace/releases/latest).
-2. Run the installer or open the executable provided for your operating system.
-3. Wait while SPLACE initializes the interface and verifies the programs required by the Desktop workflow.
-4. When necessary, SPLACE will report missing dependencies and provide instructions for installing or configuring them.
-The main external programs used by the Desktop workflow include:
-  - **MAFFT**, for multiple sequence alignment.
-  - **trimAl**, for removing poorly aligned positions.
-  - **IQ-TREE3**, for maximum likelihood phylogenetic inference.
-  - **seqkit**, for translation and sequence processing in amino acid and Codon-aware workflows.
-  - Python and **ClipKIT** are optional and are required only when ClipKIT is selected as the trimming backend for a Codon-aware analysis.
-
-After the initial verification, select the interface language and click **Start SPLACE**.
-
-![SPLACE Welcome Screen](docs/gifs/splace_welcome_screen.gif)
+The analysis tools are **bundled** with the application (MAFFT, trimAl, IQ-TREE3, RAxML-NG, ClipKIT and PhyKIT), so nothing else needs to be installed. The interface is available in English, Portuguese and Spanish.
 
 > [!NOTE]
-> Click in the buttons below to view steps for installing and running the SPLACE GUI on your operating system.
+> **SPLACE Web** (the browser version in `docs/`) still offers the import, marker selection and FASTA export steps in the browser. The full workflow (alignment to trees) is in the desktop GUI described below.
+
+### Download and installation
+
+Get the package for your system from the [Releases page](https://github.com/luanrabelo/splace/releases/latest):
+
+| System | File | How to run |
+| :--- | :--- | :--- |
+| Windows 10/11 (x64) | `SPLACE-<version>-windows-x64.exe` | Portable program, no installation: double-click it. The first start unpacks SPLACE once to `%LOCALAPPDATA%\SPLACE`, later starts are immediate. |
+| Linux (Debian, Ubuntu…) | `splace_<version>_amd64.deb` | `sudo apt install ./splace_<version>_amd64.deb`, then open **SPLACE** from the applications menu or run `splace`. |
+| Linux (any distribution) | `SPLACE-<version>-x86_64.AppImage` | `chmod +x SPLACE-*.AppImage` and run it. Nothing is installed. |
+| macOS 12+ (Apple silicon and Intel) | `SPLACE-<version>-macos-universal.dmg` | Open the disk image and drag **SPLACE** to *Applications*. The first time, right-click the app and choose **Open** (the app is not notarized). |
+
+Results are written to `Documents/SPLACE/projects/<date-time>/` (`01_loci`, `02_aligned`, `03_trimmed`, `04_saturation`, `05_matrix`, `06_trees`). Preferences (language, theme, NCBI API key, tool paths) are kept in `Documents/SPLACE/settings.json`.
+
+<details open>
+<summary>Welcome screen and interface overview</summary>
+
+### Welcome screen
+
+The welcome screen summarizes the nine steps of the workflow and the published tools used in each one. Choose the language (EN, ES, PT) in the top-right corner and click **Start App**. The **?** button of the top bar brings this screen back at any time.
+
+![SPLACE welcome screen](GUI/screenshots/00_welcome.png)
+
+### Interface overview
+
+- **Top bar**: menu button (shows or hides the step navigator), language selector, **NCBI API key** (key icon), **external tools** (wrench), **display settings** (sliders), **activity log**, help and the GitHub repository.
+- **Step navigator** (left): the steps of the workflow with the global progress bar. Each step lists its parts (`1a`, `1b`…); completed steps and parts get a check mark, and steps that still need data from previous steps are locked. Clicking a step or part scrolls the page to it.
+- **Workspace** (centre): one scrolling page with a card for each step, revealed as the analysis advances.
+- **Status bar** (bottom): version, licence and authors, plus live CPU, RAM, disk and network use.
+
+### External tools
+
+The wrench button lists every tool SPLACE found (bundled with the app, in `PATH` or, on Windows, inside WSL), with its version and path. A custom path can be set for each tool.
+
+![External tools dialog](GUI/screenshots/00b_external_tools.png)
+
+### Display settings and activity log
+
+The sliders button changes the theme (light, dark or automatic), the density and the text size. The activity log (list button) records every search, download, tool call and error with its time; it can be copied, saved as a text file or cleared.
+
+![Display settings](GUI/screenshots/00c_display_settings.png)
 
 </details>
 
 <details>
-<summary>Second Step - Interface Overview</summary>
+<summary>Step 1 - Load Data</summary>
 
-The SPLACE interface is organized into four main areas.
-### Top Bar
+### Step 1: Load Data
 
-The top bar provides quick access to the main application controls.
+Data can come from four sources, and sources can be combined in the same project:
 
-  - a. **Pipeline navigator**, represented by the menu icon, shows or hides the left navigation panel.
-  - b. **Language selector** changes the interface between English, Portuguese and Spanish.
-  - c. **NCBI API key** opens the API key configuration window.
-  - d. **Display settings** control the theme, interface density and text size.
-  - e. **Activity log** shows or hides the execution log panel.
-  - f. **Help** opens the welcome screen again.
-  - g. **GitHub** opens the SPLACE repository.
+- **1a Search by taxonomic name**: searches NCBI for **genomes** (mitochondrion, chloroplast…) of a taxon, with the options *Complete only* and *RefSeq only*. The query sent to NCBI is shown in *Query preview*.
+- **1b Paste accession numbers**: downloads the GenBank records of a list of accessions.
+- **1c Use local GenBank files**: opens `.gb`/`.gbk` files or whole folders.
+- **1d Use local FASTA files**: opens your own FASTA files (for example, target-capture loci). SPLACE then opens the **Sample and marker** dialog, where you click the parts of the header that name the sample and the marker (or use the file name, `[gene=…]` tags or a regular expression). It recognizes the common layouts (one file per sample with one sequence per locus, one file per locus, or both names in the header), standardizes sample names and writes one FASTA file per marker with identical sample names, ready to align and concatenate.
 
-The selected language, theme, density and font size are retained by the application.
+![Load data - genomes](GUI/screenshots/01a_load_genomes.png)
 
-![SPLACE Top Menu](docs/gifs/splace_top_menu.png)
+**Individual markers.** When there are no genomes for a group, switch from *Genomes* to *Individual markers* and choose the markers (12S, 16S, COI, CYTB, ND1…). Each marker is searched with every synonym of the gene in [SynGenes](https://github.com/luanrabelo/SynGenes), and the records are joined by species: one sample per species, with missing markers filled as missing data.
 
-### Pipeline Navigator
-The panel on the left displays the seven steps of the SPLACE workflow.
-The progress indicator is updated automatically as the analysis advances. Completed steps receive a confirmation symbol, while unavailable steps remain locked until the required previous steps have been completed.
-Clicking an available step scrolls the workspace directly to the corresponding section.
+![Load data - individual markers](GUI/screenshots/01b_load_markers.png)
 
-![SPLACE Left Menu](docs/gifs/splace_left_menu.gif)
+**Review genomes before importing.** Before downloading, SPLACE lists what NCBI found, split into *complete*, *partial* and *UNVERIFIED* records. Filter the list, turn records on or off (or use *Disable UNVERIFIED*, *Only complete*…) and click **Import**.
 
-### Main Workspace
+![Review genomes before importing](GUI/screenshots/01c_review_genomes.png)
 
-The central area contains the controls for each stage of the analysis. Sections are progressively displayed as data are imported and the required selections are completed.
+Downloads show their progress in a window that can be cancelled; downloaded records are cached on disk for seven days.
 
-### Activity Log
+![Download progress](GUI/screenshots/01d_download_progress.png)
 
-The activity log records searches, downloads, taxonomy queries, sequence processing, alignment, trimming and phylogenetic inference.
-The buttons at the top of the log panel allow you to:
+**NCBI API key.** Without a key NCBI allows 3 requests per second; with a free key, 10. The key window estimates the time saved for 50, 200 and 1,000 genomes and explains how to create a key in your NCBI account. The key is stored only on your computer.
 
-1. Copy the complete log.
-2. Download the log as a text file.
-3. Clear the current log.
-4. Hide the log panel.
-
-The log is especially useful for identifying invalid records, skipped sequences, missing annotations or errors reported by external programs.
-
-![SPLACE Activity Log](docs/gifs/splace_log.gif)
+![NCBI API key](GUI/screenshots/01e_ncbi_api_key.png)
 
 </details>
 
 <details>
-<summary>Load Data</summary>
+<summary>Step 2 - Loaded Records</summary>
 
-## Step 1: Load Data
+### Step 2: Loaded Records
 
-The first step imports GenBank records into SPLACE. Three complementary import methods are available, and records imported using different methods can be combined in the same dataset.
+- **2a Species identification** (optional): compares a barcode gene (COI, 16S…) of each genome with GenBank (BLAST) and BOLD to find misidentified records, and lets you choose the name to keep for each genome.
+- **2b Taxonomy of the records**: fetches the classification with the [dataFishing](https://github.com/luanrabelo/dataFishing) method from **GBIF**, **NCBI Taxonomy** or **ICMBio SALVE** (Brazilian fauna, with the extinction-risk category). *Skip taxonomy and proceed* continues without it.
 
-### Option 1: Search by Taxonomic Name
+![Taxonomy of the records](GUI/screenshots/02a_records_taxonomy.png)
 
-Use this option when you want SPLACE to search NCBI for genomes belonging to a taxonomic group.
-Enter a taxonomic name such as a species, genus, family or another supported taxonomic rank. Then configure the search using the following fields:
+- **2c Records table**: every record with its taxonomy, authorship and the number of protein-coding genes (PCGs), rRNAs and tRNAs. Columns can be shown or hidden, the table can be searched, and each record can be edited or removed. Gene counts that differ from the rest of the dataset are highlighted (possible gene loss or duplication).
 
-1. **Taxonomic name**, the scientific or higher taxonomic name used in the NCBI query.
-2. **Genome type**, either mitochondrial or chloroplast.
-3. **Complete Only**, restricts the search to records identified as complete genomes.
-4. **RefSeq only**, restricts the search to curated RefSeq records.
-
-The **Query preview** displays the NCBI query that will be submitted.
-The **Example** button automatically fills the fields with a demonstration search, allowing new users to understand how the query is constructed.
-After clicking **Search**, SPLACE retrieves the matching accessions and opens a review window before downloading the complete GenBank records.
-
-![SPLACE Search](docs/gifs/splace_search.gif)
-
-### Reviewing Search Results
-
-The genome review window allows you to inspect the records returned by NCBI before importing them.
-
-All records are enabled initially. The available controls allow you to:
-
-1. Enable all records.
-2. Disable all records.
-3. Disable records containing `UNVERIFIED` in their NCBI title.
-4. Select only complete genomes.
-5. Select only partial genomes.
-
-The table displays the accession number, genome description and title based classification of each result.
-
-Review the selected records and click **Import selected genomes** to continue.
-
-> Records marked as `UNVERIFIED` should be inspected carefully before inclusion in phylogenetic analyses.
-
-![SPLACE Import](docs/gifs/splace_import.gif)
-
-### Option 2: Paste Accession Numbers
-
-Use this option when the NCBI accession numbers are already known.
-Accession numbers can be separated by:
-
-1. Commas.
-2. Spaces.
-3. Line breaks.
-
-For example:
-
-```text
-NC_061537
-NC_023122
-NC_042724
-```
-
-Click **Fetch** to download the corresponding GenBank records.
-The **Example** button inserts a demonstration accession list that can be used to test the workflow.
-
-![SPLACE Fetch](docs/gifs/splace_fetch.png)
-
-### Option 3: Use Local GenBank Files
-
-Use this option when the GenBank records are already stored on your computer.
-SPLACE accepts the following extensions:
-
-```text
-.gb
-.gbk
-.genbank
-```
-
-Files or folders can be dragged directly into the import area. You may also click the area to browse your computer.
-When a folder is selected, SPLACE searches it for compatible GenBank files and imports the valid records.
-Local records and records downloaded from NCBI may be combined in the same analysis.
-
-
-### Using an NCBI API Key
-
-An NCBI API key is not required, but it can make large imports faster.
-Without an API key, SPLACE performs approximately three NCBI requests per second. With a saved valid API key, it can use up to ten requests per second.
-
-To configure the key:
-
-1. Click the key icon in the top bar.
-2. Paste your NCBI API key.
-3. Click **Save key**.
-
-The saved key is used by both the taxonomic search and accession import options.
-The progress window displays whether the API key is active and shows the request rate used during the import.
-
-![SPLACE API Key](docs/gifs/splace_api_key.gif)
+![Records table](GUI/screenshots/02b_records_table.png)
 
 </details>
 
 <details>
-<summary>Select Markers</summary>
+<summary>Step 3 - Feature Types</summary>
 
-## Step 2: Loaded Records
+### Step 3: Feature Types
 
-After importing at least one GenBank record, SPLACE displays the **Loaded Records** table.
-This step should be used to verify species names, inspect the number of annotated markers and retrieve taxonomic information.
+Choose which annotations enter the analysis: **PCGs** (CDS), **rRNAs** and **tRNAs**. Gene names are standardized with SynGenes; names that SynGenes does not recognize are listed so they can be fixed.
 
-### Records Table
+With FASTA input this step is called **Sample and Locus Fields** and shows how the sample and locus names were read from the headers.
 
-Each row represents one imported genome. Depending on the visible columns, the table can display:
-
-1. Accession.
-2. Kingdom.
-3. Phylum.
-4. Class.
-5. Order.
-6. Family.
-7. Genus.
-8. Species.
-9. Authorship.
-10. Number of protein coding genes.
-11. Number of rRNA genes.
-12. Number of tRNA genes.
-13. Record source, either NCBI or a local file.
-
-Use the column buttons above the table to show or hide individual fields.
-The search field can be used to filter records by accession, species, family or other displayed information.
-
-![SPLACE Show Columns](docs/gifs/splace_show_columns.gif)
-
-### Editing a Record
-
-Click the edit button associated with a record to open the record editor.
-The editor allows you to modify:
-
-1. Genus.
-2. Species.
-3. Kingdom.
-4. Phylum.
-5. Class.
-6. Order.
-7. Family.
-
-You can also retrieve the taxonomy of an individual record directly from GBIF by clicking **Fetch Taxonomy from GBIF**.
-
-Species names should be reviewed before continuing. Incorrect names, special characters and duplicated identifiers may cause problems when FASTA headers and concatenated matrices are generated.
-
-![SPLACE Edit Record](docs/gifs/splace_edit_record.gif)
-
-### Fetching Taxonomy
-
-Click **Fetch Taxonomy** to retrieve classification ranks from GBIF through **dataFishing (Rabelo et al. 2025)**.
-SPLACE groups repeated species names into unique queries, retrieves the corresponding taxonomy and updates the records as matches are confirmed.
-The progress window displays:
-
-1. The current species.
-2. The number of completed queries.
-3. Successful matches.
-4. Failed queries.
-
-After taxonomy retrieval, SPLACE also displays a hierarchical taxonomic tree summarizing the imported records.
-
-Taxonomy retrieval requires an internet connection.
-
-![SPLACE Fetch Taxonomy](docs/gifs/splace_fetch_taxonomy.gif)
-
-### Skipping Taxonomy
-
-Taxonomy retrieval can be skipped by clicking **Skip taxonomy and proceed**.
-A confirmation window will explain that invalid species names, special characters or duplicated entries may produce errors in later analyses.
-Skipping taxonomy does not prevent marker extraction, but reviewing the species names is strongly recommended.
-
-### Removing or Clearing Records
-
-Individual genomes can be removed using the remove button in their table row.
-The **Clear all** button removes every loaded record and resets the current workflow.
-These operations require confirmation because they cannot be undone.
+![Feature types](GUI/screenshots/03_feature_types.png)
 
 </details>
 
 <details>
-<summary>Select Markers</summary>
+<summary>Step 4 - Select Markers</summary>
 
-## Step 3: Feature Types
+### Step 4: Select Markers
 
-SPLACE extracts annotated features from the imported GenBank records and groups them into the following categories:
+- **4a Choose the markers**: every marker with the number of samples that have it and its mean length. Shortcuts: *Select All*, *None*, *Shared Only* (markers present in every sample) and *Default to Phylogeny* (the recommended set). Missing and duplicated genes are listed, and for duplicates you choose which copy is used.
 
-1. **CDS**, protein coding sequences.
-2. **rRNA**, ribosomal RNA genes.
-3. **tRNA**, transfer RNA genes.
+![Select markers](GUI/screenshots/04a_select_markers.png)
 
-Activate the categories that should be included in the marker selection step.
-For example, a mitochondrial phylogeny based only on protein coding genes can be configured by activating **CDS** and disabling the other categories.
-Gene names are standardized using **SynGenes (Rabelo et al., 2024)**, reducing differences caused by alternative names, abbreviations and annotation conventions.
+- **4b Gene Presence Heatmap**: markers × samples, showing which genes are present or absent in each sample. Point at a cell for details; click a marker name to select it.
 
-### Unknown Gene Names
+![Gene presence heatmap](GUI/screenshots/04b_presence_heatmap.png)
 
-When a gene name cannot be standardized automatically, SPLACE opens the **Gene Names Not Found in SynGenes** window.
-For each unrecognized annotation, the window displays:
+- **4c Marker Length Heatmap**: the length of each marker in each sample, each marker scaled by its own minimum and maximum, to spot truncated or unusually long sequences.
 
-1. Species.
-2. File or accession.
-3. Original gene name.
-4. Standardized name selector.
-
-Select the appropriate standardized name or choose **skip** to exclude that annotation from the analysis.
-
-Use **Apply Corrections** to save the selected names or **Skip All** to exclude all unresolved annotations.
-
-![SPLACE Fix Gene Names](docs/gifs/splace_fix_gene_names.png)
-
-## Step 4: Select Markers
-
-The **Select Markers** section displays all markers found within the active feature categories.
-Each marker card shows the marker name and the number of genomes in which it was detected.
-Click a marker to select or deselect it.
-The number of currently selected markers is displayed beside the section title.
-
-### Selection Shortcuts
-
-The following buttons simplify marker selection:
-
-1. **Select All**, selects every visible marker.
-2. **None**, clears the complete marker selection.
-3. **Shared Only**, selects markers present in every imported genome.
-4. **Default to Phylogeny**, selects the recommended marker set according to the detected genome type.
-
-For mitochondrial datasets, the default selection includes the commonly used mitochondrial protein coding genes.
-For chloroplast datasets, the default selection includes a predefined set of frequently used plastid markers.
-
-![SPLACE Select Markers](docs/gifs/splace_select_markers.gif)
-
-### Missing Markers
-
-When a selected marker is absent from one or more records, SPLACE displays a **Missing Genes** warning.
-The warning identifies the affected marker and the genomes in which it was not detected.
-This information should be reviewed before concatenation, especially when a complete matrix without missing loci is required.
-
-![SPLACE Missing Markers](docs/gifs/splace_missing_markers.png)
-
-### Duplicated Markers
-
-Some genomes may contain more than one annotation for the same protein coding or rRNA gene.
-When duplicates are detected, SPLACE displays:
-
-1. Species or accession.
-2. Number and length of the available copies.
-3. Mean marker length in the other genomes.
-4. The copy that will be used.
-
-Only one copy is used for each genome. By default, the longest copy is selected, but the user can choose another copy when appropriate.
-
-![SPLACE Duplicated Markers](docs/gifs/splace_duplicated_markers.png)
-
-### Gene Presence Heatmap
-
-The **Gene Presence Heatmap** summarizes the distribution of markers among the imported genomes.
-Rows represent genomes or species, while columns represent markers.
-The heatmap uses contrasting colors to distinguish present and absent markers. It can be used to identify:
-
-1. Markers shared by all genomes.
-2. Records with incomplete annotations.
-3. Genes that occur only in part of the dataset.
-4. Potential outliers or problematic genome records.
-
-### Marker Length Heatmap
-
-The Desktop version also displays a **Marker Length Heatmap** for the selected markers.
-Each marker is scaled independently using its minimum and maximum length. This makes it easier to identify unusually short or long sequences within each locus.
-
-Because each column uses its own scale, colors should be compared within a marker, not between different markers.
-
-![SPLACE Gene Presence Heatmap](docs/gifs/splace_gene_presence_heatmap.gif)
+![Marker length heatmap](GUI/screenshots/04c_length_heatmap.png)
 
 </details>
 
 <details>
-<summary>Export FASTA</summary>
+<summary>Step 5 - Sequence Alignment</summary>
 
-## Step 5 in SPLACE Web: Export FASTA Files
+### Step 5: Sequence Alignment
 
-In the Web version, the workflow ends with the export of unaligned FASTA files.
-Click **Download FASTA Files** to open the FASTA Header Builder.
-The Web version creates one FASTA file for each selected marker. These files can then be used in external alignment and phylogenetic programs.
-For alignment, trimming, concatenation and tree inference within SPLACE, use the Desktop version.
+- **5a Configure FASTA Header**: the **Header Builder** defines the name of each sequence in the alignment files (accession, family, genus, species…), with a live preview.
+- **5b Sequence Type**: **Nucleotide** (DNA aligned as is), **Amino Acid** (translated with the record's genetic code) or **Codon-aware** (the proteins are aligned with MAFFT and translated back to DNA, so the reading frame is kept). Each option shows an example.
 
-## FASTA Header Builder
+![FASTA header and sequence type](GUI/screenshots/05a_header_and_type.png)
 
-The FASTA Header Builder defines the sequence identifiers used in exported and aligned FASTA files.
-Available fields may include accession, taxonomy ranks and species information.
+- **5c MAFFT Settings**: alignment method (`--auto` by default), iterations, gap penalties, threads per job and extra flags (`--adjustdirection`, `--reorder`, `--preservecase`). Markers are aligned in parallel.
 
-To construct a header:
+![MAFFT settings](GUI/screenshots/05c_mafft_settings.png)
 
-1. Click an available field to add it to the header.
-2. Click a selected field to remove it.
-3. Drag selected fields to change their order.
-4. Choose a separator, such as underscore, pipe or dash.
-5. Inspect the generated preview.
+- **5d Run Alignment**: aligns every selected marker with MAFFT. A window shows each marker as it is aligned.
 
-For example, a header composed of accession, family, genus, and species may be displayed as:
+![Alignment progress](GUI/screenshots/05d_alignment_progress.png)
 
-```text
->NC_024166_Anura_Rhinella_Rhinella_marina
-```
+When the alignment finishes, SPLACE asks whether poorly aligned regions should be trimmed, with an animated example of what trimming does.
 
-![SPLACE Export FASTA Header](docs/gifs/splace_export_fasta_header.png)
+![Trim prompt](GUI/screenshots/05d_trim_prompt.png)
 
-SPLACE checks whether the selected fields produce duplicated headers. When duplicates are detected, add another identifying field, such as the accession number.
+- **5e Trimming**: trims the alignments with **trimAl** (`-automated1`, `-gappyout`, `-strict`, manual thresholds…) or **ClipKIT**. For protein-coding genes, *Keep the reading frame* removes whole codons (trimAl `-backtrans`, ClipKIT `--codon`), so the 1st, 2nd and 3rd codon positions stay in order for the partitions and the saturation test. The example compares trimming column by column with trimming whole codons.
 
-![SPLACE Export FASTA Duplicated](docs/gifs/splace_export_fasta_duplicated.png)
+![Trimming](GUI/screenshots/05e_trimming.png)
 
-In the Web version, FASTA files can be downloaded as:
+- **Alignment Results**: for each marker, the steps applied (CDS, translation, MAFFT, trimming), the size before and after alignment and trimming, and a colour-coded alignment viewer with the raw, aligned, trimmed and protein versions, conservation bar, DNA, codon or amino-acid view and the trimmed columns marked. *Open folder* shows the files on disk.
 
-1. A single ZIP archive.
-2. Individual FASTA files.
-
-In the Desktop version, confirming the header unlocks the sequence alignment controls.
+![Alignment results](GUI/screenshots/05f_alignment_results.png)
 
 </details>
 
 <details>
-<summary>Alignment - Desktop</summary>
+<summary>Step 6 - Saturation Test</summary>
 
-## Step 5 in SPLACE Desktop: Sequence Alignment
+### Step 6: Saturation Test
 
-The Desktop workflow continues from marker selection to sequence alignment.
-Step 5 is divided into header configuration, sequence type selection, MAFFT configuration, execution and optional trimming.
+Each marker is tested for substitution saturation with **PhyKIT** (Steenwyk et al. 2021; Philippe et al. 2011): IQ-TREE infers the tree of the gene and, for the 1st, 2nd and 3rd codon positions, 1st+2nd and all sites, PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.
 
-### Step 5a: Configure the FASTA Header
+- **6a Run the test**: method, programs and versions, and the thresholds used to call a position moderate or saturated (all editable).
 
-Open the FASTA Header Builder and define a unique identifier for every sequence.
-The header must be confirmed before the remaining alignment settings are unlocked.
-A preview of the selected format is displayed directly in the workspace after confirmation.
+![Saturation test settings](GUI/screenshots/06a_saturation_settings.png)
 
-### Step 5b: Choose the Sequence Type
+- **6b Saturation by locus and codon position**: a heatmap of every marker and codon position, and for each marker the verdict of each position with its plots (p × tree distance, codon positions × tree distance) and a guide to read them.
+- **6c What to do with the codon positions**: a recommendation pooled from all markers (for example, remove the 3rd position) that can be applied to the matrix in step 7 with one click.
 
-SPLACE supports three alignment strategies.
-
-#### Nucleotide
-
-The nucleotide option aligns the original DNA or RNA sequences directly with MAFFT.
-This mode is recommended for:
-
-1. rRNA genes.
-2. tRNA genes.
-3. Noncoding regions.
-4. Closely related coding sequences.
-5. Exploratory datasets.
-
-#### Amino Acid
-
-The amino acid option translates nucleotide sequences before alignment.
-The translated proteins are aligned using MAFFT in amino acid mode.
-This option is useful when protein coding genes are divergent and synonymous nucleotide substitutions make direct nucleotide alignment difficult.
-The selected NCBI genetic code is used during translation.
-
-#### Codon-aware
-
-The Codon-aware option generates a protein guided DNA alignment while preserving complete codons.
-This mode processes only annotated CDS features. rRNAs, tRNAs and other non CDS markers are skipped.
-For each CDS marker, SPLACE performs the following operations:
-
-1. Extracts the annotated CDS.
-2. Applies the `codon_start` offset when present.
-3. Validates whether the sequence is compatible with a complete reading frame.
-4. Removes recognized terminal stop codons or incomplete terminal stop fragments when appropriate.
-5. Translates the nucleotide sequence using the selected genetic code.
-6. Aligns the protein sequences using MAFFT in amino acid mode.
-7. Back translates the protein alignment to DNA.
-8. Validates the resulting codon-preserving alignment.
-
-The resulting DNA alignment contains gaps inserted in complete codon blocks.
-
-![SPLACE Codon-aware](docs/gifs/splace_codon-aware.gif)
-
-### Codon-aware Policies
-
-The following optional policies are available:
-
-1. **Allow `/pseudo` and `/pseudogene` CDS**, retains annotations marked as pseudogenes.
-2. **Allow internal stop codons**, retains sequences containing internal stop codons and reports warnings.
-3. **Continue when amino acid and codon checks report warnings**, allows the workflow to finish when validation differences are detected, while retaining the warnings in the logs and pipeline metadata.
-
-These options are disabled by default to prevent potentially invalid CDS sequences from being included without explicit user confirmation.
-
-### Genetic Code
-
-Select the NCBI genetic code that corresponds to the analyzed organisms and genome type.
-
-Examples include:
-
-1. Standard code, NCBI table 1.
-2. Vertebrate mitochondrial code, NCBI table 2.
-3. Invertebrate mitochondrial code, NCBI table 5.
-4. Bacterial, archaeal and plant plastid code, NCBI table 11.
-
-Selecting an incorrect genetic code may introduce false internal stop codons or incorrect protein translations.
-
-### MAFFT Settings
-
-The **MAFFT Settings** panel provides commonly used alignment strategies.
-
-Available methods include:
-
-1. `--auto`, automatically selects an appropriate strategy and is recommended for most analyses.
-2. `--localpair`, uses L-INS-i and provides high accuracy for sequences with local similarities, but is slower.
-3. `--globalpair`, uses G-INS-i and is suitable for globally alignable sequences.
-4. `--genafpair`, uses E-INS-i and is useful for sequences containing long unalignable regions.
-5. `--retree 2`, uses FFT-NS-2 for faster analyses.
-6. `--retree 1`, uses FFT-NS-1 and is the fastest available option.
-
-Additional controls include:
-
-1. Maximum number of refinement iterations.
-2. Number of threads used by each alignment job.
-3. Gap opening penalty.
-4. Gap extension penalty.
-5. Automatic reverse complement detection.
-6. Sequence reordering by similarity.
-7. Preservation of uppercase and lowercase characters.
-8. Additional MAFFT command line parameters.
-
-SPLACE uses the number of available logical processors to estimate how many marker alignments can run simultaneously.
-
-### Running the Alignment
-
-Click **Run MAFFT Alignment** to align all selected markers.
-
-A progress window displays the marker queue and the current processing phase.
-For Codon-aware analyses, additional phases are displayed, including:
-
-1. CDS extraction and validation.
-2. Protein alignment.
-3. Reading of aligned sequences.
-4. Back translation to codon-preserving DNA.
-
-Output files are saved automatically inside a dated SPLACE directory in the user's Documents folder.
-
-### Alignment Results
-
-After MAFFT finishes, the **Alignment Results** section provides an interactive summary for each marker.
-
-Depending on the selected workflow, the following datasets may be available:
-
-1. Raw sequences.
-2. MAFFT aligned sequences.
-3. Trimmed sequences.
-
-The viewer reports sequence length, alignment gaps and summary statistics.
-For nucleotide and Codon-aware alignments, sequences can also be translated inside the results viewer. This helps identify:
-
-1. Possible internal stop codons.
-2. Frame disruptions.
-3. Unexpected sequence lengths.
-4. Problematic individual records.
-
-The alignment viewer also provides zoom, consensus and conservation information.
-
-![SPLACE Alignment Viewer](docs/gifs/splace_align_view.png)
-
-### Sequence Trimming
-
-After alignment, SPLACE asks whether poorly aligned positions should be removed.
-Click **No, skip trimming** to retain the original MAFFT alignments.
-Click **Yes, run trimAl** to open the trimming settings.
-
-Available trimAl modes include:
-
-1. `-automated1`, an automatic heuristic method recommended for general use.
-2. `-strict`, strict automated trimming.
-3. `-strictplus`, an extended strict strategy.
-4. `-gappyout`, removes columns with excessive gaps.
-5. `-nogaps`, removes every column containing gaps.
-6. `-noallgaps`, removes only columns composed entirely of gaps.
-7. **Manual thresholds**, allows direct configuration of gap, similarity, consistency and window parameters.
-
-Additional trimAl arguments can be entered in the corresponding field.
-
-### Codon-aware Trimming
-
-In a Codon-aware analysis, trimming is performed using the protein alignment and the result is converted back to codon preserving DNA.
-The available backends are:
-
-1. **Auto**, attempts trimAl and can use ClipKIT when needed.
-2. **trimAl**, trims the protein alignment and guides DNA back translation.
-3. **ClipKIT**, uses a Python based protein alignment trimming workflow.
-
-ClipKIT is optional. When it is selected, SPLACE verifies whether Python and the `clipkit` package are available.
-Codon trimming should be performed before concatenation. Removing individual codon positions is a separate operation performed during matrix generation.
+![Saturation plots](GUI/screenshots/06b_saturation_plots.png)
 
 </details>
 
 <details>
-<summary>Concatenate and Generate NEXUS</summary>
+<summary>Step 7 - Concatenate and NEXUS</summary>
 
-## Step 6: Concatenate and Generate NEXUS
+### Step 7: Concatenate and NEXUS
 
-After the alignment stage, SPLACE can concatenate the selected loci into a supermatrix.
+- **7a Which alignments to join**: the trimmed alignments (recommended) or the MAFFT output; alignment gaps can be replaced with `?` (missing data).
+- **7b How to split the matrix into partitions**: by locus and codon position (recommended), by locus, by codon position (all loci) or one model for the whole matrix. Codon positions can also be removed here (globally or per locus), following the saturation test.
+- **7c Which taxa root the tree**: the outgroup(s).
+- **7d Build the matrix**: writes the supermatrix as NEXUS, PHYLIP and FASTA with the partition files for IQ-TREE and RAxML-NG. Samples missing a marker are filled with missing data.
 
-### Alignment Source
-
-Select which sequences should be concatenated:
-
-1. **Trimmed sequences**, uses the trimAl or Codon-aware trimming output and is recommended when trimming was performed.
-2. **Aligned sequences**, uses the original MAFFT output without trimming.
-
-### Missing Sequences
-
-By default, species missing any selected marker are excluded from the concatenated matrix.
-Enable **Allow missing sequences** to retain those species. Missing loci will be filled with `?` characters using the corresponding partition length.
-
-### Replacing Gaps with Missing Data
-
-Enable **Replace alignment gaps with `?`** when the downstream program should interpret alignment gaps as missing data.
-This replacement is applied to the exported concatenated FASTA and NEXUS matrices without changing partition coordinates.
-
-### Selecting Outgroups
-
-Use the outgroup search field to locate and select one or more species that should be used for rooting the phylogenetic tree.
-The selected outgroups are transferred automatically to the IQ-TREE3 configuration in Step 7.
-
-### Codon Position Partitions
-
-For Codon-aware matrices, SPLACE can create separate character sets for the first, second and third codon positions of each gene.
-Enable **Partition by codon position** to generate these additional partitions.
-
-### Excluding Codon Positions
-
-SPLACE can also generate an alternative matrix with selected codon positions removed.
-
-You may remove:
-
-1. First codon positions.
-2. Second codon positions.
-3. Third codon positions.
-
-At least one codon position must remain in the resulting matrix.
-The original Codon-aware alignment is preserved, allowing matrices with and without codon position filtering to be compared.
-
-### Generating the Matrix
-
-Click **Generate NEXUS & Partition Table**.
-SPLACE validates the selected sequences, constructs the concatenated matrix and displays the resulting partition coordinates.
-The generated files can be saved using:
-
-1. **Save NEXUS**.
-2. **Save partition table**.
-
-![SPLACE Save Nexus](docs/gifs/splace_save_nexus.png)
-
-![SPLACE Save Partition Table](docs/gifs/splace_save_partition_table.png)
+![Concatenate and NEXUS](GUI/screenshots/07_concatenate.png)
 
 </details>
 
 <details>
-<summary>Phylogenetic Inference</summary>
+<summary>Step 8 - Phylogenetic Inference</summary>
 
-## Step 7: Phylogenetic Inference
+### Step 8: Phylogenetic Inference
 
-The final step estimates a maximum likelihood phylogeny from the concatenated supermatrix using IQ-TREE3.
+- **8a IQ-TREE3**: substitution model (`MFP+MERGE` partition model finder by default, or a fixed model), UFBoot2 bootstrap, SH-aLRT test, threads, tree-search settings (independent runs, stopping rule, perturbation strength, seed), `--bnni` and per-gene trees.
 
-### Substitution Model
+![IQ-TREE settings](GUI/screenshots/08a_iqtree.png)
 
-Select one of the available model options:
+- **8b RAxML-NG**: models chosen by MOOSE (RAxML-NG's own model selection), by IQ-TREE ModelFinder or one fixed model; criterion, tree search, bootstrap trees and support metrics (FBP, TBE, RBS, SH-aLRT, EBG). The exact command is shown before running.
 
-1. **ModelFinder**, automatically identifies the best fitting substitution model and is recommended for most analyses.
-2. **MFP+MERGE**, searches for models while evaluating partition merging.
-3. A predefined model, such as `GTR+G`, `GTR+G+I` or `HKY+G`.
-4. A custom IQ-TREE model.
+![RAxML-NG settings](GUI/screenshots/08b_raxml.png)
 
-### Bootstrap Support
+- **8c Run IQ-TREE and RAxML-NG**: runs one program or both at the same time, with a progress window that shows the stage and the last lines of each program.
+- **8d Runs**: every run with its date, models, final log-likelihood, the command used, the output folder and files, and the **View tree** button.
 
-Available support options include:
-
-1. UFBoot2 with 1,000 replicates.
-2. UFBoot2 with 5,000 replicates.
-3. Classical bootstrap with 100 replicates.
-4. No bootstrap analysis.
-
-UFBoot2 with 1,000 replicates is the default recommended option.
-
-### Threads and Additional Parameters
-
-Set the number of threads assigned to IQ-TREE3.
-Additional IQ-TREE3 flags can be entered in the **Extra flags** field. The default configuration includes approximate likelihood ratio support and bootstrap tree optimization.
-
-### Per Gene Trees
-
-Enable **Also infer per-gene trees** to run a separate IQ-TREE3 analysis for each selected marker.
-These analyses are stored in the `gene_trees` output directory.
-
-### Command Preview
-
-The complete IQ-TREE3 command is updated automatically as the settings change.
-Use the copy button to copy the command for reproducibility, reporting or manual execution.
-
-### Running IQ-TREE3
-
-Click **Run IQ-TREE3** to begin the analysis.
-The execution window displays the IQ-TREE3 log. Processing time depends on the matrix size, number of partitions, selected model search and number of bootstrap replicates.
-After completion, SPLACE displays the output directory and the files generated by IQ-TREE3.
-Click **Save Results as ZIP** to package the complete results.
+![Runs](GUI/screenshots/08d_runs.png)
 
 </details>
+
+<details>
+<summary>Step 9 - Tree Viewer</summary>
+
+### Step 9: Tree Viewer
+
+- **9a Tree and figure**: a preview of the tree at its real printed size, with branch support coloured by value and the outgroup marked. Export it as Newick, SVG or PNG (300 dpi). The figure size is set in centimetres and the fonts in points, so the exported figure does not depend on the monitor.
+
+![Tree preview](GUI/screenshots/09a_tree_preview.png)
+
+**Tree editor.** *Open the tree editor* opens the tree in the full window, with a side panel and a canvas that can be moved and zoomed:
+
+- **Tree**: root (outgroup, midpoint or any branch), rectangular or circular layout, phylogram or cladogram, branch style, scales, ladderize, flip and rotate clades.
+- **Branches and support**, **Labels**, **Colours** (colour rows, branches or labels by genus, family…, clade bars with taxon names, highlight and name clades), **Legend** and **Figure and export**.
+- Clicking a branch or a tip selects it: re-root, colour, highlight or name the clade, edit the label or remove it from the tree. Every change can be undone.
+
+![Tree editor](GUI/screenshots/09b_tree_editor.png)
+
+![Tree editor - colours](GUI/screenshots/09c_tree_colours.png)
+
+![Tree editor - circular layout](GUI/screenshots/09d_tree_circular.png)
+
+**Compare trees.** Two trees (for example, IQ-TREE and RAxML-NG, or a gene tree and the concatenated tree) face to face, with lines joining each tip to its pair, the clades that differ marked and the Robinson-Foulds distance.
+
+![Compare trees](GUI/screenshots/09e_tree_compare.png)
+
+- **9b Save everything**: one ZIP with the sequences, alignments, saturation tables, matrices, partitions, trees and logs of the project.
+- **9c How to Cite**: a methods paragraph written from what was actually run (tools, versions, parameters, models and support), the versions used and the references, each with a *Copy* button.
+
+![How to cite](GUI/screenshots/09f_how_to_cite.png)
+
+The whole interface is also available in Portuguese and Spanish, with a dark theme:
+
+![Dark theme in Portuguese](GUI/screenshots/10_dark_portuguese.png)
+
+</details>
+
+&nbsp;
 
 ## SPLACE Terminal Mode
 ##### [:rocket: Go to Contents Overview](#contents-overview)
