@@ -47,3 +47,5 @@ From: continuumio/miniconda3:latest
     
     Example:
         singularity run --bind ./data:/data,./out:/out splace.sif /data /out --align --trimal --iqtree --threads 12 --benchmark
+
+        
