@@ -8,9 +8,9 @@ import 'package:splace/src/services/tool_locator.dart';
 /// MAFFT for Windows (mafft.bat + MSYS2) in a folder whose path has spaces,
 /// accents and parentheses, as in many user names ("C:\Users\Maria Ação (Lab)
 /// \AppData\…"): cmd /c broke at the first space and MSYS cannot open
-/// non-ASCII paths. Windows only, with the repository's electron/bin/win.
+/// non-ASCII paths. Windows only, with the repository's GUI/tools/win.
 void main() {
-  final win = p.normalize(p.join(Directory.current.path, '..', 'electron', 'bin', 'win'));
+  final win = p.normalize(p.join(Directory.current.path, 'tools', 'win'));
   final available = Platform.isWindows && File(p.join(win, 'mafft.bat')).existsSync();
 
   test('bundled MAFFT runs from a folder with spaces, accents and parentheses', () async {
@@ -27,5 +27,5 @@ void main() {
     expect(out.exitCode, 0);
     expect(out.stdout, contains('>a'));
     expect(out.stdout.toLowerCase(), contains('atggcttattcactggga'));
-  }, skip: available ? false : 'needs Windows and electron/bin/win/mafft.bat', timeout: const Timeout(Duration(minutes: 3)));
+  }, skip: available ? false : 'needs Windows and tools/win/mafft.bat', timeout: const Timeout(Duration(minutes: 3)));
 }

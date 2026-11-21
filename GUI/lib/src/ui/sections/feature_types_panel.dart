@@ -10,11 +10,9 @@ import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/citations.dart';
 import '../widgets/kit.dart';
 import '../widgets/splace_tooltip.dart';
-
-const synGenesCitation =
-    'Rabelo et al. (2024). SynGenes: a Python class for standardizing nomenclatures of mitochondrial and chloroplast genes and a web form for enhancing searches for evolutionary analyses. BMC Bioinformatics 25:160.';
 
 /// Step 3 for GenBank data (`#featureTypesSection`): CDS / rRNA / tRNA
 /// switches and the SynGenes note, plus the unknown-gene review.
@@ -53,15 +51,7 @@ class _FeatureTypesPanelState extends State<FeatureTypesPanel> {
           Expanded(
             child: Text.rich(TextSpan(children: [
               TextSpan(text: '${l10n.standardizedPrefix} '),
-              WidgetSpan(
-                alignment: PlaceholderAlignment.baseline,
-                baseline: TextBaseline.alphabetic,
-                child: SplaceTooltip(
-                  message: synGenesCitation,
-                  // A link: same weight as the sentence, underlined.
-                  child: Text('SynGenes (Rabelo et al. 2024)', style: TextStyle(decoration: TextDecoration.underline, color: t.accentText)),
-                ),
-              ),
+              const WidgetSpan(alignment: PlaceholderAlignment.middle, child: CitationRef('SynGenes', pill: true, fontSize: 12)),
               TextSpan(text: ' · ${cat.organelle == OrganelleType.cp ? l10n.organelleChloro : l10n.organelleMito}'),
             ])),
           ),
@@ -77,11 +67,14 @@ class _FeatureTypesPanelState extends State<FeatureTypesPanel> {
             TagChip(pending > 0 ? l10n.geneReviewDone : l10n.geneNamesAllKnown, icon: FA.circleCheck, color: SplaceTokens.success),
             if (pending > 0) ...[
               const SizedBox(width: 8),
-              ChipButton(
-                label: l10n.geneReviewAgain('$pending'),
-                icon: FA.penToSquare,
-                style: ChipButtonStyle.soft,
-                onPressed: () => showGeneReviewDialog(context),
+              SplaceTooltip(
+                message: geneReviewWhich(context),
+                child: ChipButton(
+                  label: l10n.geneReviewAgain('$pending'),
+                  icon: FA.penToSquare,
+                  style: ChipButtonStyle.soft,
+                  onPressed: () => showGeneReviewDialog(context),
+                ),
               ),
             ],
           ],
@@ -123,6 +116,21 @@ class _FeatureTypesPanelState extends State<FeatureTypesPanel> {
       ],
     ]);
   }
+}
+
+/// The genes a new gene review shows: the names SynGenes did not recognize
+/// and the /gene × /product pairs that disagree (tooltip of "Review gene
+/// names again").
+String geneReviewWhich(BuildContext context) {
+  final c = ProjectScope.read(context);
+  final l10n = context.l10n;
+  final unknown = [for (final u in c.catalog?.unknown ?? const <UnknownGene>[]) u.name];
+  final pairs = <String>{for (final x in c.geneReview?.conflicts ?? const <QualifierConflict>[]) '${x.geneName} × ${x.productName}'}.toList();
+  return [
+    l10n.geneReviewWhichTitle,
+    if (unknown.isNotEmpty) l10n.geneReviewWhichUnknown(unknown.join(', ')),
+    if (pairs.isNotEmpty) l10n.geneReviewWhichConflicts(pairs.join(', ')),
+  ].join('\n');
 }
 
 /// Gene review, shown in step 2 before the taxonomy: names SynGenes did not

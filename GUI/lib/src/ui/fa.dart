@@ -41,11 +41,16 @@ abstract final class FA {
   static const check = IconData(0xf00c, fontFamily: _s);
   static const lock = IconData(0xf023, fontFamily: _s);
   static const folderOpen = IconData(0xf07c, fontFamily: _s);
+  static const floppyDisk = IconData(0xf0c7, fontFamily: _s);
   static const folder = IconData(0xf07b, fontFamily: _s);
   static const fileArrowDown = IconData(0xf56d, fontFamily: _s);
   static const fileExport = IconData(0xf56e, fontFamily: _s);
   static const arrowRight = IconData(0xf061, fontFamily: _s);
   static const play = IconData(0xf04b, fontFamily: _s);
+  static const pause = IconData(0xf04c, fontFamily: _s);
+  static const users = IconData(0xf0c0, fontFamily: _s);
+  static const image = IconData(0xf03e, fontFamily: _s);
+  static const fileExcel = IconData(0xf1c3, fontFamily: _s);
   static const stop = IconData(0xf04d, fontFamily: _s);
   static const rotateLeft = IconData(0xf2ea, fontFamily: _s);
   static const rotateRight = IconData(0xf2f9, fontFamily: _s);

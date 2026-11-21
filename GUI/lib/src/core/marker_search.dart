@@ -3,6 +3,8 @@
 /// SynGenes tables (Rabelo et al. 2024) know for it.
 library;
 
+import 'bold.dart';
+import 'taxonomy_sources.dart' show organismQuery;
 import 'syngenes.dart';
 import 'syngenes_data.dart';
 
@@ -44,9 +46,26 @@ class MarkerSearch {
     this.includeGenomes = false,
     this.refseqOnly = false,
     this.maxLength = 10000,
+    this.synonyms = const [],
+    this.bold = false,
   });
 
+  /// Also BOLD Systems, for the markers it holds ([boldGenes]).
+  final bool bold;
+
+  /// The markers searched in BOLD too.
+  List<String> get boldGenes => bold ? genes.where((g) => boldServes(organelle, [g])).toList() : const [];
+
+  /// BOLD marker codes searched.
+  Set<String> get boldCodes => {for (final g in boldGenes) ...?boldMarkerCodes[g]};
+
+  /// Names looked up in BOLD: the taxon (any rank) and its synonyms.
+  List<String> get boldNames => {taxon.trim(), ...synonyms}.where((n) => n.isNotEmpty).toList();
+
   final String taxon;
+
+  /// Other names of the species (GBIF), searched together with [taxon].
+  final List<String> synonyms;
 
   /// SynGenes names of the markers (`COI`, `12S`, `CYTB`).
   final List<String> genes;
@@ -67,7 +86,7 @@ class MarkerSearch {
       for (final p in n.phrases) '"$p"[Title]',
     ];
     return [
-      '"${taxon.trim()}"[Organism]',
+      organismQuery(taxon, synonyms),
       '(${names.join(' OR ')})',
       organelle == OrganelleType.cp
           ? '(chloroplast[Filter] OR chloroplast[Title] OR plastid[Title])'
@@ -79,5 +98,8 @@ class MarkerSearch {
   }
 
   /// The queries shown before searching, one line per marker.
-  String get preview => [for (final g in genes) '$g: ${termFor(g)}'].join('\n\n');
+  String get preview => [
+        for (final g in genes) '$g: ${termFor(g)}',
+        if (boldGenes.isNotEmpty) 'BOLD Systems (${boldCodes.join(', ')}): ${boldNames.map((n) => 'tax:$n').join(';')}',
+      ].join('\n\n');
 }

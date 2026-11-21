@@ -1,7 +1,7 @@
 # Builds SPLACE for Windows (x64) as ONE portable program:
 #   dist\SPLACE-<version>-windows-x64.exe
 # No installation: copy it anywhere and double-click. It carries the app,
-# the Flutter runtime, MAFFT, trimAl, IQ-TREE, RAxML-NG, ClipKIT, PhyKIT
+# the Flutter runtime, MAFFT, trimAl, IQ-TREE, RAxML-NG, ClipKIT, PhyKIT, GMYC
 # and the Visual C++ runtime; the first run unpacks them once to
 # %LOCALAPPDATA%\SPLACE\portable\<version> (later runs start at once).
 #
@@ -11,7 +11,7 @@
 # by Flutter for Windows) and Python 3 (ClipKIT and PhyKIT are turned into
 # standalone programs with PyInstaller, so the users need no Python).
 #   -SkipBuild       pack the last release build again
-#   -NoPythonTools   leave ClipKIT and PhyKIT out (the app installs them with pip)
+#   -NoPythonTools   leave ClipKIT, PhyKIT and GMYC out (the app then needs Python)
 #   -Installer       also make an Inno Setup installer (needs Inno Setup 6)
 param([switch]$SkipBuild, [switch]$NoPythonTools, [switch]$Installer)
 $ErrorActionPreference = 'Stop'
@@ -25,24 +25,17 @@ if (-not $SkipBuild) {
 }
 $bundle = "$root\build\windows\x64\runner\Release"
 if (-not (Test-Path "$bundle\splace.exe")) { throw "No release build in $bundle" }
-if (-not (Test-Path "$bundle\tools\raxml-ng.exe")) { Write-Warning "tools\ is missing from $bundle (electron\bin\win not found?)" }
+if (-not (Test-Path "$bundle\tools\raxml-ng.exe")) { Write-Warning "tools\ is missing from $bundle (GUI\tools\win not found?)" }
 
-# ClipKIT and PhyKIT as standalone programs in tools\<name>\<name>.exe
-# (one folder each: they start at once, a one-file build unpacks itself on
-# every call). The app finds them there before any Python.
+# ClipKIT, PhyKIT and GMYC as standalone programs in tools\<name>\<name>.exe
+# (tool\package\python_tools.ps1). Built into GUI\tools\win they are already
+# in the bundle (every build copies that folder); otherwise they are built
+# here. The app finds them there before any Python.
 if (-not $NoPythonTools) {
-  $py = (Get-Command python -ErrorAction SilentlyContinue).Source
-  if (-not $py) { throw 'Python 3 not found (needed for ClipKIT and PhyKIT; -NoPythonTools skips them)' }
-  $venv = "$root\build\pytools"
-  if (-not (Test-Path "$venv\Scripts\python.exe")) { & $py -m venv $venv }
-  & "$venv\Scripts\python.exe" -m pip install --upgrade pip pyinstaller clipkit phykit
-  if ($LASTEXITCODE -ne 0) { throw 'pip install failed' }
-  foreach ($t in @(@{ Name = 'clipkit'; Module = 'clipkit.clipkit' }, @{ Name = 'phykit'; Module = 'phykit.phykit' })) {
-    $entry = "$venv\$($t.Name)_entry.py"
-    "import sys`nfrom $($t.Module) import main`nsys.exit(main())" | Set-Content $entry -Encoding utf8
-    & "$venv\Scripts\pyinstaller.exe" --noconfirm --onedir --console --name $t.Name --collect-all $t.Name --collect-data Bio `
-      --distpath "$bundle\tools" --workpath "$venv\work" --specpath $venv $entry
-    if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for $($t.Name)" }
+  $missing = @('clipkit', 'phykit', 'gmyc') | Where-Object { -not (Test-Path "$bundle\tools\$_\$_.exe") }
+  if ($missing) {
+    & "$PSScriptRoot\python_tools.ps1" -Dest "$bundle\tools"
+    if (-not $?) { throw 'python_tools.ps1 failed' }
   }
 }
 
@@ -65,7 +58,7 @@ $vcvars = "$vs\VC\Auxiliary\Build\vcvars64.bat"
 $icon = "$root\windows\runner\resources\app_icon.ico"
 "1 ICON `"$($icon -replace '\\', '\\')`"" | Set-Content "$work\launcher.rc" -Encoding ascii
 $src = "$PSScriptRoot\portable\launcher.c"
-cmd /c "`"$vcvars`" >nul && cd /d `"$work`" && rc /nologo launcher.rc && cl /nologo /O2 /MT /W3 `"$src`" launcher.res /Fe:launcher.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib"
+cmd /c "`"$vcvars`" >nul && cd /d `"$work`" && rc /nologo launcher.rc && cl /nologo /utf-8 /O2 /MT /W3 `"$src`" launcher.res /Fe:launcher.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib"
 if ($LASTEXITCODE -ne 0) { throw 'Could not compile the launcher' }
 
 # 2. The app as a zip.

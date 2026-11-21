@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds SPLACE for macOS (universal: Apple silicon and Intel) and packs it
 # as dist/SPLACE-<version>-macos-universal.dmg, with MAFFT, trimAl,
-# IQ-TREE and RAxML-NG inside the app. Run on a Mac with Xcode:
+# IQ-TREE, RAxML-NG, the delimitation programs and (PyInstaller, built for
+# the architecture of this Mac's Python) ClipKIT, PhyKIT and GMYC inside the
+# app. NO_PYTHON_TOOLS=1 leaves the last three out. Run on a Mac with Xcode:
 #
 #   bash tool/package/macos.sh
 #
@@ -23,6 +25,8 @@ fi
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 cp -R "$app" "$stage/SPLACE.app"
+# ClipKIT, PhyKIT and GMYC as standalone programs (no Python needed).
+[ "${NO_PYTHON_TOOLS:-0}" = 1 ] || bash tool/package/python_tools.sh "$stage/SPLACE.app/Contents/Resources"
 ln -s /Applications "$stage/Applications"
 # Apple silicon refuses unsigned code: sign the bundled tools, then the app
 # (ad hoc, keeping its entitlements).

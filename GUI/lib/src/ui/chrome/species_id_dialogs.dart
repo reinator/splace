@@ -7,6 +7,8 @@ import '../theme.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/kit.dart';
 import '../widgets/splace_tooltip.dart';
+import 'id_alignment_dialog.dart';
+import 'species_id_params.dart';
 
 /// Runs the whole identification: choose the genes, send them to GenBank
 /// and BOLD, then let the user pick a name per genome.
@@ -38,8 +40,11 @@ class _SetupDialog extends StatefulWidget {
 }
 
 class _SetupDialogState extends State<_SetupDialog> {
+  // The markers BOLD identifies with its database (COI; rbcL and matK for
+  // plants) come selected.
   late final Set<String> _genes = {
-    if (ProjectScope.read(context).identificationMarkers.containsKey('COI')) 'COI',
+    for (final g in ProjectScope.read(context).identificationMarkers.keys)
+      if (ProjectScope.read(context).speciesIdOptions.boldAccepts(g)) g,
   };
 
   @override
@@ -48,24 +53,9 @@ class _SetupDialogState extends State<_SetupDialog> {
     final l10n = context.l10n;
     final t = context.tokens;
     final markers = c.identificationMarkers;
-    final bold = _genes.contains('COI');
+    final o = c.speciesIdOptions;
+    final bold = _genes.any(o.boldAccepts);
     final cover = c.speciesIdCacheCoverage(_genes.toList());
-
-    Widget source(String name, String body, bool on) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: on ? t.accentSoft : t.surface2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: on ? t.accentSoftBorder : t.border),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: TextStyle(fontWeight: FontWeight.w700, color: on ? t.accentText : t.textMuted)),
-              const SizedBox(height: 2),
-              Text(body, style: TextStyle(fontSize: 12, color: t.textMuted)),
-            ]),
-          ),
-        );
 
     return SplaceDialog(
       icon: FA.dna,
@@ -76,10 +66,36 @@ class _SetupDialogState extends State<_SetupDialog> {
         FilledButton(onPressed: _genes.isEmpty ? null : () => Navigator.pop(context, _genes.toList()), child: Text(l10n.speciesIdRun)),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Kicker(l10n.speciesIdGenesLabel, size: 12),
-        const SizedBox(height: 4),
-        Text(l10n.speciesIdGenesHint, style: TextStyle(fontSize: 13, color: t.textMuted)),
-        const SizedBox(height: 10),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Kicker(l10n.speciesIdGenesLabel, size: 12),
+              const SizedBox(height: 4),
+              Text(l10n.speciesIdGenesHintFor(o.boldGenes.join(', ')), style: TextStyle(fontSize: 13, color: t.textMuted)),
+            ]),
+          ),
+          // Searches already answered are reused, so adding a gene only
+          // sends the new ones (on the same line: the dialog never scrolls).
+          if (cover.cached > 0) ...[
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.only(left: 10),
+              decoration: BoxDecoration(color: SplaceTokens.success.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(FA.circleCheck, size: 12, color: SplaceTokens.success),
+                const SizedBox(width: 6),
+                Text(
+                  cover.cached == cover.total
+                      ? l10n.siCacheAll('${cover.total}')
+                      : l10n.siCacheInfo('${cover.cached}', '${cover.total}', '${cover.total - cover.cached}'),
+                  style: TextStyle(fontSize: 12, color: t.text),
+                ),
+                TextButton(onPressed: c.clearSpeciesIdCache, child: Text(l10n.siCacheClear)),
+              ]),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final e in markers.entries)
             ChipButton(
@@ -88,34 +104,15 @@ class _SetupDialogState extends State<_SetupDialog> {
               onPressed: () => setState(() => _genes.contains(e.key) ? _genes.remove(e.key) : _genes.add(e.key)),
             ),
         ]),
-        const SizedBox(height: 18),
-        Kicker(l10n.speciesIdSources, size: 12),
-        const SizedBox(height: 8),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          source('GenBank (NCBI BLAST)', l10n.speciesIdGenbankBody, _genes.isNotEmpty),
-          const SizedBox(width: 12),
-          source('BOLD Systems', bold ? l10n.speciesIdBoldBody : l10n.speciesIdBoldOff, bold),
-        ]),
-        // Searches already answered are reused, so adding a gene only sends
-        // the new ones.
-        if (cover.cached > 0) ...[
-          const SizedBox(height: 14),
-          TonePanel(
-            tone: PanelTone.success,
-            child: Row(children: [
-              Expanded(
-                child: Text(
-                  cover.cached == cover.total
-                      ? l10n.siCacheAll('${cover.total}')
-                      : l10n.siCacheInfo('${cover.cached}', '${cover.total}', '${cover.total - cover.cached}'),
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton(onPressed: c.clearSpeciesIdCache, child: Text(l10n.siCacheClear)),
-            ]),
-          ),
-        ],
+        const SizedBox(height: 10),
+        // Each source with its parameters, always in view (both cards the
+        // same height); a source that will not run is dimmed.
+        SpeciesIdParams(
+          blastNote: l10n.speciesIdGenbankBodyFor(o.blastProgram, o.blastDatabase, '${o.hitlistSize}'),
+          blastOn: _genes.isNotEmpty,
+          boldNote: bold ? l10n.speciesIdBoldBodyFor(o.boldDatabase, o.boldGenes.join(', ')) : l10n.speciesIdBoldOffFor(o.boldGenes.join(', ')),
+          boldOn: bold,
+        ),
       ]),
     );
   }
@@ -162,7 +159,7 @@ class _ResultsDialogState extends State<_ResultsDialog> {
 
     Widget row(RecordIdentification r, String species, SpeciesCandidate? s) {
       final chosen = sameSpecies(_choice[r.accession] ?? r.currentName, species);
-      final isCurrent = sameSpecies(species, r.currentName);
+      final isCurrent = r.isCurrent(species);
       return InkWell(
         onTap: () => setState(() => _choice[r.accession] = species),
         child: Container(
@@ -178,6 +175,17 @@ class _ResultsDialogState extends State<_ResultsDialog> {
               child: Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(species, style: TextStyle(fontSize: 13.5, fontStyle: FontStyle.italic, fontWeight: FontWeight.w700, color: chosen ? t.accentText : t.text)),
                 if (isCurrent) TagChip(l10n.siCurrentTag, color: t.textMuted),
+                // The alignments of the query with this species' hits.
+                if (s != null && s.hits.isNotEmpty)
+                  IconButton(
+                    tooltip: l10n.idAlnOpen,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(FA.alignLeft, size: 13, color: t.accent),
+                    onPressed: () => showIdAlignments(context, r, species: species),
+                  ),
+                // Hits that came under synonyms of this species.
+                if (s != null && s.foundAs.isNotEmpty)
+                  Text(l10n.siFoundAs(s.foundAs.join(', ')), style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: t.textMuted)),
               ]),
             ),
             // One line per gene, so any number of genes stays readable.
@@ -234,8 +242,9 @@ class _ResultsDialogState extends State<_ResultsDialog> {
               ? cur != null && cur.bestIdentity > 0
                   ? (l10n.siVerdictMismatch(best.species, _id(best.bestIdentity), r.currentName, _id(cur.bestIdentity)), l10n.speciesIdMismatch, SplaceTokens.warn)
                   : (l10n.siVerdictMissing(best.species, _id(best.bestIdentity), r.currentName), l10n.speciesIdMismatch, SplaceTokens.warn)
-              : sameSpecies(best.species, r.currentName)
-                  ? (l10n.siVerdictConfirmed(_id(best.bestIdentity)), l10n.speciesIdMatch, t.accent)
+              : r.isCurrent(best.species)
+                  ? (l10n.siVerdictConfirmed(_id(best.bestIdentity)) + (r.currentAccepted == null ? '' : ' ${l10n.siVerdictAccepted(r.currentAccepted!)}'),
+                      l10n.speciesIdMatch, t.accent)
                   // The closest match is only a relative: nothing to
                   // compare the name with.
                   : (l10n.siVerdictNoReference(r.currentName, best.species, _id(best.bestIdentity)) + selfNote, l10n.siNoReference, t.textMuted);
@@ -260,7 +269,14 @@ class _ResultsDialogState extends State<_ResultsDialog> {
                 TagChip(badge, color: color),
               ]),
               const SizedBox(height: 4),
-              Text(verdict, style: TextStyle(fontSize: 13, height: 1.4, color: r.disagrees ? SplaceTokens.warn : t.text)),
+              // The species named in the verdict, always in italics.
+              Text.rich(italicNames(verdict, [
+                r.currentName,
+                r.currentAccepted,
+                best?.species,
+                cur?.species,
+                for (final k in r.shortlist()) k.species,
+              ], style: TextStyle(fontSize: 13, height: 1.4, color: r.disagrees ? SplaceTokens.warn : t.text))),
             ]),
           ),
           ...[

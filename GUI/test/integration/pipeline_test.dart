@@ -13,7 +13,7 @@ import 'package:splace/src/services/tool_locator.dart';
 import 'package:splace/src/state/project_controller.dart';
 import 'package:splace/src/ui/methods_text.dart';
 
-/// End-to-end run with the real external tools (bundled in electron/bin or
+/// End-to-end run with the real external tools (bundled in GUI/tools or
 /// on PATH). Skipped when MAFFT, trimAl or IQ-TREE are missing. RAxML-NG is
 /// exercised when found or when SPLACE_RAXML_NG points to it (a native path
 /// or `wsl:/path/to/raxml-ng`).

@@ -307,7 +307,7 @@ abstract class AppLocalizations {
   /// No description provided for @splashStep6.
   ///
   /// In en, this message translates to:
-  /// **'Test substitution saturation by codon position with the index of [[Iss (saturation)|Xia]] and decide which positions to keep.'**
+  /// **'Test substitution saturation of each coding gene at each codon position with [[PhyKIT]] and decide which positions to keep.'**
   String get splashStep6;
 
   /// No description provided for @splashStep7.
@@ -319,7 +319,7 @@ abstract class AppLocalizations {
   /// No description provided for @splashStep8.
   ///
   /// In en, this message translates to:
-  /// **'Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees.'**
+  /// **'Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees, and delimit species with [[mPTP]], [[GMYC]], [[ASAP]] and [[ABGD]].'**
   String get splashStep8;
 
   /// No description provided for @step1.
@@ -451,7 +451,7 @@ abstract class AppLocalizations {
   /// No description provided for @tipAlignedBody.
   ///
   /// In en, this message translates to:
-  /// **'You can **skip MAFFT** in step 5 and go straight to trimming, saturation and trees.'**
+  /// **'You can **skip MAFFT** in step 4 and go straight to trimming, saturation and trees.'**
   String get tipAlignedBody;
 
   /// No description provided for @optionN.
@@ -802,24 +802,6 @@ abstract class AppLocalizations {
   /// **'Shared Only'**
   String get sharedOnly;
 
-  /// No description provided for @legendSelectAll.
-  ///
-  /// In en, this message translates to:
-  /// **'selects every visible marker'**
-  String get legendSelectAll;
-
-  /// No description provided for @legendNone.
-  ///
-  /// In en, this message translates to:
-  /// **'clears all selections'**
-  String get legendNone;
-
-  /// No description provided for @legendShared.
-  ///
-  /// In en, this message translates to:
-  /// **'markers present in all samples'**
-  String get legendShared;
-
   /// No description provided for @missingTitle.
   ///
   /// In en, this message translates to:
@@ -1045,13 +1027,13 @@ abstract class AppLocalizations {
   /// No description provided for @saturationIntro.
   ///
   /// In en, this message translates to:
-  /// **'Each marker is tested with PhyKIT (Philippe et al. 2011): IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.'**
+  /// **'Each marker is tested with [[PhyKIT]], method of [[Philippe 2011|]]: IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.'**
   String get saturationIntro;
 
   /// No description provided for @saturationThresholds.
   ///
   /// In en, this message translates to:
-  /// **'Heuristic thresholds, set in 6a (test parameters): moderate below the moderate limit of PhyKIT\'s saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.'**
+  /// **'Heuristic thresholds, set in 5a (test parameters): moderate below the moderate limit of PhyKIT\'s saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.'**
   String get saturationThresholds;
 
   /// No description provided for @runSaturation.
@@ -1069,13 +1051,13 @@ abstract class AppLocalizations {
   /// No description provided for @recKeepAll.
   ///
   /// In en, this message translates to:
-  /// **'Keep all three codon positions. In step 7b, partition the matrix by codon position so each one gets its own substitution model.'**
+  /// **'Keep all three codon positions. In step 6b, partition the matrix by codon position so each one gets its own substitution model.'**
   String get recKeepAll;
 
   /// No description provided for @recAminoAcids.
   ///
   /// In en, this message translates to:
-  /// **'All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 5b) or use slower markers.'**
+  /// **'All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 4b) or use slower markers.'**
   String get recAminoAcids;
 
   /// No description provided for @recUndetermined.
@@ -1285,7 +1267,7 @@ abstract class AppLocalizations {
   /// No description provided for @codonExclusionInfo.
   ///
   /// In en, this message translates to:
-  /// **'Excluded positions are removed from coding loci only. The saturation test (step 6) can fill this in.'**
+  /// **'Excluded positions are removed from coding loci only. The saturation test (step 5) can fill this in.'**
   String get codonExclusionInfo;
 
   /// No description provided for @excludePosition.
@@ -2340,7 +2322,7 @@ abstract class AppLocalizations {
   /// No description provided for @featureTypesHint.
   ///
   /// In en, this message translates to:
-  /// **'Turn on at least one category to list the markers in step 4.'**
+  /// **'Turn on at least one category to list the markers below.'**
   String get featureTypesHint;
 
   /// No description provided for @unknownGenesButton.
@@ -3082,7 +3064,7 @@ abstract class AppLocalizations {
   /// No description provided for @trimCodonHandlingInfo.
   ///
   /// In en, this message translates to:
-  /// **'Codon positions are used later for the partitions and the saturation test (step 6), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 7b, not here.'**
+  /// **'Codon positions are used later for the partitions and the saturation test (step 5), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 6b, not here.'**
   String get trimCodonHandlingInfo;
 
   /// No description provided for @alignRunning.
@@ -3150,12 +3132,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default to Phylogeny'**
   String get defaultPhylogeny;
-
-  /// No description provided for @legendDefault.
-  ///
-  /// In en, this message translates to:
-  /// **'recommended set for phylogenetic analysis'**
-  String get legendDefault;
 
   /// No description provided for @tooltipAll.
   ///
@@ -4048,7 +4024,7 @@ abstract class AppLocalizations {
   /// No description provided for @outgroupFromStep7.
   ///
   /// In en, this message translates to:
-  /// **'chosen in step 7'**
+  /// **'chosen in step 6'**
   String get outgroupFromStep7;
 
   /// No description provided for @substitutionModel.
@@ -4852,7 +4828,7 @@ abstract class AppLocalizations {
   /// No description provided for @frameLostInfo.
   ///
   /// In en, this message translates to:
-  /// **'trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 5e and trim again to keep codon partitions.'**
+  /// **'trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 4d and trim again to keep codon partitions.'**
   String get frameLostInfo;
 
   /// No description provided for @frameShiftTag.
@@ -4864,7 +4840,7 @@ abstract class AppLocalizations {
   /// No description provided for @frameShiftInfo.
   ///
   /// In en, this message translates to:
-  /// **'MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (5b) avoids it.'**
+  /// **'MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (4b) avoids it.'**
   String get frameShiftInfo;
 
   /// No description provided for @saturationRunning.
@@ -5403,7 +5379,7 @@ abstract class AppLocalizations {
   /// No description provided for @missMatrixNote.
   ///
   /// In en, this message translates to:
-  /// **'In the supermatrix (step 7) a missing marker becomes \'?\' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.'**
+  /// **'In the supermatrix (step 6) a missing marker becomes \'?\' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.'**
   String get missMatrixNote;
 
   /// No description provided for @missFixableNote.
@@ -5553,7 +5529,7 @@ abstract class AppLocalizations {
   /// No description provided for @satSourceTrimmed.
   ///
   /// In en, this message translates to:
-  /// **'Tested on the trimmed alignment: trimAl kept {kept} of the {total} MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 5 to see which MAFFT column it is).'**
+  /// **'Tested on the trimmed alignment: trimAl kept {kept} of the {total} MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 4 to see which MAFFT column it is).'**
   String satSourceTrimmed(String kept, String total);
 
   /// No description provided for @satSourceFrame.
@@ -5907,13 +5883,13 @@ abstract class AppLocalizations {
   /// No description provided for @recExcludeOne.
   ///
   /// In en, this message translates to:
-  /// **'Remove the {positions} codon position from the matrix (step 7b) and keep the other two, partitioned by codon position.'**
+  /// **'Remove the {positions} codon position from the matrix (step 6b) and keep the other two, partitioned by codon position.'**
   String recExcludeOne(String positions);
 
   /// No description provided for @recExcludeMany.
   ///
   /// In en, this message translates to:
-  /// **'Remove the {positions} codon positions from the matrix (step 7b) and keep the remaining one.'**
+  /// **'Remove the {positions} codon positions from the matrix (step 6b) and keep the remaining one.'**
   String recExcludeMany(String positions);
 
   /// No description provided for @recWhy.
@@ -5937,13 +5913,13 @@ abstract class AppLocalizations {
   /// No description provided for @applyExclude.
   ///
   /// In en, this message translates to:
-  /// **'Mark {positions} in step 7b'**
+  /// **'Mark {positions} in step 6b'**
   String applyExclude(String positions);
 
   /// No description provided for @applyKeepAll.
   ///
   /// In en, this message translates to:
-  /// **'Leave every \"Exclude position\" unmarked in step 7b'**
+  /// **'Leave every \"Exclude position\" unmarked in step 6b'**
   String get applyKeepAll;
 
   /// No description provided for @applyPerLocusInfo.
@@ -5961,19 +5937,19 @@ abstract class AppLocalizations {
   /// No description provided for @recStatusKeep.
   ///
   /// In en, this message translates to:
-  /// **'Step 7b now keeps all positions.'**
+  /// **'Step 6b now keeps all positions.'**
   String get recStatusKeep;
 
   /// No description provided for @recStatusExclude.
   ///
   /// In en, this message translates to:
-  /// **'Step 7b now excludes the {positions} position(s).'**
+  /// **'Step 6b now excludes the {positions} position(s).'**
   String recStatusExclude(String positions);
 
   /// No description provided for @recStatusPerLocus.
   ///
   /// In en, this message translates to:
-  /// **'Step 7b now excludes positions per gene ({n} genes).'**
+  /// **'Step 6b now excludes positions per gene ({n} genes).'**
   String recStatusPerLocus(String n);
 
   /// No description provided for @saturationHeatmapHelp.
@@ -6333,7 +6309,7 @@ abstract class AppLocalizations {
   /// No description provided for @concatBlockSourceBody.
   ///
   /// In en, this message translates to:
-  /// **'The trimmed alignments of step 5 (without the badly aligned columns) or the MAFFT output as it is.'**
+  /// **'The trimmed alignments of step 4 (without the badly aligned columns) or the MAFFT output as it is.'**
   String get concatBlockSourceBody;
 
   /// No description provided for @concatBlockPartitions.
@@ -6375,7 +6351,7 @@ abstract class AppLocalizations {
   /// No description provided for @codonExclusionHelp.
   ///
   /// In en, this message translates to:
-  /// **'Removed positions leave the coding loci only. Step 6 (saturation) can fill this in.'**
+  /// **'Removed positions leave the coding loci only. Step 5 (saturation) can fill this in.'**
   String get codonExclusionHelp;
 
   /// No description provided for @concatSummaryTitle.
@@ -6741,7 +6717,7 @@ abstract class AppLocalizations {
   /// No description provided for @concatBlockOutgroupBody.
   ///
   /// In en, this message translates to:
-  /// **'Pick one or more taxa outside the group you study; the trees of steps 8 and 9 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.'**
+  /// **'Pick one or more taxa outside the group you study; the trees of steps 7 and 8 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.'**
   String get concatBlockOutgroupBody;
 
   /// No description provided for @schemeOneModel.
@@ -7545,7 +7521,7 @@ abstract class AppLocalizations {
   /// No description provided for @bothInfo.
   ///
   /// In en, this message translates to:
-  /// **'Both are maximum-likelihood methods. Comparing their trees (step 9, Compare trees) shows which clades do not depend on the program.'**
+  /// **'Both are maximum-likelihood methods. Comparing their trees (step 8, Compare trees) shows which clades do not depend on the program.'**
   String get bothInfo;
 
   /// No description provided for @bothBody.
@@ -7581,7 +7557,7 @@ abstract class AppLocalizations {
   /// No description provided for @satUnlocksStep7.
   ///
   /// In en, this message translates to:
-  /// **'Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 7, which opens afterwards.'**
+  /// **'Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 6, which opens afterwards.'**
   String get satUnlocksStep7;
 
   /// No description provided for @satAllGenes.
@@ -7593,7 +7569,7 @@ abstract class AppLocalizations {
   /// No description provided for @satAllGenesInfo.
   ///
   /// In en, this message translates to:
-  /// **'\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 7). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene\'s row allows a choice per gene.'**
+  /// **'\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 6). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene\'s row allows a choice per gene.'**
   String get satAllGenesInfo;
 
   /// No description provided for @exampleLabel.
@@ -7953,7 +7929,7 @@ abstract class AppLocalizations {
   /// No description provided for @orgMarkersInfo.
   ///
   /// In en, this message translates to:
-  /// **'How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 4, where you choose which to use.'**
+  /// **'How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 3, where you choose which to use.'**
   String get orgMarkersInfo;
 
   /// No description provided for @orgDuplicates.
@@ -8001,7 +7977,7 @@ abstract class AppLocalizations {
   /// No description provided for @orgPendingBody.
   ///
   /// In en, this message translates to:
-  /// **'Then one FASTA per marker is written with every sample, and the markers appear in step 4.'**
+  /// **'Then one FASTA per marker is written with every sample, and the markers appear in step 3.'**
   String get orgPendingBody;
 
   /// No description provided for @orgMatrix.
@@ -8061,13 +8037,13 @@ abstract class AppLocalizations {
   /// No description provided for @satOptionalLoci.
   ///
   /// In en, this message translates to:
-  /// **'Optional for loci: step 7 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.'**
+  /// **'Optional for loci: step 6 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.'**
   String get satOptionalLoci;
 
   /// No description provided for @satOptionalLociNoCoding.
   ///
   /// In en, this message translates to:
-  /// **'Optional for loci: step 7 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.'**
+  /// **'Optional for loci: step 6 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.'**
   String get satOptionalLociNoCoding;
 
   /// No description provided for @exampleTrimNone.
@@ -8366,13 +8342,13 @@ abstract class AppLocalizations {
   /// No description provided for @satOptionalPartial.
   ///
   /// In en, this message translates to:
-  /// **'Optional here: step 7 is already open. {markers} came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.'**
+  /// **'Optional here: step 6 is already open. {markers} came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.'**
   String satOptionalPartial(String markers);
 
   /// No description provided for @satPartialMixed.
   ///
   /// In en, this message translates to:
-  /// **'{markers} have partial sequences: the test is optional for them. Step 7 waits for the complete markers.'**
+  /// **'{markers} have partial sequences: the test is optional for them. Step 6 waits for the complete markers.'**
   String satPartialMixed(String markers);
 
   /// No description provided for @metaRecords.
@@ -8384,7 +8360,7 @@ abstract class AppLocalizations {
   /// No description provided for @headerConflictBlock.
   ///
   /// In en, this message translates to:
-  /// **'{n} header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment stays locked until every header is unique.'**
+  /// **'{n} header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment and every step after it (saturation, matrix, trees, delimitation) stay locked until every header is unique.'**
   String headerConflictBlock(String n);
 
   /// No description provided for @headerAddAccession.
@@ -8396,7 +8372,7 @@ abstract class AppLocalizations {
   /// No description provided for @alignBlockedHeader.
   ///
   /// In en, this message translates to:
-  /// **'Locked: repeated FASTA headers (5a)'**
+  /// **'Locked: repeated FASTA headers (4a)'**
   String get alignBlockedHeader;
 
   /// No description provided for @recGenesCount.
@@ -8420,7 +8396,7 @@ abstract class AppLocalizations {
   /// No description provided for @rec7bPreview.
   ///
   /// In en, this message translates to:
-  /// **'How \"{section}\" in step 7b will look:'**
+  /// **'How \"{section}\" in step 6b will look:'**
   String rec7bPreview(String section);
 
   /// No description provided for @frameExampleLabel.
@@ -8786,8 +8762,26 @@ abstract class AppLocalizations {
   /// No description provided for @geneReviewAgain.
   ///
   /// In en, this message translates to:
-  /// **'Review again ({n})'**
+  /// **'Review gene names again ({n})'**
   String geneReviewAgain(String n);
+
+  /// No description provided for @geneReviewWhichTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The review shows these genes again:'**
+  String get geneReviewWhichTitle;
+
+  /// No description provided for @geneReviewWhichUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found in SynGenes: {names}'**
+  String geneReviewWhichUnknown(String names);
+
+  /// No description provided for @geneReviewWhichConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'/gene and /product disagree: {pairs}'**
+  String geneReviewWhichConflicts(String pairs);
 
   /// No description provided for @clipkitCodonMode.
   ///
@@ -8989,7 +8983,7 @@ abstract class AppLocalizations {
   /// No description provided for @satParamMethodValue.
   ///
   /// In en, this message translates to:
-  /// **'PhyKIT saturation (Steenwyk et al. 2021; Philippe et al. 2011): slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree'**
+  /// **'[[PhyKIT]] saturation, method of [[Philippe 2011|]]: slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree'**
   String get satParamMethodValue;
 
   /// No description provided for @satParamDistance.
@@ -9615,6 +9609,1283 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Same alignment, two ways. Column by column, trimAl removes the columns it marks (×) one by one, so the codon positions (coloured ruler) fall out of order (!). With {tool} the whole codon of every marked column goes (+): the 1st, 2nd and 3rd positions stay in order for the partitions and the saturation test.'**
   String trimCasesCaptionTool(String tool);
+
+  /// No description provided for @delimTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Species delimitation'**
+  String get delimTitle;
+
+  /// No description provided for @delimIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'IQ-TREE and RAxML-NG infer the tree but do not delimit species, so SPLACE runs published delimitation programs: [[mPTP]] and [[GMYC]] on the maximum-likelihood trees, and [[ASAP]] and [[ABGD]] on the alignments (pairwise distances). Each result gets its own button on the tree (step 8). A delimitation is a hypothesis: compare the methods and confirm it with other evidence.'**
+  String get delimIntro;
+
+  /// No description provided for @delimTrees.
+  ///
+  /// In en, this message translates to:
+  /// **'ML trees to delimit'**
+  String get delimTrees;
+
+  /// No description provided for @delimModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get delimModels;
+
+  /// No description provided for @delimModelMulti.
+  ///
+  /// In en, this message translates to:
+  /// **'mPTP (one rate per species)'**
+  String get delimModelMulti;
+
+  /// No description provided for @delimModelSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'PTP (one rate for all)'**
+  String get delimModelSingle;
+
+  /// No description provided for @delimMinbr.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum branch length from the data (--minbr_auto)'**
+  String get delimMinbr;
+
+  /// No description provided for @delimMinbrInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Branches shorter than the smallest p-distance of the supermatrix carry no substitution and are ignored. Off: mPTP\'s default (0.0001).'**
+  String get delimMinbrInfo;
+
+  /// No description provided for @delimCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Root on the outgroup and leave it out (--outgroup_crop)'**
+  String get delimCrop;
+
+  /// No description provided for @delimCropInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'The outgroups of step 6c root the tree and are not delimited, so their long branches do not change the result.'**
+  String get delimCropInfo;
+
+  /// No description provided for @delimRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Delimit species'**
+  String get delimRun;
+
+  /// No description provided for @delimRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'mPTP: species delimitation'**
+  String get delimRunning;
+
+  /// No description provided for @delimNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No delimitation yet.'**
+  String get delimNone;
+
+  /// No description provided for @delimSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} species'**
+  String delimSpecies(String n);
+
+  /// No description provided for @delimSingletons.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} with one tip'**
+  String delimSingletons(String n);
+
+  /// No description provided for @delimLrtFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'LRT failed: one species preferred'**
+  String get delimLrtFailed;
+
+  /// No description provided for @delimViewOnTree.
+  ///
+  /// In en, this message translates to:
+  /// **'Show on the tree'**
+  String get delimViewOnTree;
+
+  /// No description provided for @delimMinbrCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum branch length'**
+  String get delimMinbrCommand;
+
+  /// No description provided for @delimSpeciesList.
+  ///
+  /// In en, this message translates to:
+  /// **'Delimited species'**
+  String get delimSpeciesList;
+
+  /// No description provided for @treeDelimitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Species delimitation'**
+  String get treeDelimitation;
+
+  /// No description provided for @treeDelimitationInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Each button adds a column of bars beside the labels: one bar per species delimited by that tool on that tree (consecutive species alternate colours). Tips are matched by name, so a delimitation can be compared on any tree. Run them in step 7e.'**
+  String get treeDelimitationInfo;
+
+  /// No description provided for @treeDelimitationCircular.
+  ///
+  /// In en, this message translates to:
+  /// **'Shown in the rectangular layout only'**
+  String get treeDelimitationCircular;
+
+  /// No description provided for @citeFeatured.
+  ///
+  /// In en, this message translates to:
+  /// **'Gene names and taxonomy'**
+  String get citeFeatured;
+
+  /// No description provided for @citeRoleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Each reference says what the tool did in this project.'**
+  String get citeRoleHint;
+
+  /// No description provided for @citeRoleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What it did:'**
+  String get citeRoleLabel;
+
+  /// No description provided for @delimOnTrees.
+  ///
+  /// In en, this message translates to:
+  /// **'On the trees (mPTP, GMYC)'**
+  String get delimOnTrees;
+
+  /// No description provided for @delimTreesIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'mPTP finds where the branching of the ML tree changes from speciation (between species) to coalescence (within species). The [[PTP]] model uses one coalescent rate for all species; mPTP gives each species its own rate, which copes better with uneven sampling. [[GMYC]] (single threshold, pGMYC) reads the ML tree made ultrametric by [[LSD2]] (relative dates) and finds where the waiting times between branchings change from speciation to coalescence.'**
+  String get delimTreesIntro;
+
+  /// No description provided for @delimOnAlignments.
+  ///
+  /// In en, this message translates to:
+  /// **'On the alignments (ASAP, ABGD)'**
+  String get delimOnAlignments;
+
+  /// No description provided for @delimAlignmentsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Single-locus methods based on pairwise distances, usually run on a barcode marker (COI, 16S…). ASAP builds partitions by hierarchical clustering and ranks them by its score; ABGD looks for the barcode gap between intra- and interspecific distances over a range of priors.'**
+  String get delimAlignmentsIntro;
+
+  /// No description provided for @delimAlignments.
+  ///
+  /// In en, this message translates to:
+  /// **'Alignments'**
+  String get delimAlignments;
+
+  /// No description provided for @delimNoAlignments.
+  ///
+  /// In en, this message translates to:
+  /// **'No DNA alignment yet.'**
+  String get delimNoAlignments;
+
+  /// No description provided for @delimSupermatrix.
+  ///
+  /// In en, this message translates to:
+  /// **'Supermatrix'**
+  String get delimSupermatrix;
+
+  /// No description provided for @delimDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance'**
+  String get delimDistance;
+
+  /// No description provided for @delimDistanceInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Pairwise distance of ASAP and ABGD (both default to Jukes-Cantor). ABGD offers JC69 and K2P only; with another distance ABGD uses JC69.'**
+  String get delimDistanceInfo;
+
+  /// No description provided for @delimPMin.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD prior Pmin'**
+  String get delimPMin;
+
+  /// No description provided for @delimPMax.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD prior Pmax'**
+  String get delimPMax;
+
+  /// No description provided for @delimSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD steps'**
+  String get delimSteps;
+
+  /// No description provided for @delimSlope.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD gap width (X)'**
+  String get delimSlope;
+
+  /// No description provided for @delimPriorInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD tries priors of maximum intraspecific divergence from Pmin to Pmax (log scale) and gives one partition per prior. Defaults are ABGD\'s own (0.001 to 0.1, 10 steps).'**
+  String get delimPriorInfo;
+
+  /// No description provided for @delimSlopeInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Relative gap width (ABGD -X, default 1.5): lower values find smaller gaps.'**
+  String get delimSlopeInfo;
+
+  /// No description provided for @delimPartition.
+  ///
+  /// In en, this message translates to:
+  /// **'Partition shown'**
+  String get delimPartition;
+
+  /// No description provided for @delimPartitionAsapInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'ASAP proposes several partitions ranked by its score (lower is better); the best one is shown first. The one chosen here goes to the tree and to the methods text.'**
+  String get delimPartitionAsapInfo;
+
+  /// No description provided for @delimPartitionAbgdInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'ABGD gives an initial and a recursive partition for each prior P. Shown first: the initial partition at the prior nearest 0.01; look for partitions that stay the same over several priors. The one chosen here goes to the tree and to the methods text.'**
+  String get delimPartitionAbgdInfo;
+
+  /// No description provided for @delimAsapScore.
+  ///
+  /// In en, this message translates to:
+  /// **'ASAP score {score}'**
+  String delimAsapScore(String score);
+
+  /// No description provided for @delimInitial.
+  ///
+  /// In en, this message translates to:
+  /// **'initial'**
+  String get delimInitial;
+
+  /// No description provided for @delimRecursive.
+  ///
+  /// In en, this message translates to:
+  /// **'recursive'**
+  String get delimRecursive;
+
+  /// No description provided for @delimModelGmyc.
+  ///
+  /// In en, this message translates to:
+  /// **'GMYC (ultrametric tree by LSD2)'**
+  String get delimModelGmyc;
+
+  /// No description provided for @delimLsd2Command.
+  ///
+  /// In en, this message translates to:
+  /// **'Ultrametric tree (LSD2)'**
+  String get delimLsd2Command;
+
+  /// No description provided for @exportGbButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Export corrected GenBank'**
+  String get exportGbButton;
+
+  /// No description provided for @exportGbChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Save here'**
+  String get exportGbChoose;
+
+  /// No description provided for @exportGbInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Writes every record as a GenBank file (.gb) with the species name as identified or edited, the lineage of the taxonomy and the gene names standardized by SynGenes (the original name is kept in a /note). Useful for a newly assembled genome before submission. A copy goes to the project folder (00_genbank_corrected).'**
+  String get exportGbInfo;
+
+  /// No description provided for @barcodingSwitch.
+  ///
+  /// In en, this message translates to:
+  /// **'These sequences are DNA barcodes'**
+  String get barcodingSwitch;
+
+  /// No description provided for @barcodingSwitchInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'One specimen per sequence (COI, 16S, ITS…): identify each one against GenBank and BOLD and export the BOLD submission spreadsheet.'**
+  String get barcodingSwitchInfo;
+
+  /// No description provided for @barcodingLocus.
+  ///
+  /// In en, this message translates to:
+  /// **'Barcode marker'**
+  String get barcodingLocus;
+
+  /// No description provided for @barcodingLocusInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'The locus of the FASTA files with the barcodes. COI is sent to BOLD and GenBank; other markers to GenBank only.'**
+  String get barcodingLocusInfo;
+
+  /// No description provided for @barcodingCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} specimens'**
+  String barcodingCount(String n);
+
+  /// No description provided for @barcodingSourcesCoi.
+  ///
+  /// In en, this message translates to:
+  /// **'BOLD ID Engine + GenBank BLAST'**
+  String get barcodingSourcesCoi;
+
+  /// No description provided for @barcodingSourcesGenbank.
+  ///
+  /// In en, this message translates to:
+  /// **'GenBank BLAST (BOLD identifies COI only)'**
+  String get barcodingSourcesGenbank;
+
+  /// No description provided for @barcodingIdentify.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify specimens'**
+  String get barcodingIdentify;
+
+  /// No description provided for @barcodingTaxonomy.
+  ///
+  /// In en, this message translates to:
+  /// **'Taxonomy (GBIF)'**
+  String get barcodingTaxonomy;
+
+  /// No description provided for @barcodingTaxonomyInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Fills phylum, class, order and family of the names kept, from GBIF (dataFishing method), for the BOLD sheet.'**
+  String get barcodingTaxonomyInfo;
+
+  /// No description provided for @barcodingExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export BOLD spreadsheet (.xlsx)'**
+  String get barcodingExport;
+
+  /// No description provided for @barcodingExportInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Writes the official BOLD5 single-page specimen template (sheet Submissions): sample id, taxonomy and identification filled; voucher and collection data left for you. A FASTA with the sample ids as headers is saved next to it for the sequence upload.'**
+  String get barcodingExportInfo;
+
+  /// No description provided for @barcodingExported.
+  ///
+  /// In en, this message translates to:
+  /// **'BOLD spreadsheet saved with {n} specimens (and the sequences FASTA)'**
+  String barcodingExported(String n);
+
+  /// No description provided for @barcodingColSample.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample'**
+  String get barcodingColSample;
+
+  /// No description provided for @barcodingColMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Best matches'**
+  String get barcodingColMatches;
+
+  /// No description provided for @barcodingColName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name kept'**
+  String get barcodingColName;
+
+  /// No description provided for @barcodingNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'no match'**
+  String get barcodingNoMatch;
+
+  /// No description provided for @barcodingNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Genus species'**
+  String get barcodingNameHint;
+
+  /// No description provided for @barcodingPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a match'**
+  String get barcodingPick;
+
+  /// No description provided for @tutorialTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How to use SPLACE'**
+  String get tutorialTitle;
+
+  /// No description provided for @tutorialSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Each step with what it is for and what to do there. Close it at any time.'**
+  String get tutorialSubtitle;
+
+  /// No description provided for @tutorialInterface.
+  ///
+  /// In en, this message translates to:
+  /// **'The interface'**
+  String get tutorialInterface;
+
+  /// No description provided for @tutorialWhatToDo.
+  ///
+  /// In en, this message translates to:
+  /// **'What to do'**
+  String get tutorialWhatToDo;
+
+  /// No description provided for @tutorialPrev.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous'**
+  String get tutorialPrev;
+
+  /// No description provided for @tutorialNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get tutorialNext;
+
+  /// No description provided for @tutorialFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Start working'**
+  String get tutorialFinish;
+
+  /// No description provided for @tutorialShowAtStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Show this tutorial after Start App'**
+  String get tutorialShowAtStart;
+
+  /// No description provided for @tutorialButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Tutorial'**
+  String get tutorialButton;
+
+  /// No description provided for @tutorialPageOf.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} of {total}'**
+  String tutorialPageOf(String n, String total);
+
+  /// No description provided for @newProject.
+  ///
+  /// In en, this message translates to:
+  /// **'New project'**
+  String get newProject;
+
+  /// No description provided for @newProjectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a new project?'**
+  String get newProjectTitle;
+
+  /// No description provided for @newProjectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'SPLACE starts again with no data, in a new project folder, so you can analyse another group. Settings, the NCBI key and the tools found are kept.'**
+  String get newProjectBody;
+
+  /// No description provided for @newProjectKept.
+  ///
+  /// In en, this message translates to:
+  /// **'The files of the current project stay in {dir}.'**
+  String newProjectKept(String dir);
+
+  /// No description provided for @newProjectConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'New project'**
+  String get newProjectConfirm;
+
+  /// No description provided for @tutorialPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get tutorialPlay;
+
+  /// No description provided for @tutorialPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get tutorialPause;
+
+  /// No description provided for @tutorialItemOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Item {n} of {total}'**
+  String tutorialItemOf(String n, String total);
+
+  /// No description provided for @tutorialNextStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Next: {step}'**
+  String tutorialNextStep(String step);
+
+  /// No description provided for @taxSpeciesRecognized.
+  ///
+  /// In en, this message translates to:
+  /// **'Species recognized:'**
+  String get taxSpeciesRecognized;
+
+  /// No description provided for @taxSynonyms.
+  ///
+  /// In en, this message translates to:
+  /// **'Also search its synonyms (GBIF)'**
+  String get taxSynonyms;
+
+  /// No description provided for @taxSynonymsInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Records may be filed under an older name (e.g. Bufo marinus for Rhinella marina). NCBI already finds the synonyms it knows; GBIF adds the accepted name and every synonym it lists, all in one NCBI query. The records are imported under their current NCBI name.'**
+  String get taxSynonymsInfo;
+
+  /// No description provided for @taxSynonymsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking up the synonyms in GBIF…'**
+  String get taxSynonymsLoading;
+
+  /// No description provided for @taxSynonymsError.
+  ///
+  /// In en, this message translates to:
+  /// **'GBIF could not be reached: {error}'**
+  String taxSynonymsError(String error);
+
+  /// No description provided for @taxSynonymsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'GBIF has no synonyms for this name: it is searched alone.'**
+  String get taxSynonymsNone;
+
+  /// No description provided for @taxSynonymsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} names searched together:'**
+  String taxSynonymsFound(String n);
+
+  /// No description provided for @examplesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Example data:'**
+  String get examplesLabel;
+
+  /// No description provided for @examplesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No example files yet: put them in {folder} and rebuild the app.'**
+  String examplesEmpty(String folder);
+
+  /// No description provided for @examplesFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Loads the {n} file(s) of {folder}.'**
+  String examplesFiles(String n, String folder);
+
+  /// No description provided for @exampleGenbank.
+  ///
+  /// In en, this message translates to:
+  /// **'GenBank example'**
+  String get exampleGenbank;
+
+  /// No description provided for @exampleLoci.
+  ///
+  /// In en, this message translates to:
+  /// **'Loci example (FASTA)'**
+  String get exampleLoci;
+
+  /// No description provided for @exampleBarcoding.
+  ///
+  /// In en, this message translates to:
+  /// **'Barcoding example (FASTA)'**
+  String get exampleBarcoding;
+
+  /// No description provided for @reviewFiledAs.
+  ///
+  /// In en, this message translates to:
+  /// **'filed as'**
+  String get reviewFiledAs;
+
+  /// No description provided for @markerBold.
+  ///
+  /// In en, this message translates to:
+  /// **'Also search BOLD Systems'**
+  String get markerBold;
+
+  /// No description provided for @markerBoldInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Public records of BOLD for {markers}. Each record shows where it came from: NCBI, BOLD, or NCBI + BOLD when BOLD mirrors a GenBank record (imported once, from GenBank). Any rank can be searched (species, genus, family…); synonyms BOLD knows are searched too.'**
+  String markerBoldInfo(String markers);
+
+  /// No description provided for @markerBoldNone.
+  ///
+  /// In en, this message translates to:
+  /// **'BOLD holds {markers} for this organelle: select one to search BOLD too.'**
+  String markerBoldNone(String markers);
+
+  /// No description provided for @siFoundAs.
+  ///
+  /// In en, this message translates to:
+  /// **'also as {names}'**
+  String siFoundAs(String names);
+
+  /// No description provided for @siVerdictAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'The accepted name in GBIF is {name}: choose it to update the record.'**
+  String siVerdictAccepted(String name);
+
+  /// No description provided for @headerConflictUndetermined.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} name(s) repeat inside the same marker. Records of one species are joined into one sample, but records not identified to species (sp., cf., aff., a genus only) or a FASTA sample with the same name are different specimens. Name them in step 2 (species identification or the records table) or remove them: the alignment and every step after it stay locked until every name is unique.'**
+  String headerConflictUndetermined(String n);
+
+  /// No description provided for @tipFieldCountry.
+  ///
+  /// In en, this message translates to:
+  /// **'Country'**
+  String get tipFieldCountry;
+
+  /// No description provided for @tipFieldLocality.
+  ///
+  /// In en, this message translates to:
+  /// **'Locality'**
+  String get tipFieldLocality;
+
+  /// No description provided for @schemesOneCoding.
+  ///
+  /// In en, this message translates to:
+  /// **'One marker: \"by locus\" would be a single partition, so it can be partitioned by codon position (its reading frame is known) or kept as one partition.'**
+  String get schemesOneCoding;
+
+  /// No description provided for @schemesOneNoCodons.
+  ///
+  /// In en, this message translates to:
+  /// **'One marker without known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the matrix is a single partition.'**
+  String get schemesOneNoCodons;
+
+  /// No description provided for @schemesNoCodons.
+  ///
+  /// In en, this message translates to:
+  /// **'No marker has known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the markers can only be partitioned by locus.'**
+  String get schemesNoCodons;
+
+  /// No description provided for @trimPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How each marker will be trimmed'**
+  String get trimPlanTitle;
+
+  /// No description provided for @trimWhyNoFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'partial sequences without a confirmed reading frame in the nucleotide alignment (align in Codon-aware mode to keep codons); one partition without codon positions'**
+  String get trimWhyNoFrame;
+
+  /// No description provided for @trimWhyNonCoding.
+  ///
+  /// In en, this message translates to:
+  /// **'not protein-coding'**
+  String get trimWhyNonCoding;
+
+  /// No description provided for @trimWhyColumns.
+  ///
+  /// In en, this message translates to:
+  /// **'trimAl by columns breaks codons: its codon positions are lost'**
+  String get trimWhyColumns;
+
+  /// No description provided for @stepMarkers.
+  ///
+  /// In en, this message translates to:
+  /// **'Features and Markers'**
+  String get stepMarkers;
+
+  /// No description provided for @stepMarkersFasta.
+  ///
+  /// In en, this message translates to:
+  /// **'Samples and Markers'**
+  String get stepMarkersFasta;
+
+  /// No description provided for @splashStepMarkers.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which feature types (CDS, rRNA, tRNA) enter the analysis, or show SPLACE where FASTA headers keep the sample and locus names; then pick the markers for the matrix, reviewing missing and duplicated sequences in the presence and length heatmaps.'**
+  String get splashStepMarkers;
+
+  /// No description provided for @dropUndetermined.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave out the {n} record(s) not identified to species'**
+  String dropUndetermined(String n);
+
+  /// No description provided for @idAlnTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Alignments of the identification'**
+  String get idAlnTitle;
+
+  /// No description provided for @idAlnOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'See the alignments (your sequence and the hits)'**
+  String get idAlnOpen;
+
+  /// No description provided for @idAlnAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All sources'**
+  String get idAlnAll;
+
+  /// No description provided for @idAlnQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Query'**
+  String get idAlnQuery;
+
+  /// No description provided for @idAlnHit.
+  ///
+  /// In en, this message translates to:
+  /// **'hit'**
+  String get idAlnHit;
+
+  /// No description provided for @idAlnCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy as FASTA'**
+  String get idAlnCopy;
+
+  /// No description provided for @idAlnNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No hits for this marker.'**
+  String get idAlnNone;
+
+  /// No description provided for @idAlnIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'identity'**
+  String get idAlnIdentity;
+
+  /// No description provided for @idAlnCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'coverage'**
+  String get idAlnCoverage;
+
+  /// No description provided for @idAlnMismatches.
+  ///
+  /// In en, this message translates to:
+  /// **'mismatches'**
+  String get idAlnMismatches;
+
+  /// No description provided for @idAlnGaps.
+  ///
+  /// In en, this message translates to:
+  /// **'gaps'**
+  String get idAlnGaps;
+
+  /// No description provided for @idAlnLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'BOLD gives where the hit aligns, not the alignment: fetching its sequence from the BOLD portal and aligning it…'**
+  String get idAlnLoading;
+
+  /// No description provided for @idAlnLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'The BOLD sequence could not be fetched: {error}'**
+  String idAlnLoadError(String error);
+
+  /// No description provided for @idpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search parameters'**
+  String get idpTitle;
+
+  /// No description provided for @idpSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'GenBank BLAST and the BOLD ID engine. Changing a parameter sends the searches again; answers with the same parameters are reused.'**
+  String get idpSubtitle;
+
+  /// No description provided for @idpDatabase.
+  ///
+  /// In en, this message translates to:
+  /// **'Database'**
+  String get idpDatabase;
+
+  /// No description provided for @idpBlastDbInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'core_nt: the default nucleotide database of web BLAST (core sequences, faster). nt: the complete nucleotide collection. refseq_select_rna / refseq_rna: RefSeq transcripts only.'**
+  String get idpBlastDbInfo;
+
+  /// No description provided for @idpProgram.
+  ///
+  /// In en, this message translates to:
+  /// **'Program'**
+  String get idpProgram;
+
+  /// No description provided for @idpProgramInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'megablast: for the same or very close species (fast, long words). blastn: more sensitive, finds more distant relatives (slower).'**
+  String get idpProgramInfo;
+
+  /// No description provided for @idpHits.
+  ///
+  /// In en, this message translates to:
+  /// **'Max results'**
+  String get idpHits;
+
+  /// No description provided for @idpHitsInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'How many target sequences BLAST returns per query (HITLIST_SIZE).'**
+  String get idpHitsInfo;
+
+  /// No description provided for @idpExpect.
+  ///
+  /// In en, this message translates to:
+  /// **'E-value'**
+  String get idpExpect;
+
+  /// No description provided for @idpExpectInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Highest expect value kept (EXPECT): lower is stricter.'**
+  String get idpExpectInfo;
+
+  /// No description provided for @idpWord.
+  ///
+  /// In en, this message translates to:
+  /// **'Word size'**
+  String get idpWord;
+
+  /// No description provided for @idpWordInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Length of the seed matches (WORD_SIZE). Empty: the program\'s default (28 for megablast, 11 for blastn).'**
+  String get idpWordInfo;
+
+  /// No description provided for @idpCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Min coverage (%)'**
+  String get idpCoverage;
+
+  /// No description provided for @idpCoverageInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Share of your sequence a hit must cover to count (applied by SPLACE; changing it needs no new search).'**
+  String get idpCoverageInfo;
+
+  /// No description provided for @idpEntrez.
+  ///
+  /// In en, this message translates to:
+  /// **'Restrict to (Entrez query)'**
+  String get idpEntrez;
+
+  /// No description provided for @idpEntrezInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional: search only records matching an Entrez query, e.g. Bufonidae[Organism] or Anura[Organism] (ENTREZ_QUERY).'**
+  String get idpEntrezInfo;
+
+  /// No description provided for @idpBoldDbInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'public.tax-derep: public animal COI, one record per haplotype and taxon (recommended). species: records identified to species. all.tax-derep: public and private records (taxonomy only). all.animal-alt: animal records of other markers. public.plants: rbcL and matK. public.fungi: ITS.'**
+  String get idpBoldDbInfo;
+
+  /// No description provided for @idpMinIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Min identity (%)'**
+  String get idpMinIdentity;
+
+  /// No description provided for @idpMinIdentityInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Hits below this identity are not returned (70–100 %).'**
+  String get idpMinIdentityInfo;
+
+  /// No description provided for @idpMinOverlap.
+  ///
+  /// In en, this message translates to:
+  /// **'Min overlap (bp)'**
+  String get idpMinOverlap;
+
+  /// No description provided for @idpMinOverlapInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortest alignment with your sequence that counts.'**
+  String get idpMinOverlapInfo;
+
+  /// No description provided for @idpMaxHits.
+  ///
+  /// In en, this message translates to:
+  /// **'Max hits'**
+  String get idpMaxHits;
+
+  /// No description provided for @idpMaxHitsInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'How many hits BOLD returns per sequence.'**
+  String get idpMaxHitsInfo;
+
+  /// No description provided for @idpBoldMarkers.
+  ///
+  /// In en, this message translates to:
+  /// **'This database identifies: {markers}.'**
+  String idpBoldMarkers(String markers);
+
+  /// No description provided for @speciesIdBoldBodyFor.
+  ///
+  /// In en, this message translates to:
+  /// **'ID engine, database {db}: {markers}.'**
+  String speciesIdBoldBodyFor(String db, String markers);
+
+  /// No description provided for @speciesIdBoldOffFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {markers} to search BOLD too (the database can be changed in the parameters).'**
+  String speciesIdBoldOffFor(String markers);
+
+  /// No description provided for @exampleLociShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Loci example'**
+  String get exampleLociShort;
+
+  /// No description provided for @exampleBarcodingShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Barcoding example'**
+  String get exampleBarcodingShort;
+
+  /// No description provided for @speciesIdGenesHintFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose one or more genes. Every gene is searched in GenBank with BLAST; BOLD takes the markers of its database ({markers}).'**
+  String speciesIdGenesHintFor(String markers);
+
+  /// No description provided for @speciesIdGenbankBodyFor.
+  ///
+  /// In en, this message translates to:
+  /// **'BLAST ({program}) against {db}, up to {hits} results per gene.'**
+  String speciesIdGenbankBodyFor(String program, String db, String hits);
+
+  /// No description provided for @trimPlanCodonsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole codons (reading frame known)'**
+  String get trimPlanCodonsTitle;
+
+  /// No description provided for @trimPlanColumnsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Column by column — {why}'**
+  String trimPlanColumnsTitle(String why);
+
+  /// No description provided for @openProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Open project'**
+  String get openProject;
+
+  /// No description provided for @saveProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Save project'**
+  String get saveProject;
+
+  /// No description provided for @saveProjectTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Save project (.splc): data, parameters and results, to continue later or share (Ctrl+S; Save as: Ctrl+Shift+S)'**
+  String get saveProjectTooltip;
+
+  /// No description provided for @openProjectTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a SPLACE project (.splc) (Ctrl+O)'**
+  String get openProjectTooltip;
+
+  /// No description provided for @openProjectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open another project?'**
+  String get openProjectTitle;
+
+  /// No description provided for @openProjectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{file} opens where it was saved. The current analysis is closed: save it first (Save project) to come back to it.'**
+  String openProjectBody(String file);
+
+  /// No description provided for @projectSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The project could not be saved: see the log.'**
+  String get projectSaveFailed;
+
+  /// No description provided for @splashOpenProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Open project'**
+  String get splashOpenProject;
+
+  /// No description provided for @windowTitleNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved project'**
+  String get windowTitleNew;
+
+  /// No description provided for @windowTitleUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'unsaved changes'**
+  String get windowTitleUnsaved;
+
+  /// No description provided for @windowTitleSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'saved'**
+  String get windowTitleSaved;
+
+  /// No description provided for @projectSavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Project saved'**
+  String get projectSavedTitle;
+
+  /// No description provided for @exportGbDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} GenBank file(s) saved'**
+  String exportGbDoneTitle(String n);
+
+  /// No description provided for @delimSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get delimSettings;
+
+  /// No description provided for @delimLrtLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'LRT p-value · {tool}'**
+  String delimLrtLevel(String tool);
+
+  /// No description provided for @delimLrtInfoMptp.
+  ///
+  /// In en, this message translates to:
+  /// **'Significance level of the likelihood-ratio test of mPTP (--pvalue, default 0.001). When the p-value of the test is above it, the one-species model is kept and every tip goes into one species.'**
+  String get delimLrtInfoMptp;
+
+  /// No description provided for @delimLrtInfoGmyc.
+  ///
+  /// In en, this message translates to:
+  /// **'Significance level of the GMYC likelihood-ratio test (default 0.01). Above it GMYC does not reject a single species and joins every tip.'**
+  String get delimLrtInfoGmyc;
+
+  /// No description provided for @delimOnePerSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'Every tip of the supermatrix is a different species (one sequence per species). PTP, mPTP and GMYC look for where the tree changes from branching between species to branching within them; without several individuals per species that change is not there, the test tends to fail and the whole tree comes out as one species. Use several sequences per species, or ASAP/ABGD on a marker.'**
+  String get delimOnePerSpecies;
+
+  /// No description provided for @delimCollapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'The likelihood-ratio test did not reject the one-species model (p = {p}, above the limit {alpha}), so {tool} put all {tips} tips in one species.'**
+  String delimCollapsed(String tool, String p, String alpha, String tips);
+
+  /// No description provided for @delimCollapsedBest.
+  ///
+  /// In en, this message translates to:
+  /// **'Its best model had found {n} species, without statistical support.'**
+  String delimCollapsedBest(String n);
+
+  /// No description provided for @delimCollapsedOnePerSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'Here every tip is a different species: these methods need several individuals per species. With one sequence each, use ASAP or ABGD on a marker, or compare the tree with the taxonomy.'**
+  String get delimCollapsedOnePerSpecies;
+
+  /// No description provided for @delimCollapsedTry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a less strict limit (LRT p-value in the settings above), more sequences per species, or ASAP/ABGD on a marker.'**
+  String get delimCollapsedTry;
+
+  /// No description provided for @delimLrtNs.
+  ///
+  /// In en, this message translates to:
+  /// **'LRT not significant'**
+  String get delimLrtNs;
+
+  /// No description provided for @treeIdentify.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify by BLAST…'**
+  String get treeIdentify;
+
+  /// No description provided for @treeIdTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify by BLAST'**
+  String get treeIdTitle;
+
+  /// No description provided for @treeIdSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} tip(s) of the tree'**
+  String treeIdSubtitle(String n);
+
+  /// No description provided for @treeIdIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Each tip is sent with its sequence of the marker you choose to GenBank BLAST (and BOLD for COI, or rbcL, matK and ITS in its plant and fungal databases), with the options of the identification in step 2. Useful when a genus falls inside another one: the best match tells whether the sample is what its name says.'**
+  String get treeIdIntro;
+
+  /// No description provided for @treeIdMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'Marker'**
+  String get treeIdMarker;
+
+  /// No description provided for @treeIdMarkerTips.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} of {total} tips have it'**
+  String treeIdMarkerTips(String n, String total);
+
+  /// No description provided for @treeIdNoMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'None of these tips has a DNA marker sequence of at least 100 bases.'**
+  String get treeIdNoMarker;
+
+  /// No description provided for @treeIdOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'BLAST: {program} on {db}, hits covering at least {coverage} % of the sequence; same species from {identity} % identity. Answers already received are reused.'**
+  String treeIdOptions(
+    String program,
+    String db,
+    String coverage,
+    String identity,
+  );
+
+  /// No description provided for @treeIdRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify'**
+  String get treeIdRun;
+
+  /// No description provided for @treeIdRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Identifying {n} tip(s) with {marker}…'**
+  String treeIdRunning(String marker, String n);
+
+  /// No description provided for @treeIdOtherMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'Another marker'**
+  String get treeIdOtherMarker;
+
+  /// No description provided for @treeIdRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename {n} tip(s) in the figure'**
+  String treeIdRename(String n);
+
+  /// No description provided for @treeIdRenameOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename in the figure as {name}'**
+  String treeIdRenameOne(String name);
+
+  /// No description provided for @treeIdConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed'**
+  String get treeIdConfirmed;
+
+  /// No description provided for @treeIdOtherSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'Another species'**
+  String get treeIdOtherSpecies;
+
+  /// No description provided for @treeIdOtherGenus.
+  ///
+  /// In en, this message translates to:
+  /// **'Another genus'**
+  String get treeIdOtherGenus;
+
+  /// No description provided for @treeIdAmbiguous.
+  ///
+  /// In en, this message translates to:
+  /// **'Ambiguous (its species matches as well)'**
+  String get treeIdAmbiguous;
+
+  /// No description provided for @treeIdNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No species at ≥ {identity} %'**
+  String treeIdNoMatch(String identity);
+
+  /// No description provided for @treeIdNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No result'**
+  String get treeIdNone;
+
+  /// No description provided for @treeIdCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Name:'**
+  String get treeIdCurrent;
+
+  /// No description provided for @treeIdCurrentAt.
+  ///
+  /// In en, this message translates to:
+  /// **'its name at {pct}'**
+  String treeIdCurrentAt(String pct);
+
+  /// No description provided for @treeIdHits.
+  ///
+  /// In en, this message translates to:
+  /// **'Alignments'**
+  String get treeIdHits;
 }
 
 class _AppLocalizationsDelegate

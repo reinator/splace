@@ -493,7 +493,7 @@ extension _TangleDrawing on _TreeViewerState {
       if (by == null) return null;
       final v = _rank(by, tip.name);
       if (v.isEmpty) return null;
-      groupColors.putIfAbsent(v, () => _groupColors[groupColors.length % _groupColors.length]);
+      groupColors.putIfAbsent(v, () => SplacePalette.categoricalAt(groupColors.length));
       return v;
     }
 

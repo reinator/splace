@@ -104,4 +104,23 @@ ORIGIN
 ''')!;
     expect(r.taxId, '8384');
   });
+
+  test('species names and the organism filter with synonyms', () {
+    expect(isSpeciesName('Rhinella marina'), isTrue);
+    expect(isSpeciesName('Bufo marinus horribilis'), isTrue);
+    expect(isSpeciesName('Bufonidae'), isFalse);
+    expect(isSpeciesName('rhinella marina'), isFalse);
+    expect(organismQuery('Rhinella marina'), '"Rhinella marina"[Organism]');
+    expect(organismQuery('Rhinella marina', ['Rhinella marina', 'Bufo marinus']), '("Rhinella marina"[Organism] OR "Bufo marinus"[Organism])');
+  });
+
+  test('GBIF synonyms: accepted name first, species rank or below, no repeats', () {
+    final names = gbifSynonymNames({'species': 'Rhinella marina', 'canonicalName': 'Bufo marinus'}, [
+      {'canonicalName': 'Bufo marinus', 'rank': 'SPECIES'},
+      {'canonicalName': 'Bufo marinus horribilis', 'rank': 'SUBSPECIES'},
+      {'canonicalName': 'Bufo marinus horribilis', 'rank': 'SUBSPECIES'},
+      {'canonicalName': 'Bufonidae', 'rank': 'FAMILY'},
+    ]);
+    expect(names, ['Rhinella marina', 'Bufo marinus', 'Bufo marinus horribilis']);
+  });
 }

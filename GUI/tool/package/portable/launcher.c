@@ -34,7 +34,7 @@ static LRESULT CALLBACK SplashProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     SetTextColor(dc, RGB(255, 255, 255));
     HFONT f = CreateFontW(-18, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
     HGDIOBJ old = SelectObject(dc, f);
-    DrawTextW(dc, L"SPLACE\n\nPreparing the first run…  /  Preparando a primeira execução…", -1, &r, DT_CENTER | DT_VCENTER | DT_WORDBREAK);
+    DrawTextW(dc, L"SPLACE\n\nPreparing the first run\u2026  /  Preparando a primeira execu\u00e7\u00e3o\u2026", -1, &r, DT_CENTER | DT_VCENTER | DT_WORDBREAK);
     SelectObject(dc, old);
     DeleteObject(f);
     EndPaint(h, &ps);

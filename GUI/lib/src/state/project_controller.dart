@@ -11,10 +11,14 @@ import 'package:flutter/material.dart' show ThemeMode;
 import 'package:path/path.dart' as p;
 
 import '../core/alignment_tools.dart';
+import '../core/bold.dart';
+import '../core/bold_submission.dart';
+import '../core/delimitation.dart';
 import '../core/fasta.dart';
 import '../core/gene_suggestions.dart';
 import '../core/genbank.dart';
 import '../core/genbank_markers.dart';
+import '../core/genbank_writer.dart';
 import '../core/marker_search.dart';
 import '../core/genetic_code.dart';
 import '../core/locus_organizer.dart';
@@ -27,12 +31,18 @@ import '../core/syngenes.dart';
 import '../core/taxonomy_sources.dart';
 import '../core/newick.dart';
 import '../core/outgroup.dart';
+import '../core/pairwise.dart' show alignPair;
 import '../core/phykit.dart';
 import '../core/tool_commands.dart';
+import '../core/xlsx.dart';
+import '../services/bold_portal.dart';
 import '../services/ncbi.dart';
 import '../services/process_runner.dart';
 import '../services/species_id.dart';
 import '../services/tool_locator.dart';
+import '../core/project_json.dart';
+
+part 'project_file.dart';
 
 enum StepStatus { idle, running, done, error, skipped }
 
@@ -46,7 +56,7 @@ enum SeqMode { nucleotide, aminoAcid, codon }
 enum TrimTool { trimalCodon, clipkitCodon, trimalColumns }
 
 class LogEntry {
-  LogEntry(this.source, this.message, {this.level = LogLevel.info}) : time = DateTime.now();
+  LogEntry(this.source, this.message, {this.level = LogLevel.info, DateTime? time}) : time = time ?? DateTime.now();
   final DateTime time;
   final String source;
   final String message;
@@ -163,7 +173,7 @@ class _AlignSnapshot {
 }
 
 class TreeRun {
-  TreeRun(this.engine, this.directory) : started = DateTime.now();
+  TreeRun(this.engine, this.directory, {DateTime? started}) : started = started ?? DateTime.now();
   final String engine;
   final String directory;
   final DateTime started;
@@ -204,7 +214,58 @@ class TreeRun {
   }
 }
 
-enum ModalKind { ncbiSearch, ncbiFetch, taxonomy, speciesId, alignment, trimming, saturation, matrix, iqtree, raxml, bothTrees }
+/// One species delimitation: PTP or mPTP (mPTP program) on the ML tree of a
+/// tree run, or ASAP or ABGD on an alignment.
+class DelimitationRun {
+  DelimitationRun({required this.method, required this.source, required this.directory, this.run, this.tree, DateTime? started})
+      : started = started ?? DateTime.now();
+  final DelimMethod method;
+
+  /// Tree run whose ML tree was read (PTP, mPTP).
+  final TreeRun? run;
+
+  /// The program of the tree (IQ-TREE, RAxML-NG) or the alignment (a
+  /// marker or the supermatrix).
+  final String source;
+
+  /// Tree file given to mPTP (the run's ML tree, as mPTP reads it).
+  final String? tree;
+  final String directory;
+  final DateTime started;
+  StepStatus status = StepStatus.running;
+  Delimitation? result;
+  String? command, minbrCommand, error;
+
+  /// Minimum branch length detected from the p-distances (`--minbr_auto`),
+  /// or null when mPTP's default (0.0001) was used.
+  double? minbrAuto;
+  List<String> outgroup = const [];
+  bool cropped = false;
+
+  /// ASAP and ABGD: every partition the program proposed (ASAP: best score
+  /// first; ABGD: initial and recursive at each prior), the one shown,
+  /// and the settings.
+  final List<Spartition> partitions = [];
+  int chosen = 0;
+  DelimDistance? distance;
+
+  /// ABGD: the prior of each partition of [partitions].
+  final List<String> partitionNotes = [];
+
+  /// Output files: delimitation text, SVG, SPART and tip → species table.
+  final Map<String, String> outputs = {};
+
+  /// Time of the tree run (tree methods) or of this run.
+  String get time => (run?.started ?? started).toIso8601String().substring(11, 16);
+
+  /// "mPTP · IQ-TREE", "ASAP · COI".
+  String get label => '${method.label} · $source';
+
+  /// Stable id (tree viewer buttons).
+  String get id => '${run?.directory ?? directory}|${method.name}|$source';
+}
+
+enum ModalKind { ncbiSearch, ncbiFetch, taxonomy, speciesId, alignment, trimming, saturation, matrix, iqtree, raxml, bothTrees, delimitation }
 
 /// State of the progress modal shown during NCBI/GBIF requests.
 class TaskModal {
@@ -384,10 +445,16 @@ Future<void> _zipInIsolate(String root, Map<String, String> folders, String targ
 /// UI: parsing and statistics run in isolates, external tools run as
 /// asynchronous processes that stream their logs and can be cancelled.
 class ProjectController extends ChangeNotifier {
-  ProjectController({ToolLocator? locator, this.autoDetectTools = true, this.settingsFile})
-      : locator = locator ?? ToolLocator() {
+  ProjectController({ToolLocator? locator, this.autoDetectTools = true, this.settingsFile, bool? watchUnsaved})
+      : locator = locator ?? ToolLocator(),
+        _watchUnsaved = watchUnsaved ?? settingsFile != null {
     _loadSettings();
+    if (_watchUnsaved) addListener(_scheduleUnsavedCheck);
   }
+
+  /// [unsaved] follows every change (the app: a controller with settings);
+  /// tests call [checkUnsaved] themselves, so no timer is left behind.
+  final bool _watchUnsaved;
 
   /// JSON file with preferences (theme, language, NCBI key, tool paths).
   /// Null in tests: nothing is persisted.
@@ -422,6 +489,76 @@ class ProjectController extends ChangeNotifier {
   void setSplashVisible(bool v) {
     splashVisible = v;
     notifyListeners();
+  }
+
+  /// The tutorial (one page per step) opens after "Start App".
+  bool tutorialAtStart = true;
+
+  void setTutorialAtStart(bool v) {
+    tutorialAtStart = v;
+    _changed(save: true);
+  }
+
+  /// Set by the app: replaces this controller with a fresh one (a new
+  /// project in a new folder); see [requestNewProject].
+  void Function()? newProjectHandler;
+
+  /// Set by the app: opens a project file in a fresh controller (see
+  /// [requestOpenProject]).
+  Future<void> Function(String file)? openProjectHandler;
+
+  /// Project file (`.splc`) this project was last saved to or opened from;
+  /// "Save project" writes to it again.
+  String? projectFile;
+
+  /// The project has changes that are not in [projectFile] (or, never
+  /// saved, it has data): the window title says so. Checked a moment after
+  /// each change, comparing a fingerprint of what would be saved.
+  final ValueNotifier<bool> unsaved = ValueNotifier(false);
+
+  /// Fingerprint of the project when it was last saved or opened.
+  int? _savedPrint;
+  Timer? _unsavedTimer;
+
+  void _scheduleUnsavedCheck() {
+    _unsavedTimer?.cancel();
+    _unsavedTimer = Timer(const Duration(milliseconds: 700), checkUnsaved);
+  }
+
+  /// Updates [unsaved] now (a running step is checked when it ends).
+  void checkUnsaved() {
+    _unsavedTimer?.cancel();
+    if (busy) return;
+    final hasData = records.isNotEmpty || inputs.isNotEmpty;
+    unsaved.value = projectFile == null ? hasData : _projectFingerprint() != _savedPrint;
+  }
+
+  /// What was just saved or opened is the reference.
+  void _markSaved() {
+    _savedPrint = _projectFingerprint();
+    unsaved.value = false;
+  }
+
+  /// Opens [file] as a new project (this one stays in [workDir]).
+  Future<void> requestOpenProject(String file) async {
+    if (busy) return;
+    await openProjectHandler?.call(file);
+  }
+
+  /// Marks this project busy while something outside it works (another
+  /// project being opened); null clears it.
+  void showBusy(String? label) {
+    busyTask = label;
+    notifyListeners();
+  }
+
+  /// Starts a new project: the app builds a new controller (same settings
+  /// and tools, empty analysis, new project folder) and disposes this one.
+  /// The files of this project stay in [workDir].
+  void requestNewProject() {
+    if (busy) return;
+    log('New project; the previous one stays in $workDir');
+    newProjectHandler?.call();
   }
 
   final ToolLocator locator;
@@ -469,6 +606,8 @@ class ProjectController extends ChangeNotifier {
       locale = lang == null ? null : Locale(lang);
       ncbiApiKey = j['ncbiApiKey'] as String?;
       apiHintDismissed = j['apiHintDismissed'] == true;
+      tutorialAtStart = j['tutorialAtStart'] != false;
+      if (j['speciesId'] is Map) speciesIdOptions = SpeciesIdOptions.fromJson((j['speciesId'] as Map).cast<String, dynamic>());
       taxonomySource = TaxonomySource.values.firstWhere((v) => v.name == j['taxonomySource'], orElse: () => TaxonomySource.gbif);
       final hidden = j['hiddenColumns'];
       if (hidden is List) {
@@ -501,6 +640,8 @@ class ProjectController extends ChangeNotifier {
           'locale': locale?.languageCode,
           'ncbiApiKey': ncbiApiKey,
           'apiHintDismissed': apiHintDismissed,
+          'tutorialAtStart': tutorialAtStart,
+          'speciesId': speciesIdOptions.toJson(),
           'hiddenColumns': hiddenColumns.toList(),
           'taxonomySource': taxonomySource.name,
           'toolOverrides': {for (final e in locator.overrides.entries) e.key.name: e.value},
@@ -564,6 +705,9 @@ class ProjectController extends ChangeNotifier {
     Directory(d).createSync(recursive: true);
     return d;
   }
+
+  /// BOLD Systems public records (individual markers).
+  BoldPortal boldPortal = BoldPortal();
 
   NcbiClient? _ncbi;
   NcbiClient get ncbi =>
@@ -900,10 +1044,14 @@ class ProjectController extends ChangeNotifier {
       });
 
   /// Option 1 for individual markers: one NCBI query per marker (SynGenes
-  /// names); the records found, each tagged with its markers, to review.
+  /// names) and, for COI and the chloroplast barcodes, the public records
+  /// of BOLD Systems; the records found, each tagged with its markers and
+  /// its source, to review.
   Future<List<GenomeCandidate>?> searchMarkers(MarkerSearch search) => _task(
-          modal: TaskModal(ModalKind.ncbiSearch, '${search.taxon} · ${search.genes.join(', ')}')..total = search.genes.length + 1,
-          'Searching NCBI for ${search.genes.join(', ')} of ${search.taxon}', (cancel) async {
+          modal: TaskModal(ModalKind.ncbiSearch, '${search.taxon} · ${search.genes.join(', ')}')
+            ..total = search.genes.length + 1 + (search.boldGenes.isEmpty ? 0 : 1),
+          'Searching NCBI${search.boldGenes.isEmpty ? '' : ' and BOLD'} for ${search.genes.join(', ')} of ${search.taxon}', (cancel) async {
+        final steps = search.genes.length + 1 + (search.boldGenes.isEmpty ? 0 : 1);
         final byId = <String, Set<String>>{};
         final counts = <String, int>{};
         for (final (i, gene) in search.genes.indexed) {
@@ -915,9 +1063,31 @@ class ProjectController extends ChangeNotifier {
             (byId[id] ??= {}).add(gene);
           }
           log('$gene: ${ids.length} record(s)', source: 'NCBI');
-          _progress(i + 1, search.genes.length + 1, gene);
+          _progress(i + 1, steps, gene);
         }
-        if (byId.isEmpty) {
+        final candidates = <GenomeCandidate>[];
+        if (byId.isNotEmpty) {
+          final ids = byId.keys.toList();
+          candidates.addAll(await ncbi.summaries(ids, onProgress: (d, n) => modal?.current = 'summaries ${d * 200}/${ids.length}'));
+          for (final c in candidates) {
+            c.markers.addAll(byId[c.id] ?? const {});
+          }
+        }
+        _progress(search.genes.length + 1, steps);
+        var boldNote = '';
+        if (search.boldGenes.isNotEmpty && !cancel.isCancelled) {
+          modal?.current = 'BOLD Systems';
+          try {
+            final bold = await _searchBold(search, candidates, cancel);
+            boldNote = '; BOLD: ${bold.added} only in BOLD, ${bold.shared} also in GenBank';
+          } catch (e) {
+            if (e is BoldCancelled) rethrow;
+            boldNote = '; BOLD could not be searched';
+            log('BOLD Systems could not be searched: $e', source: 'BOLD', level: LogLevel.warn);
+          }
+          _progress(steps, steps);
+        }
+        if (candidates.isEmpty) {
           ncbiStatus = 'No records of ${search.genes.join(', ')} found for ${search.taxon}';
           log(ncbiStatus!, source: 'NCBI', level: LogLevel.warn);
           modal
@@ -925,18 +1095,89 @@ class ProjectController extends ChangeNotifier {
             ..failed = true;
           return <GenomeCandidate>[];
         }
-        final ids = byId.keys.toList();
-        final candidates = await ncbi.summaries(ids, onProgress: (d, n) => modal?.current = 'summaries ${d * 200}/${ids.length}');
-        for (final c in candidates) {
-          c.markers.addAll(byId[c.id] ?? const {});
-        }
-        _progress(search.genes.length + 1, search.genes.length + 1);
-        ncbiStatus = 'Found ${candidates.length} record(s): ${counts.entries.map((e) => '${e.key} ${e.value}').join(', ')}; review before importing';
+        ncbiStatus = 'Found ${candidates.length} record(s): ${counts.entries.map((e) => '${e.key} ${e.value}').join(', ')}$boldNote; review before importing';
         log(ncbiStatus!, source: 'NCBI');
         _modalTimer?.cancel();
         modal = null;
         return candidates;
       });
+
+  /// Adds the BOLD records of [search] to [candidates]: a record BOLD
+  /// mirrors from GenBank marks the NCBI one (NCBI + BOLD); the others
+  /// become candidates of their own, imported from BOLD.
+  Future<({int added, int shared})> _searchBold(MarkerSearch search, List<GenomeCandidate> candidates, CancelToken cancel) async {
+    final terms = await boldPortal.taxonTerms(search.boldNames, cancel: cancel);
+    final skipped = search.boldNames.where((n) => !terms.any((t) => t.toLowerCase().endsWith(':${n.toLowerCase()}'))).toList();
+    if (skipped.isNotEmpty) log('BOLD does not hold as a taxon: ${skipped.join(', ')}', source: 'BOLD');
+    if (terms.isEmpty) {
+      log('BOLD Systems: no taxon matches ${search.taxon}', source: 'BOLD', level: LogLevel.warn);
+      return (added: 0, shared: 0);
+    }
+    log('BOLD query: ${terms.join(';')} · markers ${search.boldCodes.join(', ')}', source: 'BOLD');
+    final counts = await boldPortal.markerCounts(terms, cancel: cancel);
+    final total = counts.values.fold(0, (a, b) => a + b);
+    final wanted = search.boldCodes.fold(0, (a, c) => a + (counts[c] ?? 0));
+    if (wanted == 0) {
+      log('BOLD Systems: no public ${search.boldCodes.join('/')} records for ${search.taxon}', source: 'BOLD');
+      return (added: 0, shared: 0);
+    }
+    if (total > BoldPortal.maxRecords) {
+      log('BOLD Systems: $total records for ${search.taxon} is too many to download; search a lower rank', source: 'BOLD', level: LogLevel.warn);
+      return (added: 0, shared: 0);
+    }
+    final rows = await boldPortal.records(terms, search.boldCodes, cancel: cancel);
+    final byAccession = {for (final c in candidates) c.accession.replaceFirst(RegExp(r'\.\d+$'), ''): c};
+    // A specimen with several markers (rbcL and matK): one record each.
+    final perSpecimen = <String, int>{};
+    for (final r in rows) {
+      perSpecimen.update(r.processId, (v) => v + 1, ifAbsent: () => 1);
+    }
+    var added = 0, shared = 0;
+    // A species searched with its synonyms: the records BOLD files under a
+    // synonym take the accepted name (as NCBI does), or each name would
+    // become a species of its own.
+    final accepted = isSpeciesName(search.taxon) ? search.taxon.trim() : null;
+    final synonyms = {for (final n in search.synonyms) n.toLowerCase()};
+    for (final found in rows) {
+      final r = accepted != null && found.name.toLowerCase() != accepted.toLowerCase() && synonyms.contains(found.name.toLowerCase())
+          ? found.renamed(accepted)
+          : found;
+      final gene = r.gene;
+      if (gene == null || !search.boldGenes.contains(gene) || r.sequence.length < 100) continue;
+      final mirror = byAccession[r.insdc.replaceFirst(RegExp(r'\.\d+$'), '')];
+      if (r.insdc.isNotEmpty && mirror != null) {
+        mirror
+          ..sources.add('BOLD')
+          ..boldId ??= r.processId
+          ..bin ??= r.bin.isEmpty ? null : r.bin
+          ..country ??= r.country.isEmpty ? null : r.country;
+        shared++;
+        continue;
+      }
+      final acc = (perSpecimen[r.processId] ?? 1) > 1 ? '${r.processId}_${r.markerCode}' : r.processId;
+      final rec = boldToGbRecord(r, accession: acc);
+      candidates.add(GenomeCandidate(
+        id: 'bold:$acc',
+        accession: acc,
+        title: rec.definition,
+        species: r.name,
+        description: rec.definition,
+        filedAs: r.boldName.isEmpty ? null : r.boldName,
+      )
+        ..length = r.sequence.length
+        ..markers.add(gene)
+        ..sources.remove('NCBI')
+        ..sources.add('BOLD')
+        ..genbank = r.insdc.isEmpty ? null : r.insdc
+        ..boldRecord = rec
+        ..boldId = r.processId
+        ..bin = r.bin.isEmpty ? null : r.bin
+        ..country = r.country.isEmpty ? null : r.country);
+      added++;
+    }
+    log('BOLD Systems: ${rows.length} record(s) of ${search.boldCodes.join('/')}; $added only in BOLD, $shared already in GenBank', source: 'BOLD');
+    return (added: added, shared: shared);
+  }
 
   /// Options of step 1 that loaded data (1 taxon search, 2 accessions,
   /// 3 GenBank files, 4 FASTA files), for the step navigator.
@@ -947,8 +1188,19 @@ class ProjectController extends ChangeNotifier {
 
   /// Imports the records of a marker search and joins them by taxon.
   Future<void> importMarkers(List<GenomeCandidate> selected, MarkerSearch search) async {
+    final fromBold = [for (final c in selected) ?c.boldRecord];
+    final fromNcbi = [for (final c in selected) if (c.boldRecord == null) c.id];
     await _task('Importing ${selected.length} record(s) of ${search.taxon}', (cancel) async {
-      await _download([for (final c in selected) c.id], cancel, label: search.taxon);
+      if (fromNcbi.isNotEmpty) await _download(fromNcbi, cancel, label: search.taxon);
+      if (fromBold.isNotEmpty) {
+        // Saved as GenBank files, so the project keeps what was imported.
+        final dir = Directory(p.join(this.dir('00_ncbi'), 'bold'))..createSync(recursive: true);
+        for (final r in fromBold) {
+          File(p.join(dir.path, '${r.accession.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_')}.gb')).writeAsStringSync(writeGenBank(r));
+        }
+        final added = _mergeRecords(fromBold);
+        log('Loaded $added record(s) from BOLD Systems → ${dir.path}', source: 'BOLD', level: LogLevel.success);
+      }
     }, modal: TaskModal(ModalKind.ncbiFetch, search.taxon)..total = selected.length);
     if (records.isEmpty) return;
     loadOptionsUsed.add(1);
@@ -1421,21 +1673,19 @@ class ProjectController extends ChangeNotifier {
 
   /// BLAST/BOLD answers already received (see [SpeciesIdentifier.cacheKey]),
   /// kept on disk: running again with another gene only sends what is new.
-  Map<String, List<(String, double, String)>>? _idCache;
+  Map<String, List<IdHit>>? _idCache;
 
   File get _idCacheFile => File(p.join(documentsDir, 'cache', 'species_id.json'));
 
-  Map<String, List<(String, double, String)>> get _speciesIdCache {
+  Map<String, List<IdHit>> get _speciesIdCache {
     if (_idCache != null) return _idCache!;
-    final cache = <String, List<(String, double, String)>>{};
+    final cache = <String, List<IdHit>>{};
     try {
       if (_idCacheFile.existsSync()) {
         final json = jsonDecode(_idCacheFile.readAsStringSync()) as Map<String, dynamic>;
         for (final e in json.entries) {
           if (SpeciesIdentifier.staleCacheKey(e.key)) continue;
-          cache[e.key] = [
-            for (final h in e.value as List) ((h as List)[0] as String, (h[1] as num).toDouble(), h[2] as String),
-          ];
+          cache[e.key] = [for (final h in e.value as List) IdHit.fromJson((h as Map).cast<String, dynamic>())];
         }
       }
     } catch (e) {
@@ -1444,13 +1694,64 @@ class ProjectController extends ChangeNotifier {
     return _idCache = cache;
   }
 
+  /// Hits kept with their aligned sequences in the cache, per query (the
+  /// others keep the numbers only, so the file stays small).
+  static const _cachedAlignments = 15;
+
   Future<void> _saveSpeciesIdCache() async {
     final cache = _idCache;
     if (cache == null) return;
     await _idCacheFile.parent.create(recursive: true);
     await _idCacheFile.writeAsString(jsonEncode({
-      for (final e in cache.entries) e.key: [for (final (s, i, a) in e.value) [s, i, a]],
+      for (final e in cache.entries)
+        e.key: [
+          for (final (i, h) in (List.of(e.value)..sort((a, b) => b.identity.compareTo(a.identity))).indexed) h.toJson(withAlignment: i < _cachedAlignments),
+        ],
     }));
+  }
+
+  /// The alignment of a BOLD hit with [query]: BOLD returns where they
+  /// align, not the aligned sequences, so the hit's sequence is fetched
+  /// from the BOLD portal (by process id) and that stretch is aligned to
+  /// the query here. Kept in the hit (and the cache) once done.
+  Future<void> loadBoldAlignment(IdHit hit, String query) async {
+    if (hit.hasAlignment || hit.source != IdSource.bold) return;
+    final rows = await boldPortal.records(['ids:processid:${hit.accession}'], const {});
+    if (rows.isEmpty) throw StateError('BOLD has no public sequence for ${hit.accession}');
+    final code = hit.title.split(' · ').elementAtOrNull(1) ?? '';
+    final rec = rows.where((r) => r.markerCode == code).firstOrNull ?? (rows.toList()..sort((a, b) => b.sequence.length - a.sequence.length)).first;
+    final subject = rec.sequence.toUpperCase();
+    String cut(String s, int from, int to) {
+      final a = (from - 1).clamp(0, s.length), b = to.clamp(a, s.length);
+      return from > 0 && to >= from ? s.substring(a, b) : s;
+    }
+
+    final q = cut(query.toUpperCase(), hit.qFrom, hit.qTo);
+    var h = hit.reversed ? reverseComplement(cut(subject, hit.sTo, hit.sFrom)) : cut(subject, hit.sFrom, hit.sTo);
+    if (h.isEmpty) h = subject;
+    final (qa, ha) = await Isolate.run(() => alignPair(q, h));
+    hit
+      ..qseq = qa
+      ..hseq = ha;
+    await _saveSpeciesIdCache();
+  }
+
+  /// Parameters of BLAST and the BOLD ID engine (saved with the settings).
+  SpeciesIdOptions speciesIdOptions = const SpeciesIdOptions();
+
+  void setSpeciesIdOptions(SpeciesIdOptions o) {
+    speciesIdOptions = o;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  /// The marker name a barcode locus is sent under: COI (any of its names),
+  /// the plastid barcodes (rbcL, matK) by their SynGenes name, else as is
+  /// (ITS…).
+  static String barcodeGene(String locus) {
+    if (isCoiLocus(locus)) return 'COI';
+    final cp = standardizeGeneName(locus, null, OrganelleType.cp);
+    return cp == 'rbcL' || cp == 'matK' ? cp! : (RegExp(r'^its', caseSensitive: false).hasMatch(locus.trim()) ? 'ITS' : locus);
   }
 
   /// How many queries for [genes] are already in the cache, per source
@@ -1462,9 +1763,9 @@ class ProjectController extends ChangeNotifier {
     for (final e in seqs.entries) {
       for (final g in e.value.entries) {
         if (g.value.length < 100) continue;
-        for (final s in [IdSource.genbank, if (g.key == 'COI') IdSource.bold]) {
+        for (final s in [IdSource.genbank, if (speciesIdOptions.boldAccepts(g.key)) IdSource.bold]) {
           total++;
-          if (cache.containsKey(SpeciesIdentifier.cacheKey(s, e.key, g.key, g.value))) cached++;
+          if (cache.containsKey(SpeciesIdentifier.cacheKey(s, e.key, g.key, g.value, speciesIdOptions))) cached++;
         }
       }
     }
@@ -1486,10 +1787,13 @@ class ProjectController extends ChangeNotifier {
   /// answers already in the cache are reused.
   Future<bool> identifySpecies(List<String> genes) async {
     if (catalog == null || genes.isEmpty) return false;
-    final ok = await _task('Identifying species with GenBank${genes.contains('COI') ? ' and BOLD' : ''} (${genes.join(', ')})', (cancel) async {
-      // The bar is the mean of the sources in use (BOLD only with COI).
-      final share = {IdSource.genbank: 0.0, if (genes.contains('COI')) IdSource.bold: 0.0};
+    final o = speciesIdOptions;
+    final toBold = genes.any(o.boldAccepts);
+    final ok = await _task('Identifying species with GenBank${toBold ? ' and BOLD' : ''} (${genes.join(', ')})', (cancel) async {
+      // The bar is the mean of the sources in use (BOLD only with its markers).
+      final share = {IdSource.genbank: 0.0, if (toBold) IdSource.bold: 0.0};
       final id = SpeciesIdentifier(
+        options: o,
         onStatus: (m) {
           modal?.current = m;
           notifyListeners();
@@ -1502,7 +1806,8 @@ class ProjectController extends ChangeNotifier {
       );
       try {
         log('Species identification: ${records.length} record(s), genes ${genes.join(', ')}; '
-            'GenBank BLAST (megablast, core_nt)${genes.contains('COI') ? ' and BOLD ID engine (COI)' : ''}');
+            'GenBank BLAST (${o.blastProgram}, ${o.blastDatabase}, e ≤ ${o.expect}, ${o.hitlistSize} hits${o.entrezQuery.trim().isEmpty ? '' : ', ${o.entrezQuery.trim()}'})'
+            '${toBold ? ' and BOLD ID engine (${o.boldDatabase}, ≥ ${(o.boldMinIdentity * 100).round()} %, ${o.boldMaxHits} hits)' : ''}');
         final cache = _speciesIdCache;
         try {
           speciesIds = await id.identify(records, _geneSequences(genes),
@@ -1511,6 +1816,8 @@ class ProjectController extends ChangeNotifier {
           // Answers received before a cancel or failure are kept too.
           await _saveSpeciesIdCache();
         }
+        modal?.current = 'GBIF synonyms';
+        await _mergeIdSynonyms(speciesIds.values);
         if (id.reused > 0) log('Species identification: ${id.reused} quer${id.reused == 1 ? 'y' : 'ies'} reused from the cache, ${id.sent} sent');
         speciesIdGenes = genes;
         speciesIdFailures = Map.of(id.failures);
@@ -1524,6 +1831,370 @@ class ProjectController extends ChangeNotifier {
       }
     }, modal: TaskModal(ModalKind.speciesId, genes.join(', ')));
     return ok ?? false;
+  }
+
+  /// Writes every record as a corrected GenBank file (one per record,
+  /// `<accession>_<Genus_species>.gb`) in [folder] and in the project's
+  /// `00_genbank_corrected`: the organism as identified or edited, the
+  /// lineage from the taxonomy, and the gene names standardized by SynGenes
+  /// (the original name kept in a /note). [version] is SPLACE's, for the
+  /// COMMENT. Returns the number of files written.
+  Future<int> exportCorrectedGenBank(String folder, {required String version}) async {
+    final cat = catalog;
+    final what = <String>[
+      if (records.any((r) => r.editedOrganism != null)) 'organism name from the species identification or edited by the user',
+      if (taxonomyResolved) 'lineage from $_sourceLabel (dataFishing method)',
+      if (cat != null) 'gene names standardized with SynGenes',
+    ];
+    final note = 'Corrected with SPLACE v$version${what.isEmpty ? '' : ': ${what.join('; ')}'}.';
+    final project = dir('00_genbank_corrected');
+    var n = 0;
+    final used = <String>{};
+    for (var ri = 0; ri < records.length; ri++) {
+      final r = records[ri];
+      final text = writeGenBank(r, geneNames: cat == null || ri >= cat.recordGenes.length ? const {} : cat.recordGenes[ri], note: note);
+      String safe(String v) => v.trim().replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
+      var name = [safe(r.accession), safe(r.organismName)].where((x) => x.isNotEmpty).join('_');
+      if (name.isEmpty) name = 'record_${ri + 1}';
+      while (!used.add(name)) {
+        name = '${name}_${ri + 1}';
+      }
+      for (final d in {folder, project}) {
+        await File(p.join(d, '$name.gb')).writeAsString(text);
+      }
+      n++;
+    }
+    log('Corrected GenBank files: $n written to $folder (copy in $project)', level: LogLevel.success);
+    return n;
+  }
+
+  // -------------------------------------------------------------------------
+  // DNA barcoding (FASTA): identification and BOLD submission
+  // -------------------------------------------------------------------------
+
+  /// The FASTA input is DNA barcodes (one specimen per sequence): step 2
+  /// offers the identification and the BOLD submission spreadsheet.
+  bool barcodingMode = false;
+
+  void setBarcodingMode(bool v) {
+    barcodingMode = v;
+    notifyListeners();
+  }
+
+  /// Marker identified (a locus of the organized FASTA).
+  String? barcodeLocus;
+
+  List<String> get barcodeLoci => organized?.loci ?? const [];
+
+  /// [barcodeLocus], or the COI-like locus, or the first one.
+  String? get barcodeLocusShown {
+    final loci = barcodeLoci;
+    if (loci.isEmpty) return null;
+    if (barcodeLocus != null && loci.contains(barcodeLocus)) return barcodeLocus;
+    return loci.where(isCoiLocus).firstOrNull ?? loci.first;
+  }
+
+  void setBarcodeLocus(String? v) {
+    barcodeLocus = v;
+    notifyListeners();
+  }
+
+  /// COI under any of its names (SynGenes): BOLD identifies only COI.
+  static bool isCoiLocus(String name) {
+    if (RegExp(r'^(coi|cox1|co1|cox-?i|mt-?co1|coxi)$', caseSensitive: false).hasMatch(name.trim())) return true;
+    return standardizeGeneName(name, null, OrganelleType.mt) == 'COI';
+  }
+
+  /// Sample → sequence (gaps removed) of the barcode locus.
+  Map<String, String> get barcodeSequences {
+    final locus = barcodeLocusShown;
+    final cells = locus == null ? null : organized?.byLocus[locus];
+    if (cells == null) return const {};
+    return {for (final e in cells.entries) e.key: e.value.record.sequence.replaceAll(RegExp(r'[-.\s]'), '')};
+  }
+
+  /// Last identification of the barcodes, by sample.
+  Map<String, RecordIdentification> barcodeIds = {};
+
+  /// Accepted names (GBIF) already looked up: name → accepted (null: GBIF
+  /// does not know it).
+  final Map<String, String?> _acceptedNames = {};
+
+  /// Synonyms in the identification: the record's name and the best
+  /// species of each record are looked up in GBIF, and the hits that came
+  /// under a synonym count for the accepted species (Bufo marinus and
+  /// Chaunus marinus hits for Rhinella marina). Without GBIF the names stay
+  /// as they are.
+  Future<void> _mergeIdSynonyms(Iterable<RecordIdentification> ids) async {
+    final names = <String>{
+      for (final r in ids) ...[
+        if (isSpeciesName(binomialOf(r.currentName))) binomialOf(r.currentName),
+        for (final c in r.shortlist(perSource: 6)) if (isSpeciesName(binomialOf(c.species))) binomialOf(c.species),
+      ],
+    }.where((n) => !_acceptedNames.containsKey(n)).toList();
+    var failed = 0;
+    // Four at a time: GBIF answers quickly and has no key.
+    for (var i = 0; i < names.length; i += 4) {
+      await Future.wait([
+        for (final n in names.skip(i).take(4))
+          ncbi.gbifAccepted(n).then((a) => _acceptedNames[n] = a).catchError((Object _) {
+            failed++;
+            return null;
+          }),
+      ]);
+    }
+    if (failed > 0) log('GBIF could not be reached for $failed name(s): their synonyms are not grouped', level: LogLevel.warn);
+    final map = <String, String>{
+      for (final e in _acceptedNames.entries)
+        if (e.value != null) e.key.toLowerCase(): e.value!,
+    };
+    var merged = 0;
+    for (final r in ids) {
+      final before = r.candidates.length;
+      r.mergeSynonyms(map);
+      merged += before - r.candidates.length;
+    }
+    final renamed = ids.where((r) => r.currentAccepted != null).length;
+    log('Species identification: synonyms checked in GBIF (${names.length} name(s)); $merged synonym match(es) joined to the accepted species'
+        '${renamed == 0 ? '' : ', $renamed record(s) named with a synonym'}');
+  }
+
+  /// Name chosen for each sample (empty: not identified).
+  final Map<String, String> barcodeNames = {};
+
+  /// Taxonomy (GBIF) of the chosen names, by name.
+  final Map<String, TaxonInfo> barcodeTaxa = {};
+
+  /// Sends every barcode to GenBank BLAST and, for COI, to BOLD; each
+  /// sample gets the best match at a same-species identity (98 %) as its
+  /// name, which the user can change.
+  Future<bool> identifyBarcodes() async {
+    final seqs = barcodeSequences;
+    final locus = barcodeLocusShown;
+    if (seqs.isEmpty || locus == null) return false;
+    final gene = barcodeGene(locus);
+    final o = speciesIdOptions;
+    final toBold = o.boldAccepts(gene);
+    final ok = await _task('Identifying ${seqs.length} barcode(s) with GenBank${toBold ? ' and BOLD' : ''}', (cancel) async {
+      final share = {IdSource.genbank: 0.0, if (toBold) IdSource.bold: 0.0};
+      final id = SpeciesIdentifier(
+        options: o,
+        onStatus: (m) {
+          modal?.current = m;
+          notifyListeners();
+        },
+        onProgress: (source, f) {
+          share[source] = f;
+          _progress((share.values.fold(0.0, (a, v) => a + v) / share.length * 1000).round(), 1000);
+        },
+      );
+      try {
+        // Each sample as a minimal record: identify() needs only its id
+        // and name.
+        final records = [
+          for (final sample in seqs.keys)
+            GbRecord(accession: sample, organism: barcodeNames[sample] ?? '', lineage: '', definition: '', features: const [], sequence: seqs[sample]!),
+        ];
+        final cache = _speciesIdCache;
+        try {
+          barcodeIds = await id.identify(records, {for (final e in seqs.entries) e.key: {gene: e.value}},
+              cancel: cancel, log: (m) => log(m, level: LogLevel.warn), cache: cache);
+        } finally {
+          await _saveSpeciesIdCache();
+        }
+        modal?.current = 'GBIF synonyms';
+        await _mergeIdSynonyms(barcodeIds.values);
+        speciesIdFailures = Map.of(id.failures);
+        var named = 0;
+        for (final e in barcodeIds.entries) {
+          final best = e.value.candidates.firstOrNull;
+          if ((barcodeNames[e.key] ?? '').isEmpty && best != null && best.bestIdentity >= sameSpeciesIdentity) {
+            barcodeNames[e.key] = binomialOf(best.species);
+            named++;
+          }
+        }
+        modal?.result = '$named of ${seqs.length} barcode(s) matched a species at ≥ ${sameSpeciesIdentity.toStringAsFixed(0)} %';
+        log(modal!.result!, level: LogLevel.success);
+        return true;
+      } finally {
+        id.close();
+      }
+    }, modal: TaskModal(ModalKind.speciesId, gene));
+    return ok ?? false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Identification of tips from the tree viewer
+  // -------------------------------------------------------------------------
+
+  /// Identifications started from the tree, by marker and tip.
+  final Map<String, Map<String, RecordIdentification>> tipIds = {};
+
+  /// Sequence of [tip] in [marker] (its alignment without gaps, else its
+  /// raw sequence), or null when the tip has none. Tip names are the
+  /// alignment headers (also with the characters a tree program changes).
+  String? tipSequence(String marker, String tip) {
+    final l = loci[marker];
+    if (l == null || l.isProtein) return null;
+    String norm(String s) => s.replaceAll(RegExp(r'[^A-Za-z0-9.]+'), '_');
+    for (final list in [l.aligned, l.raw]) {
+      if (list == null) continue;
+      final r = list.where((x) => x.header == tip).firstOrNull ?? list.where((x) => norm(x.header) == norm(tip)).firstOrNull;
+      if (r == null) continue;
+      final seq = r.sequence.replaceAll(RegExp(r'[-.?\s]'), '');
+      if (seq.isNotEmpty) return seq;
+    }
+    return null;
+  }
+
+  /// DNA markers with a sequence of at least 100 bases for some of [tips],
+  /// with how many tips have it (most first).
+  List<({String marker, int tips})> tipMarkers(List<String> tips) {
+    final out = [
+      for (final l in loci.values)
+        if (!l.isProtein)
+          (marker: l.name, tips: tips.where((t) => (tipSequence(l.name, t)?.length ?? 0) >= 100).length),
+    ].where((m) => m.tips > 0).toList()
+      ..sort((a, b) => b.tips != a.tips ? b.tips - a.tips : a.marker.compareTo(b.marker));
+    return out;
+  }
+
+  /// Identifies [tips] with their [marker] sequence: GenBank BLAST and, for
+  /// the markers BOLD identifies, BOLD (the options of step 2; answers in
+  /// the cache are reused). The record a tip came from is not evidence.
+  /// [onProgress] gets the share done and what is being done (the tree
+  /// editor covers the progress window). Null when it could not run.
+  Future<Map<String, RecordIdentification>?> identifyTips(List<String> tips, String marker, {void Function(double share, String status)? onProgress}) async {
+    final seqs = {for (final t in tips) if (tipSequence(marker, t) case final s? when s.length >= 100) t: s};
+    if (seqs.isEmpty) return null;
+    final gene = barcodeGene(marker);
+    final o = speciesIdOptions;
+    final toBold = o.boldAccepts(gene);
+    final info = tipInfo();
+    final byAccession = {for (final r in records) r.accession: r};
+    var status = '';
+    return _task('Identifying ${seqs.length} tip(s) of the tree with $marker (GenBank${toBold ? ' and BOLD' : ''})', (cancel) async {
+      final share = {IdSource.genbank: 0.0, if (toBold) IdSource.bold: 0.0};
+      double mean() => share.values.fold(0.0, (a, v) => a + v) / share.length;
+      final id = SpeciesIdentifier(
+        options: o,
+        onStatus: (m) {
+          status = m;
+          onProgress?.call(mean(), m);
+        },
+        onProgress: (source, f) {
+          share[source] = f;
+          _progress((mean() * 1000).round(), 1000);
+          onProgress?.call(mean(), status);
+        },
+      );
+      try {
+        // Each tip as a minimal record named after it, with the record it
+        // came from (and that one's INSDC sources) as "itself".
+        final queryRecords = [
+          for (final tip in seqs.keys)
+            () {
+              final i = info[tip];
+              final r = i == null ? null : byAccession[i.accession];
+              final name = (i?.species ?? '').isNotEmpty ? i!.species : _plainTip(tip);
+              return GbRecord(
+                accession: tip,
+                organism: name,
+                lineage: '',
+                definition: '',
+                features: const [],
+                sequence: seqs[tip]!,
+                sourceAccessions: [if (r != null) r.accession, ...?r?.sourceAccessions],
+              );
+            }(),
+        ];
+        log('Tree identification: ${seqs.length} tip(s), $marker; GenBank BLAST (${o.blastProgram}, ${o.blastDatabase})${toBold ? ' and BOLD (${o.boldDatabase})' : ''}');
+        final cache = _speciesIdCache;
+        Map<String, RecordIdentification> ids;
+        try {
+          ids = await id.identify(queryRecords, {for (final e in seqs.entries) e.key: {gene: e.value}},
+              cancel: cancel, log: (m) => log(m, level: LogLevel.warn), cache: cache);
+        } finally {
+          await _saveSpeciesIdCache();
+        }
+        onProgress?.call(1, 'GBIF synonyms');
+        await _mergeIdSynonyms(ids.values);
+        speciesIdFailures = Map.of(id.failures);
+        tipIds.putIfAbsent(marker, () => {}).addAll(ids);
+        final disagree = ids.values.where((r) => r.disagrees).length;
+        log('Tree identification ($marker): $disagree of ${ids.length} tip(s) may be another species'
+            '${id.reused == 0 ? '' : ' · ${id.reused} reused from the cache'}', level: disagree == 0 ? LogLevel.success : LogLevel.warn);
+        return ids;
+      } finally {
+        id.close();
+      }
+    });
+  }
+
+  /// A tip name as words: `NC_0123.1_Family_Genus_species` → the part
+  /// after the accession, with spaces.
+  static String _plainTip(String tip) =>
+      tip.replaceFirst(RegExp(r'^[A-Z]{1,6}_?\d+(\.\d+)?_'), '').replaceAll('_', ' ').trim();
+
+  void setBarcodeName(String sample, String name) {
+    barcodeNames[sample] = name.trim();
+    notifyListeners();
+  }
+
+  /// Ranks (phylum to family) of the chosen names from GBIF, for the BOLD
+  /// sheet (dataFishing method).
+  Future<void> fetchBarcodeTaxonomy() => _task('Fetching taxonomy of the barcodes from GBIF', (cancel) async {
+        final names = {for (final n in barcodeNames.values) if (n.trim().isNotEmpty) n.trim()}.toList();
+        var done = 0;
+        for (final name in names) {
+          if (cancel.isCancelled) break;
+          try {
+            final t = await ncbi.gbif(name);
+            if (t != null) barcodeTaxa[name] = t;
+          } catch (e) {
+            log('GBIF failed for $name: $e', level: LogLevel.warn, source: 'GBIF');
+          }
+          _progress(++done, names.length, name);
+        }
+        log('Taxonomy of ${barcodeTaxa.length} of ${names.length} name(s) from GBIF', level: LogLevel.success);
+      });
+
+  /// Writes the BOLD5 single-page specimen sheet ([path], .xlsx) and, next
+  /// to it, the sequences with the sample ids as headers (`.fas`) for
+  /// BOLD's sequence upload. Returns the number of specimens.
+  Future<int> exportBoldSubmission(String path) async {
+    final seqs = barcodeSequences;
+    final locus = barcodeLocusShown ?? '';
+    final specimens = <BoldSpecimen>[];
+    for (final sample in seqs.keys) {
+      final name = (barcodeNames[sample] ?? '').trim();
+      final words = name.split(RegExp(r'\s+'));
+      final t = barcodeTaxa[name];
+      final id = barcodeIds[sample];
+      final best = id?.candidates.where((c) => sameSpecies(c.species, name)).firstOrNull;
+      String pct(double v) => '${v.toStringAsFixed(2)} %';
+      final evidence = [
+        if (best != null && best.bold != null) 'BOLD ID Engine ${pct(best.bold!.identity)}',
+        if (best != null && best.inGenbank) 'GenBank BLAST ${pct(best.genbankIdentity)}',
+      ];
+      specimens.add(BoldSpecimen(
+        sampleId: sample,
+        phylum: t?.phylum ?? '',
+        klass: t?.klass ?? '',
+        order: t?.order ?? '',
+        family: t?.family ?? '',
+        genus: name.isEmpty ? '' : words.first,
+        species: words.length >= 2 ? name : '',
+        identificationMethod: evidence.isEmpty ? '' : 'DNA barcode ($locus) similarity: ${evidence.join('; ')} (SPLACE)',
+        taxonomyNotes: evidence.isEmpty ? '' : 'Best match ${binomialOf(best!.species)}${t == null ? '' : '; ranks from GBIF'}',
+      ));
+    }
+    final target = path.toLowerCase().endsWith('.xlsx') ? path : '$path.xlsx';
+    await File(target).writeAsBytes(buildXlsx(boldSheet, boldSheetRows(specimens)));
+    final fas = '${target.substring(0, target.length - 5)}_sequences.fas';
+    await File(fas).writeAsString('${boldFasta(seqs)}\n');
+    log('BOLD submission: ${specimens.length} specimen(s) in $target; sequences in $fas', level: LogLevel.success);
+    return specimens.length;
   }
 
   /// Renames the records the user chose to (accession → species).
@@ -1716,7 +2387,7 @@ class ProjectController extends ChangeNotifier {
   bool trimPrompt = false;
   bool trimSkipped = false;
 
-  /// The user chose to trim: the trimming parameters (5e) are shown.
+  /// The user chose to trim: the trimming parameters (5d) are shown.
   bool trimOpen = false;
   /// The coding genes' saturation results, summed up per codon position
   /// (the suggestion of step 6).
@@ -1737,7 +2408,7 @@ class ProjectController extends ChangeNotifier {
 
   void confirmHeader() {
     final dups = headerConflicts();
-    if (dups.isNotEmpty && !onePerTaxonMode) {
+    if (dups.isNotEmpty) {
       headerConfirmed = false;
       log('FASTA header ${header.fields.join(header.separator)}: ${dups.length} header(s) repeat inside the same marker '
           '(${dups.keys.take(5).join(', ')}${dups.length > 5 ? '…' : ''}) — add Accession or Voucher to tell them apart',
@@ -1757,11 +2428,17 @@ class ProjectController extends ChangeNotifier {
   /// and the tree programs could not tell those sequences apart. The same
   /// header in different markers is fine: it is how a sample's markers are
   /// joined in the matrix. header → accessions.
+  ///
+  /// With one sample per taxon, records of the same species sharing a
+  /// header is the point (their markers are joined); records not named to
+  /// species (Rhinella sp., cf., aff., a genus) are different specimens and
+  /// still conflict. A FASTA sample named like a GenBank header conflicts
+  /// too.
   Map<String, List<String>> headerConflicts([HeaderTemplate? template]) {
     final h = template ?? header;
     final cat = catalog;
     final visible = cat?.visible(featureTypes) ?? const <String, GeneSummary>{};
-    if (visible.isEmpty) return h.duplicates(records);
+    if (visible.isEmpty) return onePerTaxonMode ? const {} : h.duplicates(records);
     final genes = selectedMarkers.isEmpty ? visible.keys : selectedMarkers.where(visible.containsKey);
     final names = <int, String>{};
     final out = <String, Set<String>>{};
@@ -1771,15 +2448,56 @@ class ProjectController extends ChangeNotifier {
         seen.putIfAbsent(names[ri] ??= h.build(records[ri]), () => []).add(ri);
       }
       for (final e in seen.entries) {
-        if (e.value.length > 1) (out[e.key] ??= {}).addAll(e.value.map((ri) => records[ri].accession));
+        final joinable = onePerTaxonMode && e.value.every((ri) => isDeterminateSpecies(records[ri].organismName));
+        if (e.value.length > 1 && !joinable) (out[e.key] ??= {}).addAll(e.value.map((ri) => records[ri].accession));
+      }
+      // FASTA samples of the same marker with a GenBank header's name.
+      final cells = organized?.byLocus[g];
+      if (cells != null) {
+        for (final sample in cells.keys) {
+          final clash = seen[sample];
+          if (clash != null) (out[sample] ??= {}).addAll([...clash.map((ri) => records[ri].accession), 'FASTA $sample']);
+        }
       }
     }
     return {for (final e in out.entries) e.key: e.value.toList()};
   }
 
+  /// Records in a name conflict that are not named to species (Caranx sp.,
+  /// cf., aff.): with one sample per species they cannot be joined.
+  List<GbRecord> get undeterminedConflicts {
+    final acc = {for (final v in headerConflicts().values) ...v};
+    return [for (final r in records) if (acc.contains(r.accession) && !isDeterminateSpecies(r.organismName)) r];
+  }
+
+  /// Leaves out [undeterminedConflicts] (one click instead of removing them
+  /// one by one in the records table).
+  void removeUndeterminedConflicts() {
+    final gone = undeterminedConflicts;
+    if (gone.isEmpty) return;
+    records.removeWhere(gone.toSet().contains);
+    _rebuildCatalog();
+    loci.clear();
+    log('Left out ${gone.length} record(s) not identified to species: '
+        '${gone.take(8).map((r) => '${r.organismName} (${r.accession})').join(', ')}${gone.length > 8 ? '…' : ''}', level: LogLevel.warn);
+    notifyListeners();
+  }
+
+  /// Steps that use the sequence names (alignment onwards) stop while two
+  /// sequences of one marker would share a name.
+  bool _namesOk(String what) {
+    if (!headerBlocked) return true;
+    final dups = headerConflicts();
+    log('$what blocked: ${dups.length} FASTA name(s) repeat inside the same marker (${dups.keys.take(5).join(', ')}${dups.length > 5 ? '…' : ''}); '
+        'fix the names in 4a (add Accession or Voucher) or in step 2 before going on',
+        level: LogLevel.error);
+    notifyListeners();
+    return false;
+  }
+
   /// Repeated headers stop the alignment, unless one sample per taxon joins
   /// them on purpose.
-  bool get headerBlocked => headerRequired && !onePerTaxonMode && headerConflicts().isNotEmpty;
+  bool get headerBlocked => headerRequired && headerConflicts().isNotEmpty;
 
   /// GenBank data uses a FASTA header (5a); the default one
   /// (accession_family_genus_species) is used until the user changes it.
@@ -1787,16 +2505,19 @@ class ProjectController extends ChangeNotifier {
 
   bool get _anyAligned => loci.values.any((l) => l.aligned != null);
 
-  /// Panels 5a–5d show together with their defaults, so aligning takes
-  /// one click; 5e (trimming parameters) appears when the user chooses to
-  /// trim in 5d, or once something was trimmed.
+  /// Panels 5a–5c show together with their defaults, so aligning takes
+  /// one click (the run button ends 5c); 5d (trimming parameters) appears
+  /// when the user chooses to trim after aligning, or once something was
+  /// trimmed.
   bool alignPanelVisible(String id) => switch (id) {
-        '5a' => headerRequired,
-        '5b' || '5c' || '5d' => true,
+        '4a' => headerRequired,
+        // The rest waits while 5a has repeated names.
+        _ when headerBlocked => false,
+        '4b' || '4c' => true,
         _ => _anyAligned && (trimOpen || loci.values.any((l) => l.trimmed != null)),
       };
 
-  /// Shows the trimming parameters (5e).
+  /// Shows the trimming parameters (5d).
   void openTrim() {
     trimOpen = true;
     trimPrompt = false;
@@ -1896,7 +2617,7 @@ class ProjectController extends ChangeNotifier {
         }
       }
       if (seqs.isEmpty) continue;
-      loci[name] = LocusState(name, _uniqueHeaders(seqs), sources: markers[name]?.sources ?? const {});
+      loci[name] = LocusState(name, _uniqueHeaders(seqs, name), sources: markers[name]?.sources ?? const {});
     }
     if (cat != null) {
       final partial = partialCounts(recs, cat, types, wanted, choices);
@@ -1916,16 +2637,23 @@ class ProjectController extends ChangeNotifier {
     log('${loci.length} marker(s) ready for alignment → $out');
   }
 
-  /// Duplicated headers get `_2`, `_3`… (MAFFT and IQ-TREE need unique names).
-  List<SeqRecord> _uniqueHeaders(List<SeqRecord> seqs) {
+  /// Duplicated headers get `_2`, `_3`… (MAFFT and IQ-TREE need unique
+  /// names). The alignment is blocked before it gets here ([headerBlocked]);
+  /// a repeat that still reaches it is reported, never silent.
+  List<SeqRecord> _uniqueHeaders(List<SeqRecord> seqs, [String locus = '']) {
     final count = <String, int>{};
-    return [
+    final out = [
       for (final s in seqs)
         () {
           final n = count.update(s.header, (v) => v + 1, ifAbsent: () => 1);
           return n == 1 ? s : SeqRecord('${s.header}_$n', s.sequence);
         }(),
     ];
+    final repeated = [for (final e in count.entries) if (e.value > 1) e.key];
+    if (repeated.isNotEmpty) {
+      log('$locus: repeated FASTA name(s) renamed with _2, _3…: ${repeated.take(5).join(', ')}${repeated.length > 5 ? '…' : ''}', level: LogLevel.warn);
+    }
+    return out;
   }
 
   /// FASTA-only projects: use the organized loci (all selected).
@@ -2034,7 +2762,7 @@ class ProjectController extends ChangeNotifier {
   /// alignment are taken from the cache.
   Future<void> alignAll() async {
     if (headerRequired && !headerConfirmed) confirmHeader();
-    if (headerBlocked) return;
+    if (!_namesOk('Alignment')) return;
     log('Sequence type: ${seqMode.name}${seqMode == SeqMode.nucleotide ? '' : ', genetic code $geneticCode'}');
     if (loci.isEmpty || _lociBuiltFrom != _lociSignature) await prepareLoci();
     final included = loci.values.where((l) => l.included).toList();
@@ -2195,7 +2923,17 @@ class ProjectController extends ChangeNotifier {
     }
     final types = l.sources;
     final rnaOnly = types.isNotEmpty && types.every((t) => t == 'rRNA' || t == 'tRNA');
-    final coding = !rnaOnly && (types.contains('CDS') || (r.coding && _mayGuessCoding(l)));
+    // Fragments (partial CDS, e.g. barcodes) start at different codon
+    // positions: their codon positions are only used when the alignment
+    // reads in one frame without stops. Otherwise the marker is trimmed
+    // column by column and stays one partition (no codon positions).
+    final partialCds = types.contains('CDS') && l.partial > 0;
+    final coding = !rnaOnly && (partialCds ? r.coding : (types.contains('CDS') || (r.coding && _mayGuessCoding(l))));
+    if (partialCds && !r.coding) {
+      log('${l.name}: the partial sequences do not read in one frame without stop codons in the nucleotide alignment, so its codon '
+          'positions are unknown: it is trimmed column by column and kept as one partition. The Codon-aware mode (4b) aligns the '
+          'translated fragments and keeps the codon positions.', source: 'MAFFT', level: LogLevel.warn);
+    }
     l
       ..aligned = r.records
       ..isProtein = false
@@ -2336,13 +3074,14 @@ class ProjectController extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------
-  // 5e. Trimming (trimAl / ClipKIT)
+  // 5d. Trimming (trimAl / ClipKIT)
   // ---------------------------------------------------------------------
 
   /// Trims every aligned marker: trimAl for nucleotide and amino-acid
   /// alignments, ClipKIT (on the protein, then back-translated) for
   /// codon-aware ones. Unchanged markers come from the cache.
   Future<void> trimAll() async {
+    if (!_namesOk('Trimming')) return;
     final items = loci.values.where((l) => l.included && l.aligned != null).toList();
     final modal = TaskModal(ModalKind.trimming, seqMode.name)..total = items.length;
     for (final l in items) {
@@ -2579,7 +3318,7 @@ class ProjectController extends ChangeNotifier {
     final name = sanitizeTaxonName(l.name);
     final trimmedDir = dir('03_trimmed');
     final clip = tools[ExternalTool.clipkit] ?? await locator.resolve(ExternalTool.clipkit);
-    if (clip == null) throw StateError('ClipKIT is not installed (step 5e: Install ClipKIT).');
+    if (clip == null) throw StateError('ClipKIT is not installed (step 4d: Install ClipKIT).');
     final aln = l.aligned!;
     // Without codons (non-coding markers) the whole alignment goes in.
     final frame = !codon || l.proteinAligned != null ? 0 : l.frame;
@@ -2678,6 +3417,7 @@ class ProjectController extends ChangeNotifier {
   }
 
   Future<void> runSaturation() {
+    if (!_namesOk('Saturation test')) return Future.value();
     final coding = loci.values.where((l) => l.included && codonPositionsUsable(l) && _aln(l) != null).toList();
     final whole = _wholeSiteLoci;
     final steps = coding.length + whole.length;
@@ -2697,7 +3437,7 @@ class ProjectController extends ChangeNotifier {
         final th = saturationThresholds;
         final iqtree = await _require(ExternalTool.iqtree);
         final phykit = tools[ExternalTool.phykit] ?? await locator.resolve(ExternalTool.phykit);
-        if (phykit == null) throw StateError('PhyKIT is not installed (step 6a: Install PhyKIT). ${ExternalTool.phykit.installHint}');
+        if (phykit == null) throw StateError('PhyKIT is not installed (step 5a: Install PhyKIT). ${ExternalTool.phykit.installHint}');
         tools[ExternalTool.phykit] = phykit;
         log('Saturation by PhyKIT ${phykit.version ?? ''} (Philippe et al. 2011): gene trees and branch lengths of each codon subset by IQ-TREE '
             '($satModel), thresholds: moderate below ${th.slopeModerate}, saturated below ${th.slopeSaturated}; low divergence p < ${th.lowDivergence}; '
@@ -2880,6 +3620,8 @@ class ProjectController extends ChangeNotifier {
         kingdom: t.kingdom,
         accession: r.accession,
         voucher: (r.voucher ?? '').replaceFirst(RegExp(r'^(specimen\s+)?(voucher|isolate|strain|specimen)\s+', caseSensitive: false), ''),
+        locality: r.locality ?? '',
+        latLon: r.latLon ?? '',
         status: r.salve?.code ?? '',
         statusName: r.salve?.categoryName ?? '',
         commonName: (r.salve?.commonNames ?? '').split(',').first.trim(),
@@ -2973,14 +3715,50 @@ class ProjectController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> buildMatrix() => _task(modal: TaskModal(ModalKind.matrix, '')..total = 2, 'Building supermatrix', (_) async {
+  /// The partition schemes that mean something for these alignments, the
+  /// recommended first:
+  /// - one marker: by codon position when its codon positions are known
+  ///   (by locus would be a single partition), else one partition;
+  /// - several markers without known codon positions (non-coding, protein,
+  ///   fragments without a confirmed frame, frame lost in trimming): by
+  ///   locus, or none;
+  /// - several markers, some coding: every scheme.
+  List<PartitionScheme> get partitionSchemes {
+    final inc = loci.values.where((l) => l.included && (l.aligned != null)).toList();
+    final codons = inc.any((l) => codonPositionsUsable(l));
+    if (inc.length <= 1) return codons ? const [PartitionScheme.byCodonPosition, PartitionScheme.none] : const [PartitionScheme.none];
+    return codons
+        ? const [PartitionScheme.byLocusAndCodon, PartitionScheme.byLocus, PartitionScheme.byCodonPosition, PartitionScheme.none]
+        : const [PartitionScheme.byLocus, PartitionScheme.none];
+  }
+
+  /// The scheme used: the one chosen when it applies, else the recommended
+  /// one for these alignments (one gene chosen "by locus and codon" is
+  /// partitioned by codon position).
+  PartitionScheme get effectiveScheme {
+    final allowed = partitionSchemes;
+    if (allowed.contains(concat.scheme)) return concat.scheme;
+    // The nearest meaning: codons kept when asked for and possible.
+    if (concat.scheme == PartitionScheme.byLocusAndCodon && allowed.contains(PartitionScheme.byCodonPosition)) return PartitionScheme.byCodonPosition;
+    if (concat.scheme == PartitionScheme.byCodonPosition && allowed.contains(PartitionScheme.byLocus)) return PartitionScheme.byLocus;
+    return allowed.first;
+  }
+
+  Future<void> buildMatrix() async {
+    if (!_namesOk('Supermatrix')) return;
+    await _buildMatrix();
+  }
+
+  Future<void> _buildMatrix() => _task(modal: TaskModal(ModalKind.matrix, '')..total = 2, 'Building supermatrix', (_) async {
         final included = loci.values.where((l) => l.included && _aln(l) != null).toList();
         if (included.isEmpty) throw StateError('No alignments available.');
         final protein = proteinData;
         if (protein && included.any((l) => !l.isProtein)) {
           throw StateError('Cannot concatenate protein and DNA alignments together. Re-align all markers in one mode.');
         }
-        final options = concat.copyWith(dataType: protein ? SeqDataType.protein : SeqDataType.dna);
+        final scheme = effectiveScheme;
+        if (scheme != concat.scheme) log('Partitions: ${concat.scheme.name} does not apply to these alignments; ${scheme.name} is used');
+        final options = concat.copyWith(dataType: protein ? SeqDataType.protein : SeqDataType.dna, scheme: scheme);
         final m = await _matrixInIsolate([
           // Loci whose frame was lost in trimming are one partition.
           for (final l in included) LocusAlignment(l.name, _aln(l)!, coding: codonPositionsUsable(l), frame: _frame(l)),
@@ -3036,7 +3814,7 @@ class ProjectController extends ChangeNotifier {
 
   int get _partitionCount => _partitioned ? matrix!.partitions.length : 0;
 
-  bool get _partitioned => matrix != null && matrix!.partitions.isNotEmpty && concat.scheme != PartitionScheme.none;
+  bool get _partitioned => matrix != null && matrix!.partitions.isNotEmpty && effectiveScheme != PartitionScheme.none;
 
   String iqtreeCommandPreview(IqtreeOptions options) {
     final exe = tools[ExternalTool.iqtree]?.executable ?? 'iqtree3';
@@ -3094,6 +3872,7 @@ class ProjectController extends ChangeNotifier {
       ]);
 
   Future<void> runIqtree(IqtreeOptions options, {bool perGene = false}) {
+    if (!_namesOk('IQ-TREE')) return Future.value();
     final modal = TaskModal(ModalKind.iqtree, options.model)..tree = _iqProgress(options);
     if (perGene) {
       for (final l in loci.values.where((l) => l.included && _aln(l) != null && _geneTreeInput(l).length >= 4)) {
@@ -3168,6 +3947,7 @@ class ProjectController extends ChangeNotifier {
   /// IQ-TREE and RAxML-NG at the same time on the supermatrix, each with
   /// half of the threads, so the computer is not overloaded.
   Future<void> runBoth(IqtreeOptions iq, RaxmlOptions rx, {RaxmlModels models = RaxmlModels.moose, String? fixedModel}) {
+    if (!_namesOk('Tree inference')) return Future.value();
     final total = math.max(2, threads);
     final forIq = total ~/ 2, forRx = total - total ~/ 2;
     final iqo = iq.copyWith(threads: '$forIq', maxThreads: forIq);
@@ -3259,6 +4039,7 @@ class ProjectController extends ChangeNotifier {
   /// IQ-TREE's ModelFinder (restricted to models RAxML-NG supports) or one
   /// fixed model for every partition.
   Future<void> runRaxml(RaxmlOptions options, {RaxmlModels models = RaxmlModels.moose, String? fixedModel}) {
+    if (!_namesOk('RAxML-NG')) return Future.value();
     final modal = TaskModal(ModalKind.raxml, switch (models) {
       RaxmlModels.moose => 'MOOSE',
       RaxmlModels.modelFinder => 'ModelFinder',
@@ -3459,12 +4240,406 @@ class ProjectController extends ChangeNotifier {
         ],
       ];
 
+  // ---------------------------------------------------------------------
+  // 8e. Species delimitation (mPTP on trees; ASAP and ABGD on alignments)
+  // ---------------------------------------------------------------------
+
+  /// Delimitations, newest first (one per tree or alignment and method).
+  final List<DelimitationRun> delimitations = [];
+
+  /// Finished delimitations, for the buttons of the tree viewer.
+  List<DelimitationRun> get delimitationsDone => [for (final d in delimitations) if (d.status == StepStatus.done && d.result != null) d];
+
+  /// ML tree of a finished run (branch lengths in substitutions per site):
+  /// IQ-TREE's `.treefile`, RAxML-NG's best tree.
+  String? mlTreeOf(TreeRun r) => r.engine == 'RAxML-NG' ? (r.outputs['bestTree'] ?? r.treeFile) : (r.outputs['tree'] ?? r.treeFile);
+
+  /// Every tip of the supermatrix is a different species (one sequence
+  /// per species): PTP, mPTP and GMYC look for the change from branching
+  /// between species to branching within them, so without several
+  /// individuals of a species their test tends to fail.
+  bool get oneSequencePerSpecies {
+    final taxa = matrix?.taxa;
+    if (taxa == null || taxa.length < 4) return false;
+    final info = tipInfo();
+    final seen = <String>{};
+    for (final t in taxa) {
+      final s = info[t]?.species ?? '';
+      if (s.isEmpty || !seen.add(s.toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  /// Runs whose ML tree can be delimited.
+  List<TreeRun> get delimitableRuns => [
+        for (final r in treeRuns)
+          if (r.status == StepStatus.done && mlTreeOf(r) != null && File(mlTreeOf(r)!).existsSync()) r,
+      ];
+
+  /// Name of the supermatrix among the alignments ASAP and ABGD can read.
+  static const supermatrixAlignment = 'supermatrix';
+
+  /// DNA alignments ASAP and ABGD can read: the supermatrix and each
+  /// included marker (as used downstream: trimmed or MAFFT).
+  List<String> get delimitableAlignments => [
+        if (matrix != null && !matrix!.isProtein && matrixFiles['fasta'] != null) supermatrixAlignment,
+        for (final l in loci.values)
+          if (l.included && !l.isProtein && _aln(l) != null && _aln(l)!.length >= 3) l.name,
+      ];
+
+  Future<List<(String, String)>> _alignmentForDelimitation(String name) async {
+    if (name == supermatrixAlignment) {
+      return [for (final r in parseFasta(await File(matrixFiles['fasta']!).readAsString())) (r.header.split(RegExp(r'\s')).first, r.sequence)];
+    }
+    return [for (final r in _aln(loci[name]!)!) (r.header.split(RegExp(r'\s')).first, r.sequence)];
+  }
+
+  /// Delimits species on the ML tree of each of [runs] with mPTP, with
+  /// each of [models]. With [autoMinbr], the minimum branch length comes
+  /// from the p-distances of the supermatrix (`--minbr_auto`); with
+  /// [cropOutgroup], the outgroups root the tree and are left out.
+  /// With [alignments] and [distanceMethods] (ASAP, ABGD), each alignment
+  /// is also delimited from its pairwise [distance]s.
+  Future<void> runDelimitation({
+    List<TreeRun> runs = const [],
+    Set<PtpModel> models = const {},
+    bool gmyc = false,
+    double gmycPvalue = gmycDefaultPvalue,
+    double mptpPvalue = mptpDefaultPvalue,
+    bool autoMinbr = true,
+    bool cropOutgroup = true,
+    List<String> alignments = const [],
+    Set<DelimMethod> distanceMethods = const {},
+    DelimDistance distance = DelimDistance.jc69,
+    double abgdPMin = 0.001,
+    double abgdPMax = 0.1,
+    int abgdSteps = 10,
+    double abgdSlope = 1.5,
+  }) {
+    if (!_namesOk('Species delimitation')) return Future.value();
+    final methods = [for (final m in PtpModel.values) if (models.contains(m)) m.label, if (gmyc) 'GMYC', for (final m in distanceMethods) m.label];
+    final modal = TaskModal(ModalKind.delimitation, methods.join(' + '));
+    for (final r in runs) {
+      for (final m in PtpModel.values.where(models.contains)) {
+        modal.items['${m.label} · ${r.engine} ${_runTime(r)}'] = ModalItem();
+      }
+      if (gmyc) modal.items['GMYC · ${r.engine} ${_runTime(r)}'] = ModalItem();
+    }
+    for (final a in alignments) {
+      for (final m in distanceMethods) {
+        modal.items['${m.label} · $a'] = ModalItem();
+      }
+    }
+    return _task(modal: modal, 'Species delimitation', (cancel) async {
+      var failed = 0;
+      if (runs.isNotEmpty && models.isNotEmpty) {
+        final tool = await _require(ExternalTool.mptp);
+        for (final r in runs) {
+          if (cancel.isCancelled) break;
+          try {
+            await _delimitRun(tool, r, models, autoMinbr: autoMinbr, cropOutgroup: cropOutgroup, pvalue: mptpPvalue, cancel: cancel);
+          } catch (e) {
+            failed++;
+            log('mPTP on the ${r.engine} tree failed: ${_errorText(e)}', error: true);
+          }
+        }
+      }
+      if (runs.isNotEmpty && gmyc) {
+        for (final r in runs) {
+          if (cancel.isCancelled) break;
+          try {
+            await _gmycRun(r, gmycPvalue, cropOutgroup: cropOutgroup, cancel: cancel);
+          } catch (e) {
+            failed++;
+            _item('GMYC · ${r.engine} ${_runTime(r)}', state: ItemState.failed, note: _errorText(e));
+            log('GMYC on the ${r.engine} tree failed: ${_errorText(e)}', error: true);
+          }
+        }
+      }
+      for (final a in alignments) {
+        for (final m in [DelimMethod.asap, DelimMethod.abgd].where(distanceMethods.contains)) {
+          if (cancel.isCancelled) break;
+          try {
+            await _delimitAlignment(a, m, distance, cancel,
+                pMin: abgdPMin, pMax: abgdPMax, steps: abgdSteps, slope: abgdSlope);
+          } catch (e) {
+            failed++;
+            _item('${m.label} · $a', state: ItemState.failed, note: _errorText(e));
+            log('${m.label} on $a failed: ${_errorText(e)}', error: true);
+          }
+        }
+      }
+      final done = delimitations.where((d) => d.status == StepStatus.done).length;
+      modal.result = '$done delimitation(s)${failed > 0 ? ' · $failed failed' : ''}';
+      notifyListeners();
+    });
+  }
+
+  static String _runTime(TreeRun r) => r.started.toIso8601String().substring(11, 16);
+
+  Future<void> _delimitRun(ResolvedTool tool, TreeRun r, Set<PtpModel> models,
+      {required bool autoMinbr, required bool cropOutgroup, required double pvalue, required CancelToken cancel}) async {
+    final out = p.join(r.directory, 'delimitation');
+    Directory(out).createSync(recursive: true);
+    final tree = parseNewick(await File(mlTreeOf(r)!).readAsString());
+    final tips = {for (final t in tree.tips) t.name};
+    final input = p.join(out, 'ml_tree_for_mptp.nwk');
+    await File(input).writeAsString('${mptpNewick(tree)}\n');
+    final outgroup = [for (final o in concat.outgroups) if (tips.contains(o)) o];
+    // Cropping needs tips left on both sides.
+    final crop = cropOutgroup && outgroup.isNotEmpty && outgroup.length < tips.length - 2;
+    void mlog(String m) => log(m, source: 'mPTP');
+
+    // Minimum branch length from the p-distances of the supermatrix.
+    double? minbr;
+    String? minbrCommand;
+    final fasta = matrixFiles['fasta'];
+    if (autoMinbr && fasta != null && File(fasta).existsSync() && !(matrix?.isProtein ?? false)) {
+      final prefix = p.join(out, 'minbr');
+      final args = mptpMinbrArgs(tree: input, fasta: fasta, prefix: prefix, outgroup: outgroup);
+      minbrCommand = '${tool.description} ${args.join(' ')}';
+      final res = await runTool(tool, args, workingDirectory: out, cancel: cancel, onLog: mlog);
+      final file = File('$prefix.txt');
+      if (res.ok && file.existsSync()) minbr = parseMinbr(await file.readAsString());
+      if (minbr == null) log('mPTP could not detect the minimum branch length; its default (0.0001) is used', level: LogLevel.warn, source: 'mPTP');
+    }
+
+    for (final model in PtpModel.values.where(models.contains)) {
+      if (cancel.isCancelled) return;
+      final method = DelimMethod.ofModel(model);
+      final item = '${model.label} · ${r.engine} ${_runTime(r)}';
+      _item(item, state: ItemState.running, progress: 0.2);
+      delimitations.removeWhere((d) => identical(d.run, r) && d.method == method);
+      final d = DelimitationRun(method: method, source: r.engine, run: r, tree: input, directory: out)
+        ..minbrAuto = minbr
+        ..minbrCommand = minbrCommand
+        ..outgroup = outgroup
+        ..cropped = crop;
+      delimitations.insert(0, d);
+      notifyListeners();
+      final prefix = p.join(out, model == PtpModel.single ? 'ptp' : 'mptp');
+      final args = mptpArgs(tree: input, prefix: prefix, model: model, outgroup: outgroup, cropOutgroup: crop, minbr: minbr, pvalue: pvalue);
+      d.command = '${tool.description} ${args.join(' ')}';
+      final res = await runTool(tool, args, workingDirectory: out, cancel: cancel, onLog: mlog);
+      final txt = File('$prefix.txt');
+      if (!res.ok || !txt.existsSync()) {
+        d
+          ..status = StepStatus.error
+          ..error = res.cancelled ? 'cancelled' : 'mPTP ${res.describe}';
+        _item(item, state: res.cancelled ? ItemState.skipped : ItemState.failed, note: d.error);
+        notifyListeners();
+        continue;
+      }
+      final result = parseMptp(await txt.readAsString(), model, alpha: pvalue)..minbr = minbr;
+      final tsv = '$prefix.species.tsv';
+      await File(tsv).writeAsString('${delimitationTsv(result)}\n');
+      d
+        ..result = result
+        ..status = StepStatus.done
+        ..outputs['txt'] = txt.path
+        ..outputs['tsv'] = tsv;
+      if (File('$prefix.svg').existsSync()) d.outputs['svg'] = '$prefix.svg';
+      _item(item, state: ItemState.done, progress: 1, note: '${result.species.length} species');
+      log('${d.label}: ${result.species.length} species (${result.singletons} with one tip)'
+          '${result.lrtPassed == false ? ' — LRT failed, the null model (one species) is preferred' : ''}', level: LogLevel.success, source: 'mPTP');
+      notifyListeners();
+    }
+  }
+
+  /// GMYC on the ML tree of [r]: LSD2 dates the tree (relative dates, so it
+  /// becomes ultrametric), rooted on the outgroups and without them when
+  /// there are outgroups; then the pGMYC command line delimits the species.
+  Future<void> _gmycRun(TreeRun r, double pvalue, {required bool cropOutgroup, required CancelToken cancel}) async {
+    final lsd2 = await _require(ExternalTool.lsd2);
+    final gmyc = await _require(ExternalTool.gmyc);
+    final item = 'GMYC · ${r.engine} ${_runTime(r)}';
+    _item(item, state: ItemState.running, progress: 0.1);
+    final out = p.join(r.directory, 'delimitation', 'gmyc');
+    Directory(out).createSync(recursive: true);
+    final tree = parseNewick(await File(mlTreeOf(r)!).readAsString());
+    final tips = {for (final t in tree.tips) t.name};
+    final input = p.join(out, 'ml_tree.nwk');
+    await File(input).writeAsString('${mptpNewick(tree)}\n');
+    final outgroup = [for (final o in concat.outgroups) if (tips.contains(o)) o];
+    final useOutgroup = cropOutgroup && outgroup.isNotEmpty && outgroup.length < tips.length - 2;
+    String? ogFile;
+    if (useOutgroup) {
+      ogFile = p.join(out, 'outgroup.txt');
+      await File(ogFile).writeAsString(lsd2OutgroupFile(outgroup));
+    }
+    delimitations.removeWhere((d) => identical(d.run, r) && d.method == DelimMethod.gmyc);
+    final d = DelimitationRun(method: DelimMethod.gmyc, source: r.engine, run: r, tree: input, directory: out)
+      ..outgroup = outgroup
+      ..cropped = useOutgroup;
+    delimitations.insert(0, d);
+    notifyListeners();
+    void fail(String why) {
+      d
+        ..status = StepStatus.error
+        ..error = why;
+      _item(item, state: cancel.isCancelled ? ItemState.skipped : ItemState.failed, note: why);
+      notifyListeners();
+    }
+
+    // 1. LSD2: ultrametric tree with relative dates.
+    final prefix = p.join(out, 'lsd2');
+    final lsdArgs = lsd2Args(tree: input, prefix: prefix, seqLength: matrix?.length ?? 1000, outgroupFile: ogFile);
+    d.minbrCommand = '${lsd2.description} ${lsdArgs.join(' ')}';
+    final lsdRes = await runTool(lsd2, lsdArgs, workingDirectory: out, cancel: cancel, onLog: (m) => log(m, source: 'LSD2'));
+    final nexus = File('$prefix.date.nexus');
+    final um = nexus.existsSync() ? ultrametricFromNexus(await nexus.readAsString()) : null;
+    if (!lsdRes.ok || um == null) return fail(lsdRes.cancelled ? 'cancelled' : 'LSD2 ${lsdRes.ok ? 'wrote no dated tree' : lsdRes.describe}');
+    final umFile = p.join(out, 'ultrametric_tree.nwk');
+    await File(umFile).writeAsString('$um\n');
+    d.outputs['ultrametric'] = umFile;
+    _item(item, progress: 0.4);
+
+    // 2. GMYC (single threshold).
+    final json = p.join(out, 'gmyc.json');
+    final args = gmycArgs(tree: umFile, out: json, pvalue: pvalue);
+    d.command = '${gmyc.description} ${args.join(' ')}';
+    final res = await runTool(gmyc, args, workingDirectory: out, cancel: cancel, captureStdout: true, onLog: (m) => log(m, source: 'GMYC'));
+    if (!res.ok || !File(json).existsSync()) return fail(res.cancelled ? 'cancelled' : 'GMYC ${res.describe}');
+    final result = parseGmyc(await File(json).readAsString(), alpha: pvalue);
+    final tsv = p.join(out, 'gmyc.species.tsv');
+    await File(tsv).writeAsString('${delimitationTsv(result)}\n');
+    d
+      ..result = result
+      ..status = StepStatus.done
+      ..outputs['json'] = json
+      ..outputs['tsv'] = tsv;
+    _item(item, state: ItemState.done, progress: 1, note: '${result.species.length} species');
+    log('${d.label}: ${result.species.length} species${result.lrtPassed == false ? ' — LRT failed, one species preferred' : ''}', level: LogLevel.success, source: 'GMYC');
+    notifyListeners();
+  }
+
+  /// ASAP or ABGD on one alignment: the sequences are written with short
+  /// ids, the program runs in its own folder of `07_delimitation`, and its
+  /// SPART partitions are read back with the sample names.
+  Future<void> _delimitAlignment(String name, DelimMethod method, DelimDistance distance, CancelToken cancel,
+      {required double pMin, required double pMax, required int steps, required double slope}) async {
+    final tool = await _require(method == DelimMethod.asap ? ExternalTool.asap : ExternalTool.abgd);
+    final item = '${method.label} · $name';
+    _item(item, state: ItemState.running, progress: 0.2);
+    final stamp = DateTime.now().toIso8601String().replaceAll(RegExp(r'[:.]'), '-').substring(0, 19);
+    final out = dir(p.join('07_delimitation', '${method.name}_${sanitizeTaxonName(name)}_$stamp'));
+    final (fasta, names) = delimitationFasta(await _alignmentForDelimitation(name));
+    await File(p.join(out, 'input.fasta')).writeAsString(fasta);
+    await File(p.join(out, 'input_names.tsv')).writeAsString('${['id\tname', for (final e in names.entries) '${e.key}\t${e.value}'].join('\n')}\n');
+    final abgdDistance = distance.abgd ? distance : DelimDistance.jc69;
+    final args = method == DelimMethod.asap
+        ? asapArgs(fasta: 'input.fasta', outDir: 'asap', distance: distance)
+        : abgdArgs(fasta: 'input.fasta', outDir: 'abgd', distance: abgdDistance, pMin: pMin, pMax: pMax, steps: steps, slope: slope);
+    delimitations.removeWhere((d) => d.run == null && d.method == method && d.source == name);
+    final d = DelimitationRun(method: method, source: name, directory: out)
+      ..distance = method == DelimMethod.abgd ? abgdDistance : distance
+      ..command = '${tool.description} ${args.join(' ')}';
+    delimitations.insert(0, d);
+    notifyListeners();
+    final output = StringBuffer();
+    final res = await runTool(tool, args, workingDirectory: out, cancel: cancel, onLog: (m) {
+      output.writeln(m);
+      log(m, source: method.label);
+    });
+    final sub = Directory(p.join(out, method == DelimMethod.asap ? 'asap' : 'abgd'));
+    final sparts = sub.existsSync()
+        ? (sub.listSync().whereType<File>().where((f) => f.path.endsWith('.spart')).toList()..sort((a, b) => a.path.compareTo(b.path)))
+        : <File>[];
+    if (res.cancelled) {
+      d
+        ..status = StepStatus.error
+        ..error = 'cancelled';
+      _item(item, state: ItemState.skipped);
+      notifyListeners();
+      return;
+    }
+    if (method == DelimMethod.asap) {
+      if (sparts.isNotEmpty) {
+        d.partitions.addAll(parseSpart(await sparts.first.readAsString(), names));
+        d.outputs['spart'] = sparts.first.path;
+      }
+    } else {
+      final priors = abgdPriors(pMin, pMax, steps);
+      // ABGD writes "<name>.spart" (initial partitions) and
+      // "<name>.rec.spart" (recursive partitions).
+      for (final f in sparts) {
+        final recursive = f.path.endsWith('.rec.spart');
+        final parts = parseSpart(await f.readAsString(), names);
+        for (final (i, sp) in parts.indexed) {
+          d.partitions.add(sp);
+          d.partitionNotes.add('${recursive ? 'rec' : 'init'}|${i < priors.length ? priors[i] : ''}');
+        }
+        d.outputs[recursive ? 'spartRec' : 'spart'] = f.path;
+      }
+      // Only one group at every prior: ABGD writes no SPART.
+      if (d.partitions.isEmpty && res.ok && output.toString().contains('Only one partition')) {
+        d.partitions.add(Spartition('one group', [names.values.toList()]));
+        d.partitionNotes.add('init|');
+      }
+      // Shown first: the initial partition at the prior nearest 0.01.
+      var best = 0;
+      var gap = double.infinity;
+      for (final (i, n) in d.partitionNotes.indexed) {
+        final parts = n.split('|');
+        final prior = double.tryParse(parts.last);
+        if (parts.first != 'init' || prior == null) continue;
+        final g = (math.log(prior) - math.log(0.01)).abs();
+        if (g < gap) {
+          gap = g;
+          best = i;
+        }
+      }
+      d.chosen = best;
+    }
+    if (!res.ok || d.partitions.isEmpty) {
+      d
+        ..status = StepStatus.error
+        ..error = res.ok ? '${method.label} wrote no partition' : '${method.label} ${res.describe}';
+      _item(item, state: ItemState.failed, note: d.error);
+      notifyListeners();
+      return;
+    }
+    _applyPartition(d);
+    d.status = StepStatus.done;
+    _item(item, state: ItemState.done, progress: 1, note: '${d.result!.species.length} species');
+    log('${d.label}: ${d.partitions.length} partition(s); shown: ${d.result!.species.length} species', level: LogLevel.success, source: method.label);
+    notifyListeners();
+  }
+
+  void _applyPartition(DelimitationRun d) {
+    final sp = d.partitions[d.chosen.clamp(0, d.partitions.length - 1)];
+    d.result = Delimitation(species: sp.species);
+    final tsv = p.join(d.directory, '${d.method.name}.species.tsv');
+    File(tsv).writeAsStringSync('${delimitationTsv(d.result!)}\n');
+    d.outputs['tsv'] = tsv;
+  }
+
+  /// Shows partition [index] of an ASAP or ABGD run (on the tree, in the
+  /// methods text and in its tip → species table).
+  void choosePartition(DelimitationRun d, int index) {
+    if (index < 0 || index >= d.partitions.length) return;
+    d.chosen = index;
+    _applyPartition(d);
+    notifyListeners();
+  }
+
   /// Tree shown in step 9 (path), or null for the newest.
   String? treeToView;
 
   void viewTree(String? path) {
     treeToView = path;
     notifyListeners();
+  }
+
+  /// Figure of each tree in the viewer (by tree file): its options and
+  /// edits, as the viewer reports them. Kept while the viewer is closed
+  /// and saved in the project file.
+  final Map<String, Map<String, dynamic>> treeFigures = {};
+
+  /// Keeps the figure of [tree] (no rebuild: the viewer already shows it).
+  void setTreeFigure(String tree, Map<String, dynamic> figure) {
+    treeFigures[tree] = figure;
+    if (_watchUnsaved) _scheduleUnsavedCheck();
   }
 
   void _collectOutputs(TreeRun run, Map<String, String> candidates) {
@@ -3489,6 +4664,7 @@ class ProjectController extends ChangeNotifier {
           '04_saturation': 'saturation',
           '05_matrix': 'concatenated',
           '06_trees': 'trees',
+          '07_delimitation': 'delimitation',
         };
         await _zipInIsolate(root, map, target);
         zipSaved = true;
@@ -3505,8 +4681,10 @@ class ProjectController extends ChangeNotifier {
     _modalTimer?.cancel();
     _notifyTimer?.cancel();
     _organizeDebounce?.cancel();
+    _unsavedTimer?.cancel();
     _ncbi?.close();
     logTick.dispose();
+    unsaved.dispose();
     super.dispose();
   }
 }

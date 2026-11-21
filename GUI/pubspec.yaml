@@ -66,6 +66,12 @@ flutter:
   # Same visual identity as the HTML interface (docs/theme.css).
   assets:
     - assets/images/
+    - assets/tutorial/
+    - assets/tutorial/shots/
+    - assets/examples/
+    - assets/examples/genbank/
+    - assets/examples/loci/
+    - assets/examples/barcoding/
 
   fonts:
     - family: Montserrat

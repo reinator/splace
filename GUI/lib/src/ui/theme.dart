@@ -45,6 +45,18 @@ class SplacePalette {
   static const categorical = [
     blue600, red500, SplaceBlue.c300, orange, blue900, red900, sky500, red700, SplaceBlue.c500, yellow, sky300, SplaceBlue.c700,
   ];
+
+  /// Colour [i] of a categorical series of any length, never repeated:
+  /// the [categorical] colours, then new hues (golden angle, so neighbours
+  /// are far apart on the wheel) at three lightness levels.
+  static Color categoricalAt(int i) {
+    if (i < categorical.length) return categorical[i];
+    final k = i - categorical.length;
+    const light = [0.40, 0.60, 0.30];
+    const sat = [0.62, 0.70, 0.55];
+    final level = (k ~/ 7) % 3;
+    return HSLColor.fromAHSL(1, (k * 137.508 + 20) % 360, sat[level], light[level]).toColor();
+  }
 }
 
 /// Gradient of the splash hero rule (`.splash-hero::before`).
@@ -83,8 +95,10 @@ class SplaceTokens extends ThemeExtension<SplaceTokens> {
   final Color accent, accentSoft, accentSoftBorder, accentText;
   final bool compact;
 
-  static const danger = SplacePalette.red700;
-  static const warn = SplacePalette.red500;
+  /// Errors and warnings in the brand reds (the RdYlBu oranges are for
+  /// charts and categories only).
+  static const danger = SplaceRed.c600;
+  static const warn = SplaceRed.c500;
   /// "Done" states use the app blue, not green (readable in both themes).
   static const success = SplaceBlue.c400;
 

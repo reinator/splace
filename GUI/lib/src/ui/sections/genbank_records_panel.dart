@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -5,7 +6,7 @@ import '../../core/genbank.dart';
 import '../../core/genbank_markers.dart';
 import '../../core/taxonomy_sources.dart';
 import '../../services/species_id.dart' show sameSpecies;
-import 'feature_types_panel.dart' show showGeneReviewDialog;
+import 'feature_types_panel.dart' show geneReviewWhich, showGeneReviewDialog;
 import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
@@ -15,6 +16,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/kit.dart';
 import '../widgets/salve_widgets.dart';
 import '../widgets/splace_tooltip.dart';
+import '../widgets/toast.dart';
 
 const recordColumns = [
   'accession', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'authorship', 'status', //
@@ -29,6 +31,36 @@ const salveColumns = [
 
 /// GenBank part of step 2 (`#recordsSection`): taxonomy actions, the
 /// taxonomic tree, column toggles, search and the records table.
+/// Buttons of the GenBank records (records without markers, clear all):
+/// in the title row of step 2, as the other steps' buttons.
+class GenBankRecordsActions extends StatelessWidget {
+  const GenBankRecordsActions({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ProjectScope.of(context);
+    final l10n = context.l10n;
+    return Wrap(spacing: 8, runSpacing: 8, children: [
+      if (c.recordsWithoutMarkers.isNotEmpty)
+        ChipButton(
+          label: l10n.noMarkersButton('${c.recordsWithoutMarkers.length}'),
+          style: ChipButtonStyle.danger,
+          onPressed: c.busy ? null : () => _showNoMarkersDialog(context),
+        ),
+      ChipButton(
+        label: l10n.clearAll,
+        icon: FA.trashCan,
+        style: ChipButtonStyle.danger,
+        onPressed: c.busy
+            ? null
+            : () async {
+                if (await confirmDialog(context, title: l10n.clearTitle, body: l10n.clearBody, confirm: l10n.clearAll)) c.clearRecords();
+              },
+      ),
+    ]);
+  }
+}
+
 class GenBankRecordsPanel extends StatefulWidget {
   const GenBankRecordsPanel({super.key});
 
@@ -218,30 +250,6 @@ class _GenBankRecordsPanelState extends State<GenBankRecordsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Spacer(),
-            if (c.recordsWithoutMarkers.isNotEmpty) ...[
-              ChipButton(
-                label: l10n.noMarkersButton('${c.recordsWithoutMarkers.length}'),
-                style: ChipButtonStyle.danger,
-                onPressed: c.busy ? null : () => _showNoMarkersDialog(context),
-              ),
-              const SizedBox(width: 8),
-            ],
-            ChipButton(
-              label: l10n.clearAll,
-              icon: FA.trashCan,
-              style: ChipButtonStyle.danger,
-              onPressed: c.busy
-                  ? null
-                  : () async {
-                      if (await confirmDialog(context, title: l10n.clearTitle, body: l10n.clearBody, confirm: l10n.clearAll)) c.clearRecords();
-                    },
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
         const SubAnchor(id: '2a', child: _SpeciesIdCard()),
         const SizedBox(height: 14),
         const SubAnchor(id: '2b', child: _TaxonomyCard()),
@@ -330,6 +338,7 @@ class _GenBankRecordsPanelState extends State<GenBankRecordsPanel> {
                       context,
                       title: l10n.removeTitle,
                       body: '${r.organismName} (${r.accession}) — ${l10n.removeBody}',
+                      italic: [r.organismName],
                       confirm: l10n.remove,
                     )) {
                       c.removeRecord(r);
@@ -377,7 +386,6 @@ class _SpeciesIdCard extends StatelessWidget {
         ]);
 
     return _StepCard(
-      icon: FA.barcode,
       badge: '2a',
       title: l10n.siCardTitle,
       subtitle: Text(l10n.siCardBody, style: TextStyle(fontSize: 13, color: t.textMuted, height: 1.6)),
@@ -396,12 +404,15 @@ class _SpeciesIdCard extends StatelessWidget {
         Expanded(child: Text(l10n.internetRequired, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: t.textMuted))),
         const SizedBox(width: 12),
         if (pending > 0) ...[
-          ChipButton(
-            label: c.unknownGenesReviewed ? l10n.geneReviewAgain('$pending') : l10n.geneReviewButtonN('$pending'),
-            icon: c.unknownGenesReviewed ? FA.circleCheck : null,
-            keepIcon: c.unknownGenesReviewed,
-            style: c.unknownGenesReviewed ? ChipButtonStyle.soft : ChipButtonStyle.danger,
-            onPressed: c.busy ? null : () => showGeneReviewDialog(context),
+          // Same size as the other buttons of the card; red while names
+          // still need a review.
+          SplaceTooltip(
+            message: geneReviewWhich(context),
+            child: OutlinedButton(
+              style: c.unknownGenesReviewed ? null : OutlinedButton.styleFrom(foregroundColor: SplaceTokens.danger, side: const BorderSide(color: SplaceTokens.danger)),
+              onPressed: c.busy ? null : () => showGeneReviewDialog(context),
+              child: Text(c.unknownGenesReviewed ? l10n.geneReviewAgain('$pending') : l10n.geneReviewButtonN('$pending')),
+            ),
           ),
           const SizedBox(width: 10),
         ],
@@ -422,9 +433,8 @@ class _SpeciesIdCard extends StatelessWidget {
 /// Card of step 2: icon, title and subtitle, optional body, and a footer
 /// bar with the actions.
 class _StepCard extends StatelessWidget {
-  const _StepCard({required this.badge, required this.icon, required this.title, required this.subtitle, this.trailing, this.body, this.bodyInset = true, required this.footer});
+  const _StepCard({required this.badge, required this.title, required this.subtitle, this.trailing, this.body, this.bodyInset = true, required this.footer});
   final String badge;
-  final IconData icon;
   final String title;
   final Widget subtitle;
   final Widget? trailing;
@@ -437,20 +447,11 @@ class _StepCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: t.accentSoftBorder),
-        gradient: dark
-            ? null
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFEEF0FB), Colors.white, Color(0xFFFEF2F2)],
-                stops: [0, .55, 1],
-              ),
-        color: dark ? t.surface2 : null,
+        border: Border.all(color: t.border),
+        color: t.surface,
         boxShadow: shadowSm,
       ),
       clipBehavior: Clip.antiAlias,
@@ -458,13 +459,6 @@ class _StepCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, size: 17, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -479,13 +473,13 @@ class _StepCard extends StatelessWidget {
             if (trailing != null) ...[const SizedBox(width: 10), trailing!],
           ]),
         ),
-        if (body != null) Padding(padding: EdgeInsets.fromLTRB(bodyInset ? 76 : 20, bodyInset ? 12 : 16, 20, 0), child: body),
+        if (body != null) Padding(padding: EdgeInsets.fromLTRB(bodyInset ? 52 : 20, bodyInset ? 12 : 16, 20, 0), child: body),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           decoration: BoxDecoration(
-            color: dark ? t.surface : Colors.white.withValues(alpha: 0.7),
-            border: Border(top: BorderSide(color: t.accentSoftBorder)),
+            color: t.surface2,
+            border: Border(top: BorderSide(color: t.border)),
           ),
           child: Row(children: footer),
         ),
@@ -514,7 +508,6 @@ class _TaxonomyCard extends StatelessWidget {
     }
 
     return _StepCard(
-      icon: FA.sitemap,
       badge: '2b',
       title: l10n.taxonomyCardTitle,
       // One sentence, with dataFishing as an inline pill.
@@ -577,12 +570,47 @@ class _TaxonomyCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
+        if (c.taxonomyResolved && c.records.isNotEmpty) ...[
+          _ExportGenBankButton(),
+          const SizedBox(width: 10),
+        ],
         PrimaryButton(
           label: l10n.fetchTaxonomyFrom(taxonomySourceName(c.taxonomySource)),
           icon: FA.sitemap,
           onPressed: canFetch ? c.fetchTaxonomy : null,
         ),
       ],
+    );
+  }
+}
+
+/// "Export corrected GenBank": every record written again with the
+/// identified or edited name, the lineage of the taxonomy and the gene
+/// names standardized by SynGenes, into a folder the user picks (useful for
+/// a newly assembled genome before its submission).
+class _ExportGenBankButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = ProjectScope.of(context);
+    final l10n = context.l10n;
+    return SplaceTooltip(
+      message: l10n.exportGbInfo,
+      child: OutlinedButton(
+        onPressed: c.busy || c.records.isEmpty
+            ? null
+            : () async {
+                final dir = await getDirectoryPath(confirmButtonText: l10n.exportGbChoose);
+                if (dir == null) return;
+                final n = await c.exportCorrectedGenBank(dir, version: appVersion);
+                if (context.mounted) {
+                  showSplaceToast(context,
+                      title: l10n.exportGbDoneTitle('$n'),
+                      path: dir,
+                      action: (label: l10n.openFolder, onPressed: () => c.openFolder(dir)));
+                }
+              },
+        child: Text(l10n.exportGbButton),
+      ),
     );
   }
 }
@@ -671,14 +699,12 @@ class _TaxonomyTreeState extends State<_TaxonomyTree> {
     final root = widget.root;
     final records = widget.records;
     final t = context.tokens;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: t.accentSoftBorder),
-        gradient: dark ? null : const LinearGradient(colors: [Color(0xFFEEF0FB), Colors.white, Color(0xFFFEF2F2)], stops: [0, .52, 1]),
-        color: dark ? t.surface2 : null,
+        color: t.surface,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -747,7 +773,35 @@ class _TaxonTileState extends State<_TaxonTile> {
     final n = widget.node;
     final italic = n.rank == 'Genus' || n.rank == 'Species';
     final recs = [for (final i in n.records) widget.records[i]];
-    String mean(int Function(GbRecord) f) => recs.isEmpty ? '0' : (recs.map(f).reduce((a, b) => a + b) / recs.length).round().toString();
+    final c = ProjectScope.of(context);
+    // What the node's records hold: the searched markers when the records
+    // came from a marker search (a COI record has no rRNAs or tRNAs worth
+    // showing), else the feature classes present. Means over the records
+    // that have them.
+    final chips = <String>[];
+    final searched = <String>{for (final m in c.markerSearches) ...m.search.genes};
+    final cat = c.catalog;
+    if (searched.isNotEmpty && cat != null && identical(widget.records, c.records)) {
+      for (final g in searched) {
+        final lengths = <int>[];
+        for (final ri in n.records) {
+          final r = c.records[ri];
+          for (final e in cat.recordGenes[ri].entries) {
+            if (e.value == g && markerFeatureTypes.contains(r.features[e.key].type)) lengths.add(locationLength(r.features[e.key].location));
+          }
+        }
+        if (lengths.isNotEmpty) chips.add('$g ${lengths.length} · ~${(lengths.reduce((a, b) => a + b) / lengths.length).round()} bp');
+      }
+    } else {
+      for (final (label, len) in [
+        ('PCGs', (GbRecord r) => r.markerLengths.pcgs),
+        ('rRNAs', (GbRecord r) => r.markerLengths.rrnas),
+        ('tRNAs', (GbRecord r) => r.markerLengths.trnas),
+      ]) {
+        final have = recs.map(len).where((v) => v > 0).toList();
+        if (have.isNotEmpty) chips.add('$label ~${(have.reduce((a, b) => a + b) / have.length).round()} bp');
+      }
+    }
     final leaf = n.children.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -785,11 +839,10 @@ class _TaxonTileState extends State<_TaxonTile> {
                 const SizedBox(width: 6),
                 Text('(${n.records.length})', style: TextStyle(fontSize: 12, color: t.textFaint)),
                 const Spacer(),
-                TagChip('PCGs ~${mean((r) => r.markerLengths.pcgs)} bp'),
-                const SizedBox(width: 4),
-                TagChip('rRNAs ~${mean((r) => r.markerLengths.rrnas)} bp'),
-                const SizedBox(width: 4),
-                TagChip('tRNAs ~${mean((r) => r.markerLengths.trnas)} bp'),
+                for (final (i, chip) in chips.indexed) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  TagChip(chip),
+                ],
               ],
             ),
           ),

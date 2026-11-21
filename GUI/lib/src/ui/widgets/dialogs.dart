@@ -27,7 +27,11 @@ class SplaceDialog extends StatelessWidget {
     this.danger = false,
     this.scroll = true,
     this.fill = false,
+    this.headerTrailing,
   });
+
+  /// Shown in the header before the close button (a language selector…).
+  final Widget? headerTrailing;
 
   static const standardWidth = 1400.0;
   static const maxHeight = 1000.0;
@@ -72,6 +76,7 @@ class SplaceDialog extends StatelessWidget {
         leading: DialogHeader.iconTile(context, icon, danger: danger),
         title: title,
         subtitle: subtitle,
+        trailing: headerTrailing,
         onClose: () => Navigator.of(context).pop(),
       ),
       if (fill || full) Expanded(child: body) else Flexible(child: body),
@@ -101,8 +106,11 @@ class SplaceDialog extends StatelessWidget {
 /// surface, separated from the body by the splash's animated rainbow line
 /// instead of a coloured background.
 class DialogHeader extends StatelessWidget {
-  const DialogHeader({super.key, required this.leading, required this.title, this.subtitle, this.onClose});
+  const DialogHeader({super.key, required this.leading, required this.title, this.subtitle, this.onClose, this.trailing});
   final Widget leading;
+
+  /// Before the close button.
+  final Widget? trailing;
   final String title;
   final String? subtitle;
 
@@ -146,6 +154,7 @@ class DialogHeader extends StatelessWidget {
               ],
             ]),
           ),
+          if (trailing != null) ...[trailing!, const SizedBox(width: 12)],
           if (onClose != null)
             // Bordered square with a dark cross, so it stands out on the
             // white header.
@@ -204,6 +213,7 @@ Future<bool> confirmDialog(
   String? cancel,
   bool danger = true,
   IconData icon = FA.triangleExclamation,
+  Iterable<String> italic = const [],
 }) async {
   final ok = await showDialog<bool>(
     context: context,
@@ -213,7 +223,19 @@ Future<bool> confirmDialog(
       danger: danger,
       size: DialogSize.compact,
       actions: [
-        DialogCancelButton(onPressed: () => Navigator.pop(ctx, false), label: cancel),
+        // A destructive action is the only red button: Cancel is neutral.
+        if (danger)
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(112, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              textStyle: Theme.of(ctx).filledButtonTheme.style?.textStyle?.resolve(const {}),
+            ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(cancel ?? ctx.l10n.cancel),
+          )
+        else
+          DialogCancelButton(onPressed: () => Navigator.pop(ctx, false), label: cancel),
         FilledButton(
           style: danger ? FilledButton.styleFrom(backgroundColor: SplaceRed.c600) : null,
           onPressed: () => Navigator.pop(ctx, true),
@@ -221,7 +243,7 @@ Future<bool> confirmDialog(
         ),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(body, style: const TextStyle(fontSize: 14)),
+        Text.rich(italicNames(body, italic, style: const TextStyle(fontSize: 14))),
         if (body2 != null) ...[const SizedBox(height: 10), Text(body2, style: TextStyle(fontSize: 13, color: ctx.tokens.textMuted))],
       ]),
     ),

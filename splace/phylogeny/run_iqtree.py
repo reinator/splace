@@ -11,13 +11,12 @@ import seaborn as sns
 import pandas as pd
 
 def check_iqtree():
-    """Check if IQ-TREE is installed (iqtree or iqtree2)."""
-    if shutil.which("iqtree2"):
-        return "iqtree2"
-    elif shutil.which("iqtree"):
-        return "iqtree"
-    else:
-        return None
+    """Return the IQ-TREE executable on PATH: iqtree3 (IQ-TREE 3, installed by
+    environment.yml), then iqtree2 or iqtree; None when there is none."""
+    for name in ("iqtree3", "iqtree2", "iqtree"):
+        if shutil.which(name):
+            return name
+    return None
 
 def _format_taxon_label(raw_name):
     """Parse 'Genus_species_AccessionID_UID' into a display label with italic species.
@@ -303,24 +302,24 @@ def run_iqtree_analysis(supermatrix_path, output_dir, threads=1, bootstrap=1000,
     """
     iqtree_cmd = check_iqtree()
     if not iqtree_cmd:
-        logging.error("IQ-TREE not found in PATH. Please install IQ-TREE (iqtree or iqtree2).")
+        logging.error("IQ-TREE not found in PATH. Please install IQ-TREE 3 (conda install -c bioconda iqtree).")
         return None # Critical failure for this step
 
     prefix = os.path.join(output_dir, "splace_tree")
     
-    # Command: iqtree2 -s file.nex -nt T -bb 1000 -m MFP --prefix ...
+    # Command: iqtree3 -s file.nex -T 8 -B 1000 -m MFP --prefix ... -redo
     # -s: Input (Nexus file determines alignment + partitions)
-    # -nt: AUTO or number
+    # -T: number of threads (IQ-TREE 2 and 3; -nt is the old name)
     # -B: Ultrafast Bootstrap (1000)
     # -m: ModelFinder (MFP)
-    
+
     cmd = [
         iqtree_cmd,
         "-s", supermatrix_path,
-        "-nt", str(threads),
+        "-T", str(threads),
         "-B", str(bootstrap),
         "-m", model,
-        "-pre", prefix,
+        "--prefix", prefix,
         "-redo" # Overwrite existing
     ]
     if extra_args and extra_args.strip():

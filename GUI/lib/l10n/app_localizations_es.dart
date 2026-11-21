@@ -124,7 +124,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get splashStep6 =>
-      'Pruebe la saturación de sustituciones por posición del codón con el índice de [[Iss (saturation)|Xia]] y decida qué posiciones conservar.';
+      'Pruebe la saturación de sustituciones de cada gen codificante, por posición del codón, con [[PhyKIT]] y decida qué posiciones conservar.';
 
   @override
   String get splashStep7 =>
@@ -132,7 +132,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get splashStep8 =>
-      'Estime la filogenia de máxima verosimilitud con [[IQ-TREE 3|IQ-TREE]] o [[RAxML-NG]], con soporte de ramas y árboles por gen opcionales.';
+      'Estime la filogenia de máxima verosimilitud con [[IQ-TREE 3|IQ-TREE]] o [[RAxML-NG]], con soporte de ramas y árboles por gen opcionales, y delimite especies con [[mPTP]], [[GMYC]], [[ASAP]] y [[ABGD]].';
 
   @override
   String get step1 => 'Cargar datos';
@@ -204,7 +204,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tipAlignedBody =>
-      'Puede **omitir MAFFT** en la etapa 5 e ir directo al recorte, la saturación y los árboles.';
+      'Puede **omitir MAFFT** en la etapa 4 e ir directo al recorte, la saturación y los árboles.';
 
   @override
   String optionN(String n) {
@@ -403,15 +403,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sharedOnly => 'Solo compartidos';
 
   @override
-  String get legendSelectAll => 'selecciona todos los marcadores visibles';
-
-  @override
-  String get legendNone => 'borra todas las selecciones';
-
-  @override
-  String get legendShared => 'marcadores presentes en todas las muestras';
-
-  @override
   String get missingTitle => 'Marcadores ausentes';
 
   @override
@@ -536,11 +527,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get saturationIntro =>
-      'Cada marcador se prueba con PhyKIT (Philippe et al. 2011): IQ-TREE infiere el árbol del gen y, para la 1.ª, 2.ª y 3.ª posiciones del codón (y 1.ª+2.ª, todos los sitios), PhyKIT hace la regresión de la distancia p no corregida de cada par de taxones sobre su distancia en el árbol. Un valor cerca de 1 significa sin saturación; cuanto más cerca de 0, más esconden las diferencias observadas sustituciones repetidas.';
+      'Cada marcador se prueba con [[PhyKIT]], método de [[Philippe 2011|]]: IQ-TREE infiere el árbol del gen y, para la 1.ª, 2.ª y 3.ª posiciones del codón (y 1.ª+2.ª, todos los sitios), PhyKIT hace la regresión de la distancia p no corregida de cada par de taxones sobre su distancia en el árbol. Un valor cerca de 1 significa sin saturación; cuanto más cerca de 0, más esconden las diferencias observadas sustituciones repetidas.';
 
   @override
   String get saturationThresholds =>
-      'Umbrales heurísticos, definidos en 6a (parámetros de la prueba): moderada por debajo del límite moderado del valor de saturación de PhyKIT, saturada por debajo del límite de saturación; una divergencia demasiado baja (p media) cuenta como OK.';
+      'Umbrales heurísticos, definidos en 5a (parámetros de la prueba): moderada por debajo del límite moderado del valor de saturación de PhyKIT, saturada por debajo del límite de saturación; una divergencia demasiado baja (p media) cuenta como OK.';
 
   @override
   String get runSaturation => 'Ejecutar prueba de saturación';
@@ -550,11 +541,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recKeepAll =>
-      'Mantenga las tres posiciones del codón. En el paso 7b, particione la matriz por posición del codón para que cada una tenga su propio modelo de sustitución.';
+      'Mantenga las tres posiciones del codón. En el paso 6b, particione la matriz por posición del codón para que cada una tenga su propio modelo de sustitución.';
 
   @override
   String get recAminoAcids =>
-      'Las tres posiciones están saturadas: con esta divergencia los nucleótidos dicen poco sobre las relaciones. Alinee como aminoácidos (paso 5b) o use marcadores más lentos.';
+      'Las tres posiciones están saturadas: con esta divergencia los nucleótidos dicen poco sobre las relaciones. Alinee como aminoácidos (paso 4b) o use marcadores más lentos.';
 
   @override
   String get recUndetermined =>
@@ -671,7 +662,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get codonExclusionInfo =>
-      'Las posiciones excluidas se eliminan solo de los loci codificantes. La prueba de saturación (etapa 6) puede completarlo.';
+      'Las posiciones excluidas se eliminan solo de los loci codificantes. La prueba de saturación (etapa 5) puede completarlo.';
 
   @override
   String excludePosition(String n) {
@@ -1265,7 +1256,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get featureTypesHint =>
-      'Active al menos una categoría para listar los marcadores en la etapa 4.';
+      'Active al menos una categoría para listar los marcadores abajo.';
 
   @override
   String unknownGenesButton(String n) {
@@ -1765,7 +1756,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get trimCodonHandlingInfo =>
-      'Las posiciones del codón se usan después en las particiones y la prueba de saturación (paso 6), así que los genes codificantes deben conservar codones enteros. trimAl lo hace con -backtrans (recorta el alineamiento traducido y devuelve los codones; -ignorestopcodon porque comprueba los stops con el código estándar) y ClipKIT con --codon. Excluir una posición del codón de la supermatriz se decide en el paso 7b, no aquí.';
+      'Las posiciones del codón se usan después en las particiones y la prueba de saturación (paso 5), así que los genes codificantes deben conservar codones enteros. trimAl lo hace con -backtrans (recorta el alineamiento traducido y devuelve los codones; -ignorestopcodon porque comprueba los stops con el código estándar) y ClipKIT con --codon. Excluir una posición del codón de la supermatriz se decide en el paso 6b, no aquí.';
 
   @override
   String get alignRunning => 'Alineando con MAFFT';
@@ -1805,9 +1796,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get defaultPhylogeny => 'Por defecto para filogenia';
-
-  @override
-  String get legendDefault => 'conjunto recomendado para análisis filogenético';
 
   @override
   String get tooltipAll => 'Seleccionar todos los marcadores visibles';
@@ -2310,7 +2298,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noneSelected => 'ninguno seleccionado';
 
   @override
-  String get outgroupFromStep7 => 'elegido en la etapa 7';
+  String get outgroupFromStep7 => 'elegido en la etapa 6';
 
   @override
   String get substitutionModel => 'Modelo de sustitución';
@@ -2825,7 +2813,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get frameLostInfo =>
-      'trimAl eliminó columnas sueltas de este gen codificante, así que su longitud puede no ser múltiplo de 3 y las posiciones del codón son desconocidas. Se concatena como una partición única y queda fuera de la prueba de saturación. Active \"Mantener el marco de lectura\" en 5e y recorte de nuevo para conservar las particiones por codón.';
+      'trimAl eliminó columnas sueltas de este gen codificante, así que su longitud puede no ser múltiplo de 3 y las posiciones del codón son desconocidas. Se concatena como una partición única y queda fuera de la prueba de saturación. Active \"Mantener el marco de lectura\" en 4d y recorte de nuevo para conservar las particiones por codón.';
 
   @override
   String frameShiftTag(String n) {
@@ -2834,7 +2822,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get frameShiftInfo =>
-      'MAFFT colocó gaps que no son múltiplos de 3 dentro de estas secuencias: desde ese gap, sus bases quedan en la posición del codón equivocada de la columna. Es común al alinear genes codificantes como nucleótidos. Las particiones por codón y la prueba de saturación son aproximadas para ellas; el modo Codon-aware (5b) lo evita.';
+      'MAFFT colocó gaps que no son múltiplos de 3 dentro de estas secuencias: desde ese gap, sus bases quedan en la posición del codón equivocada de la columna. Es común al alinear genes codificantes como nucleótidos. Las particiones por codón y la prueba de saturación son aproximadas para ellas; el modo Codon-aware (4b) lo evita.';
 
   @override
   String get saturationRunning => 'Prueba de saturación';
@@ -3176,7 +3164,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get missMatrixNote =>
-      'En la supermatriz (paso 7), el marcador ausente pasa a \'?\' para esa muestra cuando “Permitir secuencias ausentes” está activado; si no, los marcadores ausentes en algún taxón se excluyen. Algunos huecos son normales; una muestra sin la mayoría de los marcadores aporta poco y puede convenir eliminarla.';
+      'En la supermatriz (paso 6), el marcador ausente pasa a \'?\' para esa muestra cuando “Permitir secuencias ausentes” está activado; si no, los marcadores ausentes en algún taxón se excluyen. Algunos huecos son normales; una muestra sin la mayoría de los marcadores aporta poco y puede convenir eliminarla.';
 
   @override
   String missFixableNote(String n) {
@@ -3274,7 +3262,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String satSourceTrimmed(String kept, String total) {
-    return 'Probado en el alineamiento recortado: trimAl conservó $kept de los $total codones de MAFFT, y SPLACE quitó solo codones enteros, así que cada columna conserva la posición en el codón que tenía en el alineamiento de MAFFT (pase el ratón sobre una columna recortada en el paso 5 para ver de qué columna de MAFFT viene).';
+    return 'Probado en el alineamiento recortado: trimAl conservó $kept de los $total codones de MAFFT, y SPLACE quitó solo codones enteros, así que cada columna conserva la posición en el codón que tenía en el alineamiento de MAFFT (pase el ratón sobre una columna recortada en el paso 4 para ver de qué columna de MAFFT viene).';
   }
 
   @override
@@ -3504,12 +3492,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String recExcludeOne(String positions) {
-    return 'Elimine la $positions posición del codón de la matriz (paso 7b) y mantenga las otras dos, particionadas por posición del codón.';
+    return 'Elimine la $positions posición del codón de la matriz (paso 6b) y mantenga las otras dos, particionadas por posición del codón.';
   }
 
   @override
   String recExcludeMany(String positions) {
-    return 'Elimine las posiciones $positions del codón de la matriz (paso 7b) y mantenga la restante.';
+    return 'Elimine las posiciones $positions del codón de la matriz (paso 6b) y mantenga la restante.';
   }
 
   @override
@@ -3528,12 +3516,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String applyExclude(String positions) {
-    return 'Marcar $positions en el paso 7b';
+    return 'Marcar $positions en el paso 6b';
   }
 
   @override
   String get applyKeepAll =>
-      'Dejar todos los \"Excluir posición\" sin marcar en el paso 7b';
+      'Dejar todos los \"Excluir posición\" sin marcar en el paso 6b';
 
   @override
   String applyPerLocusInfo(String loci) {
@@ -3546,16 +3534,16 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get recStatusKeep => 'El paso 7b ahora mantiene todas las posiciones.';
+  String get recStatusKeep => 'El paso 6b ahora mantiene todas las posiciones.';
 
   @override
   String recStatusExclude(String positions) {
-    return 'El paso 7b ahora excluye: $positions posición(es).';
+    return 'El paso 6b ahora excluye: $positions posición(es).';
   }
 
   @override
   String recStatusPerLocus(String n) {
-    return 'El paso 7b ahora excluye posiciones por gen ($n genes).';
+    return 'El paso 6b ahora excluye posiciones por gen ($n genes).';
   }
 
   @override
@@ -3751,7 +3739,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get concatBlockSourceBody =>
-      'Los alineamientos recortados del paso 5 (sin las columnas mal alineadas) o la salida de MAFFT tal cual.';
+      'Los alineamientos recortados del paso 4 (sin las columnas mal alineadas) o la salida de MAFFT tal cual.';
 
   @override
   String get concatBlockPartitions => 'Cómo dividir la matriz en particiones';
@@ -3778,7 +3766,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get codonExclusionHelp =>
-      'Las posiciones quitadas salen solo de los loci codificantes. El paso 6 (saturación) puede completar esto.';
+      'Las posiciones quitadas salen solo de los loci codificantes. El paso 5 (saturación) puede completar esto.';
 
   @override
   String get concatSummaryTitle => 'Qué se va a generar';
@@ -3972,7 +3960,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get concatBlockOutgroupBody =>
-      'Elija uno o más taxones fuera del grupo estudiado; los árboles de los pasos 8 y 9 se enraízan en ellos. Sin grupo externo, el visor enraíza en el punto medio.';
+      'Elija uno o más taxones fuera del grupo estudiado; los árboles de los pasos 7 y 8 se enraízan en ellos. Sin grupo externo, el visor enraíza en el punto medio.';
 
   @override
   String get schemeOneModel => 'un modelo para todo';
@@ -4439,7 +4427,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get bothInfo =>
-      'Ambos son métodos de máxima verosimilitud. Comparar los árboles (paso 9, Comparar árboles) muestra qué clados no dependen del programa.';
+      'Ambos son métodos de máxima verosimilitud. Comparar los árboles (paso 8, Comparar árboles) muestra qué clados no dependen del programa.';
 
   @override
   String bothBody(String iq, String rx) {
@@ -4464,14 +4452,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get satUnlocksStep7 =>
-      'Ejecute la prueba para continuar: su sugerencia (qué posiciones del codón conservar) se usa para construir la matriz en el paso 7, que se abre a continuación.';
+      'Ejecute la prueba para continuar: su sugerencia (qué posiciones del codón conservar) se usa para construir la matriz en el paso 6, que se abre a continuación.';
 
   @override
   String get satAllGenes => 'Todos los genes juntos';
 
   @override
   String get satAllGenesInfo =>
-      '\"Todos los genes juntos\" une los genes codificantes solo para esta prueba (la matriz se construye en el paso 7). Es la fila que decide la sugerencia de qué posiciones del codón quitar de toda la matriz; la fila de cada gen permite elegir gen por gen.';
+      '\"Todos los genes juntos\" une los genes codificantes solo para esta prueba (la matriz se construye en el paso 6). Es la fila que decide la sugerencia de qué posiciones del codón quitar de toda la matriz; la fila de cada gen permite elegir gen por gen.';
 
   @override
   String get exampleLabel => 'Ejemplo';
@@ -4697,7 +4685,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get orgMarkersInfo =>
-      'Cuántas muestras tiene cada marcador, y qué hacer cuando una muestra tiene más de una secuencia del mismo marcador. Todos los marcadores pasan al paso 4, donde elige cuáles usar.';
+      'Cuántas muestras tiene cada marcador, y qué hacer cuando una muestra tiene más de una secuencia del mismo marcador. Todos los marcadores pasan al paso 3, donde elige cuáles usar.';
 
   @override
   String orgDuplicates(String n) {
@@ -4731,7 +4719,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get orgPendingBody =>
-      'Después se escribe un FASTA por marcador con todas las muestras, y los marcadores aparecen en el paso 4.';
+      'Después se escribe un FASTA por marcador con todas las muestras, y los marcadores aparecen en el paso 3.';
 
   @override
   String get orgMatrix => 'Matriz';
@@ -4770,11 +4758,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get satOptionalLoci =>
-      'Opcional para loci: el paso 7 ya está disponible. Los marcadores marcados como codificantes se prueban por posición del codón; los demás, en todos sus sitios.';
+      'Opcional para loci: el paso 6 ya está disponible. Los marcadores marcados como codificantes se prueban por posición del codón; los demás, en todos sus sitios.';
 
   @override
   String get satOptionalLociNoCoding =>
-      'Opcional para loci: el paso 7 ya está disponible. Ningún marcador es codificante, así que cada locus se prueba en todos sus sitios (no hay posiciones de codón): la prueba muestra qué loci están saturados.';
+      'Opcional para loci: el paso 6 ya está disponible. Ningún marcador es codificante, así que cada locus se prueba en todos sus sitios (no hay posiciones de codón): la prueba muestra qué loci están saturados.';
 
   @override
   String exampleTrimNone(String total) {
@@ -4970,12 +4958,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String satOptionalPartial(String markers) {
-    return 'Opcional aquí: el paso 7 ya está disponible. $markers vienen de registros de marcadores individuales con secuencias parciales (fragmentos como barcodes, marcados con < o > en GenBank), así que la prueba es una guía, no un requisito.';
+    return 'Opcional aquí: el paso 6 ya está disponible. $markers vienen de registros de marcadores individuales con secuencias parciales (fragmentos como barcodes, marcados con < o > en GenBank), así que la prueba es una guía, no un requisito.';
   }
 
   @override
   String satPartialMixed(String markers) {
-    return '$markers tienen secuencias parciales: para ellos la prueba es opcional. El paso 7 espera solo a los marcadores completos.';
+    return '$markers tienen secuencias parciales: para ellos la prueba es opcional. El paso 6 espera solo a los marcadores completos.';
   }
 
   @override
@@ -4985,7 +4973,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String headerConflictBlock(String n) {
-    return '$n encabezado(s) se repiten dentro del mismo marcador, así que esas secuencias no podrían distinguirse en el alineamiento ni en el árbol. Agregue un campo que las distinga (Accesión o Voucher) o active \"Una muestra por especie\" para unirlas. El alineamiento queda bloqueado hasta que todos los encabezados sean únicos.';
+    return '$n encabezado(s) se repiten dentro del mismo marcador, así que esas secuencias no podrían distinguirse en el alineamiento ni en el árbol. Agregue un campo que las distinga (Accesión o Voucher) o active \"Una muestra por especie\" para unirlas. El alineamiento y todos los pasos siguientes (saturación, matriz, árboles, delimitación) quedan bloqueados hasta que todos los encabezados sean únicos.';
   }
 
   @override
@@ -4993,7 +4981,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get alignBlockedHeader =>
-      'Bloqueado: encabezados FASTA repetidos (5a)';
+      'Bloqueado: encabezados FASTA repetidos (4a)';
 
   @override
   String recGenesCount(String n, String total) {
@@ -5012,7 +5000,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String rec7bPreview(String section) {
-    return 'Cómo quedará \"$section\" en el paso 7b:';
+    return 'Cómo quedará \"$section\" en el paso 6b:';
   }
 
   @override
@@ -5218,7 +5206,21 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String geneReviewAgain(String n) {
-    return 'Revisar de nuevo ($n)';
+    return 'Revisar los nombres de los genes de nuevo ($n)';
+  }
+
+  @override
+  String get geneReviewWhichTitle =>
+      'La revisión muestra de nuevo estos genes:';
+
+  @override
+  String geneReviewWhichUnknown(String names) {
+    return 'No encontrados en SynGenes: $names';
+  }
+
+  @override
+  String geneReviewWhichConflicts(String pairs) {
+    return '/gene y /product no coinciden: $pairs';
   }
 
   @override
@@ -5340,7 +5342,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get satParamMethodValue =>
-      'saturación de PhyKIT (Steenwyk et al. 2021; Philippe et al. 2011): pendiente de la distancia p no corregida de cada par de taxones sobre su distancia patrística en el árbol';
+      'saturación de [[PhyKIT]], método de [[Philippe 2011|]]: pendiente de la distancia p no corregida de cada par de taxones sobre su distancia patrística en el árbol';
 
   @override
   String get satParamDistance => 'Árboles';
@@ -5685,4 +5687,779 @@ class AppLocalizationsEs extends AppLocalizations {
   String trimCasesCaptionTool(String tool) {
     return 'Mismo alineamiento, dos formas. Columna a columna, trimAl elimina una a una las columnas que marca (×), así que las posiciones del codón (regla de colores) quedan fuera de orden (!). Con $tool sale el codón entero de cada columna marcada (+): las posiciones 1.ª, 2.ª y 3.ª siguen en orden para las particiones y la prueba de saturación.';
   }
+
+  @override
+  String get delimTitle => 'Delimitación de especies';
+
+  @override
+  String get delimIntro =>
+      'IQ-TREE y RAxML-NG infieren el árbol, pero no delimitan especies; por eso SPLACE ejecuta programas publicados de delimitación: [[mPTP]] y [[GMYC]] en los árboles de máxima verosimilitud, y [[ASAP]] y [[ABGD]] en los alineamientos (distancias por pares). Cada resultado tiene su botón en el árbol (paso 8). Una delimitación es una hipótesis: compare los métodos y confírmela con otras evidencias.';
+
+  @override
+  String get delimTrees => 'Árboles de ML a delimitar';
+
+  @override
+  String get delimModels => 'Modelos';
+
+  @override
+  String get delimModelMulti => 'mPTP (una tasa por especie)';
+
+  @override
+  String get delimModelSingle => 'PTP (una tasa para todas)';
+
+  @override
+  String get delimMinbr =>
+      'Longitud mínima de rama a partir de los datos (--minbr_auto)';
+
+  @override
+  String get delimMinbrInfo =>
+      'Las ramas más cortas que la menor distancia p de la supermatriz no tienen sustituciones y se ignoran. Apagado: el valor por defecto de mPTP (0,0001).';
+
+  @override
+  String get delimCrop =>
+      'Enraizar en el grupo externo y retirarlo (--outgroup_crop)';
+
+  @override
+  String get delimCropInfo =>
+      'Los grupos externos del paso 6c enraízan el árbol y no se delimitan, así sus ramas largas no alteran el resultado.';
+
+  @override
+  String get delimRun => 'Delimitar especies';
+
+  @override
+  String get delimRunning => 'mPTP: delimitación de especies';
+
+  @override
+  String get delimNone => 'Ninguna delimitación todavía.';
+
+  @override
+  String delimSpecies(String n) {
+    return '$n especies';
+  }
+
+  @override
+  String delimSingletons(String n) {
+    return '$n con un terminal';
+  }
+
+  @override
+  String get delimLrtFailed => 'LRT falló: una especie preferida';
+
+  @override
+  String get delimViewOnTree => 'Ver en el árbol';
+
+  @override
+  String get delimMinbrCommand => 'Longitud mínima de rama';
+
+  @override
+  String get delimSpeciesList => 'Especies delimitadas';
+
+  @override
+  String get treeDelimitation => 'Delimitación de especies';
+
+  @override
+  String get treeDelimitationInfo =>
+      'Cada botón añade una columna de barras junto a las etiquetas: una barra por especie delimitada por esa herramienta en ese árbol (las especies vecinas alternan colores). Los terminales se asocian por nombre, así que una delimitación puede compararse en cualquier árbol. Ejecútelas en el paso 7e.';
+
+  @override
+  String get treeDelimitationCircular =>
+      'Se muestra solo en el diseño rectangular';
+
+  @override
+  String get citeFeatured => 'Nombres de los genes y taxonomía';
+
+  @override
+  String get citeRoleHint =>
+      'Cada referencia dice lo que hizo la herramienta en este proyecto.';
+
+  @override
+  String get citeRoleLabel => 'Qué hizo:';
+
+  @override
+  String get delimOnTrees => 'En los árboles (mPTP, GMYC)';
+
+  @override
+  String get delimTreesIntro =>
+      'mPTP encuentra dónde la ramificación del árbol de ML pasa de especiación (entre especies) a coalescencia (dentro de las especies). El modelo [[PTP]] usa una tasa de coalescencia para todas las especies; mPTP da a cada especie su propia tasa, lo que maneja mejor muestreos desiguales. [[GMYC]] (umbral único, pGMYC) lee el árbol de ML hecho ultramétrico por [[LSD2]] (fechas relativas) y encuentra dónde los tiempos entre ramificaciones pasan de especiación a coalescencia.';
+
+  @override
+  String get delimOnAlignments => 'En los alineamientos (ASAP, ABGD)';
+
+  @override
+  String get delimAlignmentsIntro =>
+      'Métodos de un solo locus basados en distancias por pares, en general usados en un marcador de barcode (COI, 16S…). ASAP construye particiones por agrupamiento jerárquico y las ordena por su puntuación; ABGD busca el barcode gap entre las distancias intra e interespecíficas en un intervalo de valores a priori.';
+
+  @override
+  String get delimAlignments => 'Alineamientos';
+
+  @override
+  String get delimNoAlignments => 'Ningún alineamiento de ADN todavía.';
+
+  @override
+  String get delimSupermatrix => 'Supermatriz';
+
+  @override
+  String get delimDistance => 'Distancia';
+
+  @override
+  String get delimDistanceInfo =>
+      'Distancia por pares de ASAP y ABGD (ambos usan Jukes-Cantor por defecto). ABGD ofrece solo JC69 y K2P; con otra distancia ABGD usa JC69.';
+
+  @override
+  String get delimPMin => 'ABGD: Pmin a priori';
+
+  @override
+  String get delimPMax => 'ABGD: Pmax a priori';
+
+  @override
+  String get delimSteps => 'ABGD: pasos';
+
+  @override
+  String get delimSlope => 'ABGD: ancho del gap (X)';
+
+  @override
+  String get delimPriorInfo =>
+      'ABGD prueba valores a priori de divergencia intraespecífica máxima de Pmin a Pmax (escala log) y da una partición por valor. Los valores por defecto son los de ABGD (0,001 a 0,1, 10 pasos).';
+
+  @override
+  String get delimSlopeInfo =>
+      'Ancho relativo del gap (ABGD -X, por defecto 1,5): valores menores encuentran gaps menores.';
+
+  @override
+  String get delimPartition => 'Partición mostrada';
+
+  @override
+  String get delimPartitionAsapInfo =>
+      'ASAP propone varias particiones ordenadas por su puntuación (menor es mejor); la mejor aparece primero. La elegida aquí va al árbol y al texto de métodos.';
+
+  @override
+  String get delimPartitionAbgdInfo =>
+      'ABGD da una partición inicial y una recursiva para cada valor a priori P. Aparece primero la partición inicial en el P más cercano a 0,01; busque particiones que se mantienen en varios valores. La elegida aquí va al árbol y al texto de métodos.';
+
+  @override
+  String delimAsapScore(String score) {
+    return 'puntuación ASAP $score';
+  }
+
+  @override
+  String get delimInitial => 'inicial';
+
+  @override
+  String get delimRecursive => 'recursiva';
+
+  @override
+  String get delimModelGmyc => 'GMYC (árbol ultramétrico por LSD2)';
+
+  @override
+  String get delimLsd2Command => 'Árbol ultramétrico (LSD2)';
+
+  @override
+  String get exportGbButton => 'Exportar GenBank corregido';
+
+  @override
+  String get exportGbChoose => 'Guardar aquí';
+
+  @override
+  String get exportGbInfo =>
+      'Guarda cada registro como archivo GenBank (.gb) con el nombre de la especie identificado o editado, el linaje de la taxonomía y los nombres de los genes estandarizados por SynGenes (el nombre original queda en una /note). Útil para un genoma recién ensamblado antes de su envío. Una copia va a la carpeta del proyecto (00_genbank_corrected).';
+
+  @override
+  String get barcodingSwitch => 'Estas secuencias son DNA barcodes';
+
+  @override
+  String get barcodingSwitchInfo =>
+      'Un espécimen por secuencia (COI, 16S, ITS…): identifique cada uno en GenBank y BOLD y exporte la planilla de envío de BOLD.';
+
+  @override
+  String get barcodingLocus => 'Marcador de barcode';
+
+  @override
+  String get barcodingLocusInfo =>
+      'El locus de los archivos FASTA con los barcodes. El COI va a BOLD y GenBank; otros marcadores, solo a GenBank.';
+
+  @override
+  String barcodingCount(String n) {
+    return '$n especímenes';
+  }
+
+  @override
+  String get barcodingSourcesCoi => 'BOLD ID Engine + GenBank BLAST';
+
+  @override
+  String get barcodingSourcesGenbank =>
+      'GenBank BLAST (BOLD identifica solo COI)';
+
+  @override
+  String get barcodingIdentify => 'Identificar especímenes';
+
+  @override
+  String get barcodingTaxonomy => 'Taxonomía (GBIF)';
+
+  @override
+  String get barcodingTaxonomyInfo =>
+      'Completa filo, clase, orden y familia de los nombres elegidos, desde GBIF (método de dataFishing), para la planilla de BOLD.';
+
+  @override
+  String get barcodingExport => 'Exportar planilla de BOLD (.xlsx)';
+
+  @override
+  String get barcodingExportInfo =>
+      'Guarda la plantilla oficial de página única de BOLD5 (hoja Submissions): id de la muestra, taxonomía e identificación completados; voucher y datos de colecta quedan para usted. Se guarda al lado un FASTA con los ids de las muestras en los encabezados, para el envío de las secuencias.';
+
+  @override
+  String barcodingExported(String n) {
+    return 'Planilla de BOLD guardada con $n especímenes (y el FASTA de las secuencias)';
+  }
+
+  @override
+  String get barcodingColSample => 'Muestra';
+
+  @override
+  String get barcodingColMatches => 'Mejores coincidencias';
+
+  @override
+  String get barcodingColName => 'Nombre elegido';
+
+  @override
+  String get barcodingNoMatch => 'sin coincidencia';
+
+  @override
+  String get barcodingNameHint => 'Género especie';
+
+  @override
+  String get barcodingPick => 'Elegir una coincidencia';
+
+  @override
+  String get tutorialTitle => 'Cómo usar SPLACE';
+
+  @override
+  String get tutorialSubtitle =>
+      'Cada paso con para qué sirve y qué hacer en él. Ciérrelo cuando quiera.';
+
+  @override
+  String get tutorialInterface => 'La interfaz';
+
+  @override
+  String get tutorialWhatToDo => 'Qué hacer';
+
+  @override
+  String get tutorialPrev => 'Anterior';
+
+  @override
+  String get tutorialNext => 'Siguiente';
+
+  @override
+  String get tutorialFinish => 'Empezar';
+
+  @override
+  String get tutorialShowAtStart => 'Mostrar este tutorial al pulsar Iniciar';
+
+  @override
+  String get tutorialButton => 'Tutorial';
+
+  @override
+  String tutorialPageOf(String n, String total) {
+    return '$n de $total';
+  }
+
+  @override
+  String get newProject => 'Proyecto nuevo';
+
+  @override
+  String get newProjectTitle => '¿Empezar un proyecto nuevo?';
+
+  @override
+  String get newProjectBody =>
+      'SPLACE empieza de nuevo sin datos, en una carpeta de proyecto nueva, para que analice otro grupo. Se conservan las preferencias, la clave del NCBI y las herramientas encontradas.';
+
+  @override
+  String newProjectKept(String dir) {
+    return 'Los archivos del proyecto actual quedan en $dir.';
+  }
+
+  @override
+  String get newProjectConfirm => 'Proyecto nuevo';
+
+  @override
+  String get tutorialPlay => 'Reproducir';
+
+  @override
+  String get tutorialPause => 'Pausar';
+
+  @override
+  String tutorialItemOf(String n, String total) {
+    return 'Ítem $n de $total';
+  }
+
+  @override
+  String tutorialNextStep(String step) {
+    return 'A continuación: $step';
+  }
+
+  @override
+  String get taxSpeciesRecognized => 'Especie reconocida:';
+
+  @override
+  String get taxSynonyms => 'Buscar también sus sinónimos (GBIF)';
+
+  @override
+  String get taxSynonymsInfo =>
+      'Los registros pueden estar con un nombre antiguo (por ejemplo Bufo marinus para Rhinella marina). El NCBI ya encuentra los sinónimos que conoce; GBIF añade el nombre aceptado y todos los sinónimos que lista, en una sola búsqueda en el NCBI. Los registros se importan con el nombre actual del NCBI.';
+
+  @override
+  String get taxSynonymsLoading => 'Consultando los sinónimos en GBIF…';
+
+  @override
+  String taxSynonymsError(String error) {
+    return 'No se pudo consultar GBIF: $error';
+  }
+
+  @override
+  String get taxSynonymsNone =>
+      'GBIF no tiene sinónimos para este nombre: se busca solo.';
+
+  @override
+  String taxSynonymsFound(String n) {
+    return '$n nombres buscados juntos:';
+  }
+
+  @override
+  String get examplesLabel => 'Datos de ejemplo:';
+
+  @override
+  String examplesEmpty(String folder) {
+    return 'Aún no hay archivos de ejemplo: póngalos en $folder y vuelva a generar la app.';
+  }
+
+  @override
+  String examplesFiles(String n, String folder) {
+    return 'Carga el/los $n archivo(s) de $folder.';
+  }
+
+  @override
+  String get exampleGenbank => 'Ejemplo GenBank';
+
+  @override
+  String get exampleLoci => 'Ejemplo de loci (FASTA)';
+
+  @override
+  String get exampleBarcoding => 'Ejemplo de barcoding (FASTA)';
+
+  @override
+  String get reviewFiledAs => 'registrado como';
+
+  @override
+  String get markerBold => 'Buscar también en BOLD Systems';
+
+  @override
+  String markerBoldInfo(String markers) {
+    return 'Registros públicos de BOLD para $markers. Cada registro muestra de dónde vino: NCBI, BOLD, o NCBI + BOLD cuando BOLD replica un registro de GenBank (importado una vez, desde GenBank). Se puede buscar cualquier nivel (especie, género, familia…); también se buscan los sinónimos que BOLD conoce.';
+  }
+
+  @override
+  String markerBoldNone(String markers) {
+    return 'BOLD tiene $markers de este orgánulo: seleccione uno para buscar también en BOLD.';
+  }
+
+  @override
+  String siFoundAs(String names) {
+    return 'también como $names';
+  }
+
+  @override
+  String siVerdictAccepted(String name) {
+    return 'El nombre aceptado en GBIF es $name: elíjalo para actualizar el registro.';
+  }
+
+  @override
+  String headerConflictUndetermined(String n) {
+    return '$n nombre(s) se repiten dentro del mismo marcador. Los registros de una especie se unen en una muestra, pero los registros no identificados hasta especie (sp., cf., aff., solo el género) o una muestra FASTA con el mismo nombre son especímenes distintos. Nómbrelos en el paso 2 (identificación de especies o tabla de registros) o elimínelos: el alineamiento y todos los pasos siguientes quedan bloqueados hasta que todos los nombres sean únicos.';
+  }
+
+  @override
+  String get tipFieldCountry => 'País';
+
+  @override
+  String get tipFieldLocality => 'Localidad';
+
+  @override
+  String get schemesOneCoding =>
+      'Un marcador: \"por locus\" sería una sola partición, así que puede particionarse por posición del codón (el marco de lectura es conocido) o quedar como una partición.';
+
+  @override
+  String get schemesOneNoCodons =>
+      'Un marcador sin posiciones del codón conocidas (no codificante, proteína, fragmentos sin marco de lectura confirmado o marco perdido en el recorte): la matriz es una sola partición.';
+
+  @override
+  String get schemesNoCodons =>
+      'Ningún marcador tiene posiciones del codón conocidas (no codificante, proteína, fragmentos sin marco de lectura confirmado o marco perdido en el recorte): los marcadores solo pueden particionarse por locus.';
+
+  @override
+  String get trimPlanTitle => 'Cómo se recortará cada marcador';
+
+  @override
+  String get trimWhyNoFrame =>
+      'secuencias parciales sin marco de lectura confirmado en el alineamiento de nucleótidos (alinee en modo Preservando codones para conservar los codones); una partición sin posiciones del codón';
+
+  @override
+  String get trimWhyNonCoding => 'no codificante';
+
+  @override
+  String get trimWhyColumns =>
+      'trimAl por columnas rompe codones: se pierden las posiciones del codón';
+
+  @override
+  String get stepMarkers => 'Anotaciones y Marcadores';
+
+  @override
+  String get stepMarkersFasta => 'Muestras y Marcadores';
+
+  @override
+  String get splashStepMarkers =>
+      'Elija qué tipos de feature (CDS, rRNA, tRNA) entran en el análisis, o indique a SPLACE dónde los encabezados FASTA guardan los nombres de muestra y locus; luego elija los marcadores de la matriz, revisando secuencias ausentes y duplicadas en los mapas de presencia y longitud.';
+
+  @override
+  String dropUndetermined(String n) {
+    return 'Dejar fuera el/los $n registro(s) no identificado(s) hasta especie';
+  }
+
+  @override
+  String get idAlnTitle => 'Alineamientos de la identificación';
+
+  @override
+  String get idAlnOpen =>
+      'Ver los alineamientos (su secuencia y los resultados)';
+
+  @override
+  String get idAlnAll => 'Todas las fuentes';
+
+  @override
+  String get idAlnQuery => 'Consulta';
+
+  @override
+  String get idAlnHit => 'resultado';
+
+  @override
+  String get idAlnCopy => 'Copiar como FASTA';
+
+  @override
+  String get idAlnNone => 'Ningún resultado para este marcador.';
+
+  @override
+  String get idAlnIdentity => 'identidad';
+
+  @override
+  String get idAlnCoverage => 'cobertura';
+
+  @override
+  String get idAlnMismatches => 'diferencias';
+
+  @override
+  String get idAlnGaps => 'gaps';
+
+  @override
+  String get idAlnLoading =>
+      'BOLD indica dónde alinea el resultado, no el alineamiento: buscando la secuencia en el portal de BOLD y alineándola…';
+
+  @override
+  String idAlnLoadError(String error) {
+    return 'No se pudo obtener la secuencia de BOLD: $error';
+  }
+
+  @override
+  String get idpTitle => 'Parámetros de la búsqueda';
+
+  @override
+  String get idpSubtitle =>
+      'BLAST de GenBank y el motor de identificación de BOLD. Cambiar un parámetro envía las búsquedas de nuevo; las respuestas con los mismos parámetros se reutilizan.';
+
+  @override
+  String get idpDatabase => 'Base de datos';
+
+  @override
+  String get idpBlastDbInfo =>
+      'core_nt: la base de nucleótidos por defecto de BLAST web (secuencias principales, más rápida). nt: la colección completa de nucleótidos. refseq_select_rna / refseq_rna: solo transcritos de RefSeq.';
+
+  @override
+  String get idpProgram => 'Programa';
+
+  @override
+  String get idpProgramInfo =>
+      'megablast: para la misma especie o muy cercanas (rápido, palabras largas). blastn: más sensible, encuentra parientes más lejanos (más lento).';
+
+  @override
+  String get idpHits => 'Máx. de resultados';
+
+  @override
+  String get idpHitsInfo =>
+      'Cuántas secuencias devuelve BLAST por consulta (HITLIST_SIZE).';
+
+  @override
+  String get idpExpect => 'E-value';
+
+  @override
+  String get idpExpectInfo =>
+      'Mayor e-value aceptado (EXPECT): menor es más estricto.';
+
+  @override
+  String get idpWord => 'Tamaño de palabra';
+
+  @override
+  String get idpWordInfo =>
+      'Longitud de las semillas (WORD_SIZE). Vacío: el valor por defecto (28 en megablast, 11 en blastn).';
+
+  @override
+  String get idpCoverage => 'Cobertura mín. (%)';
+
+  @override
+  String get idpCoverageInfo =>
+      'Parte de su secuencia que un resultado debe cubrir para contar (aplicada por SPLACE; cambiarla no requiere nueva búsqueda).';
+
+  @override
+  String get idpEntrez => 'Restringir a (consulta Entrez)';
+
+  @override
+  String get idpEntrezInfo =>
+      'Opcional: busca solo registros que cumplen una consulta Entrez, por ejemplo Bufonidae[Organism] o Anura[Organism] (ENTREZ_QUERY).';
+
+  @override
+  String get idpBoldDbInfo =>
+      'public.tax-derep: COI público de animales, un registro por haplotipo y taxón (recomendado). species: registros identificados hasta especie. all.tax-derep: registros públicos y privados (solo la taxonomía). all.animal-alt: registros animales de otros marcadores. public.plants: rbcL y matK. public.fungi: ITS.';
+
+  @override
+  String get idpMinIdentity => 'Identidad mín. (%)';
+
+  @override
+  String get idpMinIdentityInfo =>
+      'Los resultados por debajo de esta identidad no se devuelven (70–100 %).';
+
+  @override
+  String get idpMinOverlap => 'Solapamiento mín. (pb)';
+
+  @override
+  String get idpMinOverlapInfo =>
+      'Alineamiento más corto con su secuencia que cuenta.';
+
+  @override
+  String get idpMaxHits => 'Máx. de resultados';
+
+  @override
+  String get idpMaxHitsInfo =>
+      'Cuántos resultados devuelve BOLD por secuencia.';
+
+  @override
+  String idpBoldMarkers(String markers) {
+    return 'Esta base identifica: $markers.';
+  }
+
+  @override
+  String speciesIdBoldBodyFor(String db, String markers) {
+    return 'Motor de identificación, base $db: $markers.';
+  }
+
+  @override
+  String speciesIdBoldOffFor(String markers) {
+    return 'Seleccione $markers para buscar también en BOLD (la base se puede cambiar en los parámetros).';
+  }
+
+  @override
+  String get exampleLociShort => 'Ejemplo de loci';
+
+  @override
+  String get exampleBarcodingShort => 'Ejemplo de barcoding';
+
+  @override
+  String speciesIdGenesHintFor(String markers) {
+    return 'Elija uno o más genes. Todo gen se busca en GenBank con BLAST; BOLD recibe los marcadores de su base ($markers).';
+  }
+
+  @override
+  String speciesIdGenbankBodyFor(String program, String db, String hits) {
+    return 'BLAST ($program) contra $db, hasta $hits resultados por gen.';
+  }
+
+  @override
+  String get trimPlanCodonsTitle =>
+      'Codones enteros (marco de lectura conocido)';
+
+  @override
+  String trimPlanColumnsTitle(String why) {
+    return 'Columna por columna — $why';
+  }
+
+  @override
+  String get openProject => 'Abrir proyecto';
+
+  @override
+  String get saveProject => 'Guardar proyecto';
+
+  @override
+  String get saveProjectTooltip =>
+      'Guardar proyecto (.splc): datos, parámetros y resultados, para continuar después o compartir (Ctrl+S; Guardar como: Ctrl+Shift+S)';
+
+  @override
+  String get openProjectTooltip =>
+      'Abrir un proyecto de SPLACE (.splc) (Ctrl+O)';
+
+  @override
+  String get openProjectTitle => '¿Abrir otro proyecto?';
+
+  @override
+  String openProjectBody(String file) {
+    return '$file se abre donde se guardó. El análisis actual se cierra: guárdelo antes (Guardar proyecto) para volver a él.';
+  }
+
+  @override
+  String get projectSaveFailed =>
+      'No se pudo guardar el proyecto: vea el registro.';
+
+  @override
+  String get splashOpenProject => 'Abrir proyecto';
+
+  @override
+  String get windowTitleNew => 'Proyecto sin guardar';
+
+  @override
+  String get windowTitleUnsaved => 'cambios sin guardar';
+
+  @override
+  String get windowTitleSaved => 'guardado';
+
+  @override
+  String get projectSavedTitle => 'Proyecto guardado';
+
+  @override
+  String exportGbDoneTitle(String n) {
+    return '$n archivo(s) GenBank guardados';
+  }
+
+  @override
+  String get delimSettings => 'Parámetros';
+
+  @override
+  String delimLrtLevel(String tool) {
+    return 'p-valor del LRT · $tool';
+  }
+
+  @override
+  String get delimLrtInfoMptp =>
+      'Nivel de significancia de la prueba de razón de verosimilitud de mPTP (--pvalue, por defecto 0,001). Si el p-valor de la prueba queda por encima, se mantiene el modelo de una sola especie y todas las puntas quedan en una especie.';
+
+  @override
+  String get delimLrtInfoGmyc =>
+      'Nivel de significancia de la prueba de razón de verosimilitud de GMYC (por defecto 0,01). Por encima, GMYC no rechaza una sola especie y junta todas las puntas.';
+
+  @override
+  String get delimOnePerSpecies =>
+      'Cada punta de la supermatriz es una especie distinta (una secuencia por especie). PTP, mPTP y GMYC buscan dónde el árbol pasa de ramas entre especies a ramas dentro de ellas; sin varios individuos por especie ese paso no existe, la prueba tiende a fallar y todo el árbol sale como una especie. Use varias secuencias por especie, o ASAP/ABGD en un marcador.';
+
+  @override
+  String delimCollapsed(String tool, String p, String alpha, String tips) {
+    return 'La prueba de razón de verosimilitud no rechazó el modelo de una sola especie (p = $p, por encima del límite $alpha), por eso $tool juntó las $tips puntas en una especie.';
+  }
+
+  @override
+  String delimCollapsedBest(String n) {
+    return 'Su mejor modelo había encontrado $n especies, sin soporte estadístico.';
+  }
+
+  @override
+  String get delimCollapsedOnePerSpecies =>
+      'Aquí cada punta es una especie distinta: estos métodos necesitan varios individuos por especie. Con una secuencia de cada una, use ASAP o ABGD en un marcador, o compare el árbol con la taxonomía.';
+
+  @override
+  String get delimCollapsedTry =>
+      'Pruebe un límite menos estricto (p-valor del LRT en los parámetros de arriba), más secuencias por especie, o ASAP/ABGD en un marcador.';
+
+  @override
+  String get delimLrtNs => 'LRT no significativo';
+
+  @override
+  String get treeIdentify => 'Identificar por BLAST…';
+
+  @override
+  String get treeIdTitle => 'Identificar por BLAST';
+
+  @override
+  String treeIdSubtitle(String n) {
+    return '$n punta(s) del árbol';
+  }
+
+  @override
+  String get treeIdIntro =>
+      'Cada punta se envía con la secuencia del marcador que elija al BLAST de GenBank (y a BOLD para COI, o rbcL, matK e ITS en sus bases de plantas y hongos), con las opciones de la identificación del paso 2. Útil cuando un género cae dentro de otro: la mejor coincidencia muestra si la muestra es lo que dice su nombre.';
+
+  @override
+  String get treeIdMarker => 'Marcador';
+
+  @override
+  String treeIdMarkerTips(String n, String total) {
+    return '$n de $total puntas lo tienen';
+  }
+
+  @override
+  String get treeIdNoMarker =>
+      'Ninguna de estas puntas tiene secuencia de un marcador de ADN con al menos 100 bases.';
+
+  @override
+  String treeIdOptions(
+    String program,
+    String db,
+    String coverage,
+    String identity,
+  ) {
+    return 'BLAST: $program en $db, coincidencias que cubren al menos $coverage % de la secuencia; misma especie desde $identity % de identidad. Las respuestas ya recibidas se reutilizan.';
+  }
+
+  @override
+  String get treeIdRun => 'Identificar';
+
+  @override
+  String treeIdRunning(String marker, String n) {
+    return 'Identificando $n punta(s) con $marker…';
+  }
+
+  @override
+  String get treeIdOtherMarker => 'Otro marcador';
+
+  @override
+  String treeIdRename(String n) {
+    return 'Renombrar $n punta(s) en la figura';
+  }
+
+  @override
+  String treeIdRenameOne(String name) {
+    return 'Renombrar en la figura como $name';
+  }
+
+  @override
+  String get treeIdConfirmed => 'Coincide';
+
+  @override
+  String get treeIdOtherSpecies => 'Otra especie';
+
+  @override
+  String get treeIdOtherGenus => 'Otro género';
+
+  @override
+  String get treeIdAmbiguous => 'Ambiguo (su especie también coincide)';
+
+  @override
+  String treeIdNoMatch(String identity) {
+    return 'Ninguna especie a ≥ $identity %';
+  }
+
+  @override
+  String get treeIdNone => 'Sin resultado';
+
+  @override
+  String get treeIdCurrent => 'Nombre:';
+
+  @override
+  String treeIdCurrentAt(String pct) {
+    return 'su nombre a $pct';
+  }
+
+  @override
+  String get treeIdHits => 'Alineamientos';
 }

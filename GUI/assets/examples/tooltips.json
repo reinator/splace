@@ -1,0 +1,23 @@
+{
+  "_help": "Tooltips of the Example buttons of step 1. Edit the text of each language (en, pt, es; a missing language uses en). HTML is accepted: <b>bold</b>, <i>italic</i>, <u>underlined</u>, <br> for a new line. Rebuild the app after editing (flutter run or the packaging scripts): assets are bundled at build time.",
+  "1b": {
+    "en": "Fills the box with <b>four mitochondrial genomes</b> of carangid fishes (<i>Caranx</i>, <i>Selene</i>…) to try the download. Click <b>Fetch</b> to bring them from NCBI.",
+    "pt": "Preenche a caixa com <b>quatro genomas mitocondriais</b> de peixes carangídeos (<i>Caranx</i>, <i>Selene</i>…) para testar o download. Clique em <b>Buscar</b> para trazê-los do NCBI.",
+    "es": "Rellena el cuadro con <b>cuatro genomas mitocondriales</b> de peces carángidos (<i>Caranx</i>, <i>Selene</i>…) para probar la descarga. Haga clic en <b>Descargar</b> para traerlos del NCBI."
+  },
+  "1c": {
+    "en": "Loads the <b>GenBank files</b> of the example folder (<i>assets/examples/genbank</i>): annotated records, as if they came from your computer.",
+    "pt": "Carrega os <b>arquivos GenBank</b> da pasta de exemplo (<i>assets/examples/genbank</i>): registros anotados, como se viessem do seu computador.",
+    "es": "Carga los <b>archivos GenBank</b> de la carpeta de ejemplo (<i>assets/examples/genbank</i>): registros anotados, como si vinieran de su equipo."
+  },
+  "1d_loci": {
+    "en": "Loads the <b>FASTA files of loci</b> of the example folder (<i>assets/examples/loci</i>), e.g. one file per sample with one sequence per locus; the <b>Sample and marker</b> dialog opens.",
+    "pt": "Carrega os <b>arquivos FASTA de loci</b> da pasta de exemplo (<i>assets/examples/loci</i>), por exemplo um arquivo por amostra com uma sequência por locus; o diálogo <b>Amostra e marcador</b> se abre.",
+    "es": "Carga los <b>archivos FASTA de loci</b> de la carpeta de ejemplo (<i>assets/examples/loci</i>), por ejemplo un archivo por muestra con una secuencia por locus; se abre el diálogo <b>Muestra y marcador</b>."
+  },
+  "1d_barcoding": {
+    "en": "Loads the <b>DNA barcodes</b> (FASTA) of the example folder (<i>assets/examples/barcoding</i>) with <b>These sequences are DNA barcodes</b> on: identify each specimen and export the BOLD sheet.",
+    "pt": "Carrega os <b>DNA barcodes</b> (FASTA) da pasta de exemplo (<i>assets/examples/barcoding</i>) com <b>Estas sequências são DNA barcodes</b> ligado: identifique cada espécime e exporte a planilha do BOLD.",
+    "es": "Carga los <b>DNA barcodes</b> (FASTA) de la carpeta de ejemplo (<i>assets/examples/barcoding</i>) con <b>Estas secuencias son DNA barcodes</b> activado: identifique cada espécimen y exporte la planilla de BOLD."
+  }
+}

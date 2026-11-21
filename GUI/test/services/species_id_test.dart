@@ -17,9 +17,11 @@ void main() {
 
   /// Runs [SpeciesIdentifier.identify] from the cache only (no network).
   Future<RecordIdentification> identify(GbRecord r, List<(String, double, String)> genbank, {List<(String, double, String)> bold = const []}) async {
+    List<IdHit> hits(IdSource src, List<(String, double, String)> l) =>
+        [for (final (sp, id, acc) in l) IdHit(source: src, species: sp, accession: acc, identity: id, alignLength: seq.length)];
     final cache = {
-      SpeciesIdentifier.cacheKey(IdSource.genbank, r.accession, 'COI', seq): genbank,
-      SpeciesIdentifier.cacheKey(IdSource.bold, r.accession, 'COI', seq): bold,
+      SpeciesIdentifier.cacheKey(IdSource.genbank, r.accession, 'COI', seq): hits(IdSource.genbank, genbank),
+      SpeciesIdentifier.cacheKey(IdSource.bold, r.accession, 'COI', seq): hits(IdSource.bold, bold),
     };
     final id = SpeciesIdentifier();
     final out = await id.identify([r], {

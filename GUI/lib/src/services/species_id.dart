@@ -24,6 +24,191 @@ import 'resource_monitor.dart';
 
 enum IdSource { genbank, bold }
 
+/// Parameters of the identification: NCBI BLAST (URL API) and the BOLD v5
+/// ID engine (id.boldsystems.org).
+class SpeciesIdOptions {
+  const SpeciesIdOptions({
+    this.blastDatabase = 'core_nt',
+    this.blastProgram = 'megablast',
+    this.expect = 0.05,
+    this.wordSize,
+    this.hitlistSize = 25,
+    this.entrezQuery = '',
+    this.minCoverage = 0.8,
+    this.boldDatabase = 'public.tax-derep',
+    this.boldMinIdentity = 0.9,
+    this.boldMinOverlap = 100,
+    this.boldMaxHits = 25,
+  });
+
+  /// BLAST databases offered (core_nt: the default nucleotide database of
+  /// web BLAST since 2024; nt: the complete one).
+  static const blastDatabases = ['core_nt', 'nt', 'refseq_select_rna', 'refseq_rna'];
+  static const blastPrograms = ['megablast', 'blastn'];
+
+  /// BOLD ID engine databases and the markers each one identifies.
+  static const boldDatabases = {
+    'public.tax-derep': ['COI'],
+    'species': ['COI'],
+    'all.tax-derep': ['COI'],
+    'all.animal-alt': ['COI'],
+    'public.plants': ['rbcL', 'matK'],
+    'public.fungi': ['ITS'],
+  };
+
+  final String blastDatabase, blastProgram, entrezQuery, boldDatabase;
+  final double expect, minCoverage, boldMinIdentity;
+  final int? wordSize;
+  final int hitlistSize, boldMinOverlap, boldMaxHits;
+
+  /// Markers the chosen BOLD database identifies.
+  List<String> get boldGenes => boldDatabases[boldDatabase] ?? const ['COI'];
+  bool boldAccepts(String gene) => boldGenes.any((g) => g.toLowerCase() == gene.toLowerCase());
+
+  /// What changes the answers: part of the cache keys.
+  String get blastSignature => [blastDatabase, blastProgram, expect, wordSize ?? '', hitlistSize, entrezQuery.trim()].join('~');
+  String get boldSignature => [boldDatabase, boldMinIdentity, boldMinOverlap, boldMaxHits].join('~');
+
+  SpeciesIdOptions copyWith({
+    String? blastDatabase,
+    String? blastProgram,
+    double? expect,
+    int? wordSize,
+    bool clearWordSize = false,
+    int? hitlistSize,
+    String? entrezQuery,
+    double? minCoverage,
+    String? boldDatabase,
+    double? boldMinIdentity,
+    int? boldMinOverlap,
+    int? boldMaxHits,
+  }) =>
+      SpeciesIdOptions(
+        blastDatabase: blastDatabase ?? this.blastDatabase,
+        blastProgram: blastProgram ?? this.blastProgram,
+        expect: expect ?? this.expect,
+        wordSize: clearWordSize ? null : (wordSize ?? this.wordSize),
+        hitlistSize: hitlistSize ?? this.hitlistSize,
+        entrezQuery: entrezQuery ?? this.entrezQuery,
+        minCoverage: minCoverage ?? this.minCoverage,
+        boldDatabase: boldDatabase ?? this.boldDatabase,
+        boldMinIdentity: boldMinIdentity ?? this.boldMinIdentity,
+        boldMinOverlap: boldMinOverlap ?? this.boldMinOverlap,
+        boldMaxHits: boldMaxHits ?? this.boldMaxHits,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'blastDatabase': blastDatabase,
+        'blastProgram': blastProgram,
+        'expect': expect,
+        'wordSize': wordSize,
+        'hitlistSize': hitlistSize,
+        'entrezQuery': entrezQuery,
+        'minCoverage': minCoverage,
+        'boldDatabase': boldDatabase,
+        'boldMinIdentity': boldMinIdentity,
+        'boldMinOverlap': boldMinOverlap,
+        'boldMaxHits': boldMaxHits,
+      };
+
+  factory SpeciesIdOptions.fromJson(Map<String, dynamic> j) {
+    const d = SpeciesIdOptions();
+    T v<T>(String k, T def) => j[k] is T ? j[k] as T : def;
+    return SpeciesIdOptions(
+      blastDatabase: blastDatabases.contains(j['blastDatabase']) ? j['blastDatabase'] as String : d.blastDatabase,
+      blastProgram: blastPrograms.contains(j['blastProgram']) ? j['blastProgram'] as String : d.blastProgram,
+      expect: (j['expect'] as num?)?.toDouble() ?? d.expect,
+      wordSize: (j['wordSize'] as num?)?.toInt(),
+      hitlistSize: (j['hitlistSize'] as num?)?.toInt() ?? d.hitlistSize,
+      entrezQuery: v('entrezQuery', ''),
+      minCoverage: (j['minCoverage'] as num?)?.toDouble() ?? d.minCoverage,
+      boldDatabase: boldDatabases.containsKey(j['boldDatabase']) ? j['boldDatabase'] as String : d.boldDatabase,
+      boldMinIdentity: (j['boldMinIdentity'] as num?)?.toDouble() ?? d.boldMinIdentity,
+      boldMinOverlap: (j['boldMinOverlap'] as num?)?.toInt() ?? d.boldMinOverlap,
+      boldMaxHits: (j['boldMaxHits'] as num?)?.toInt() ?? d.boldMaxHits,
+    );
+  }
+}
+
+/// One hit of a query: who it is, how similar, where it aligns and (when
+/// the source gives it) the aligned sequences.
+class IdHit {
+  IdHit({
+    required this.source,
+    required this.species,
+    required this.accession,
+    required this.identity,
+    this.title = '',
+    this.alignLength = 0,
+    this.qFrom = 0,
+    this.qTo = 0,
+    this.sFrom = 0,
+    this.sTo = 0,
+    this.mismatches,
+    this.gaps = 0,
+    this.evalue,
+    this.bitScore,
+    this.qseq,
+    this.hseq,
+  });
+
+  final IdSource source;
+  final String species, accession, title;
+  final double identity;
+  final int alignLength, qFrom, qTo, sFrom, sTo, gaps;
+  final int? mismatches;
+  final double? evalue, bitScore;
+
+  /// Aligned query and hit (with gaps): BLAST gives them; for BOLD the hit
+  /// sequence is fetched and aligned when the alignment is opened.
+  String? qseq, hseq;
+
+  bool get hasAlignment => qseq != null && hseq != null && qseq!.length == hseq!.length;
+
+  /// The hit runs on the reverse strand of the query.
+  bool get reversed => sTo < sFrom;
+
+  Map<String, dynamic> toJson({bool withAlignment = true}) => {
+        's': source.name,
+        'sp': species,
+        'acc': accession,
+        'id': identity,
+        if (title.isNotEmpty) 't': title,
+        'len': alignLength,
+        'q': [qFrom, qTo],
+        'h': [sFrom, sTo],
+        if (mismatches != null) 'mm': mismatches,
+        'gaps': gaps,
+        if (evalue != null) 'e': evalue,
+        if (bitScore != null) 'bits': bitScore,
+        if (withAlignment && qseq != null) 'qseq': qseq,
+        if (withAlignment && hseq != null) 'hseq': hseq,
+      };
+
+  factory IdHit.fromJson(Map<String, dynamic> j) {
+    List<int> pair(String k) => ((j[k] as List?) ?? const [0, 0]).map((e) => (e as num).toInt()).toList();
+    final q = pair('q'), h = pair('h');
+    return IdHit(
+      source: j['s'] == 'bold' ? IdSource.bold : IdSource.genbank,
+      species: j['sp'] as String? ?? '',
+      accession: j['acc'] as String? ?? '',
+      identity: (j['id'] as num?)?.toDouble() ?? 0,
+      title: j['t'] as String? ?? '',
+      alignLength: (j['len'] as num?)?.toInt() ?? 0,
+      qFrom: q[0],
+      qTo: q[1],
+      sFrom: h[0],
+      sTo: h[1],
+      mismatches: (j['mm'] as num?)?.toInt(),
+      gaps: (j['gaps'] as num?)?.toInt() ?? 0,
+      evalue: (j['e'] as num?)?.toDouble(),
+      bitScore: (j['bits'] as num?)?.toDouble(),
+      qseq: j['qseq'] as String?,
+      hseq: j['hseq'] as String?,
+    );
+  }
+}
+
 /// One query sent to BLAST/BOLD: a gene of a record.
 class IdQuery {
   const IdQuery(this.record, this.gene, this.sequence);
@@ -54,12 +239,61 @@ class IdEvidence {
 
   /// Only the record itself was found for this species.
   bool get onlySelf => hits == 0 && selfIdentity != null;
+
+  Map<String, dynamic> toJson() => {
+        'id': identity,
+        'n': hits,
+        if (selfIdentity != null) 'self': selfIdentity,
+        if (selfAccessions.isNotEmpty) 'selfAcc': selfAccessions.toList(),
+      };
+
+  factory IdEvidence.fromJson(Map<String, dynamic> j) => IdEvidence((j['id'] as num?)?.toDouble() ?? 0, (j['n'] as num?)?.toInt() ?? 0)
+    ..selfIdentity = (j['self'] as num?)?.toDouble()
+    ..selfAccessions.addAll([...?(j['selfAcc'] as List?)?.cast<String>()]);
 }
 
 /// A species proposed for a record, with the evidence of each source.
 class SpeciesCandidate {
   SpeciesCandidate(this.species);
   final String species;
+
+  /// Other names (synonyms in GBIF) the hits of this species came under,
+  /// e.g. Bufo marinus and Chaunus marinus for Rhinella marina.
+  final Set<String> foundAs = {};
+
+  /// The hits behind this species (gene → hits, best first), for the
+  /// alignment viewer.
+  final Map<String, List<IdHit>> hits = {};
+
+  void _keep(String gene, IdHit h) {
+    final list = hits.putIfAbsent(gene, () => [])..add(h);
+    list.sort((a, b) => b.identity.compareTo(a.identity));
+  }
+
+  /// Joins the evidence of [other] (a synonym) into this one.
+  void absorb(SpeciesCandidate other) {
+    foundAs
+      ..add(other.species)
+      ..addAll(other.foundAs);
+    for (final e in other.genbank.entries) {
+      genbank.update(e.key, (mine) => _merge(mine, e.value), ifAbsent: () => e.value);
+    }
+    if (other.bold != null) bold = bold == null ? other.bold : _merge(bold!, other.bold!);
+    for (final e in other.hits.entries) {
+      for (final h in e.value) {
+        _keep(e.key, h);
+      }
+    }
+  }
+
+  static IdEvidence _merge(IdEvidence a, IdEvidence b) {
+    final out = IdEvidence(math.max(a.identity, b.identity), a.hits + b.hits)
+      ..selfIdentity = (a.selfIdentity == null && b.selfIdentity == null) ? null : math.max(a.selfIdentity ?? 0, b.selfIdentity ?? 0);
+    out.selfAccessions
+      ..addAll(a.selfAccessions)
+      ..addAll(b.selfAccessions);
+    return out;
+  }
 
   /// gene → evidence from GenBank BLAST.
   final Map<String, IdEvidence> genbank = {};
@@ -83,13 +317,62 @@ class SpeciesCandidate {
       (genbankIdentity >= sameSpeciesIdentity ? 1 : 0) + ((bold?.identity ?? 0) >= sameSpeciesIdentity ? 1 : 0);
 
   int get totalHits => genbank.values.fold(0, (a, e) => a + e.hits) + (bold?.hits ?? 0);
+
+  Map<String, dynamic> toJson() => {
+        'species': species,
+        if (foundAs.isNotEmpty) 'foundAs': foundAs.toList(),
+        'genbank': {for (final e in genbank.entries) e.key: e.value.toJson()},
+        if (bold != null) 'bold': bold!.toJson(),
+        'hits': {
+          for (final e in hits.entries) e.key: [for (final (i, h) in e.value.indexed) h.toJson(withAlignment: i < 5)],
+        },
+      };
+
+  factory SpeciesCandidate.fromJson(Map<String, dynamic> j) {
+    final c = SpeciesCandidate(j['species'] as String)..foundAs.addAll([...?(j['foundAs'] as List?)?.cast<String>()]);
+    for (final e in ((j['genbank'] as Map?) ?? const {}).entries) {
+      c.genbank[e.key as String] = IdEvidence.fromJson((e.value as Map).cast<String, dynamic>());
+    }
+    if (j['bold'] is Map) c.bold = IdEvidence.fromJson((j['bold'] as Map).cast<String, dynamic>());
+    for (final e in ((j['hits'] as Map?) ?? const {}).entries) {
+      c.hits[e.key as String] = [for (final h in e.value as List) IdHit.fromJson((h as Map).cast<String, dynamic>())];
+    }
+    return c;
+  }
 }
 
 class RecordIdentification {
   RecordIdentification(this.accession, this.currentName);
   final String accession;
   final String currentName;
+
+  /// The sequence sent for each gene (the query of the alignments).
+  final Map<String, String> queries = {};
   final Map<String, SpeciesCandidate> _candidates = {};
+
+  /// The accepted name (GBIF) of [currentName] when it is a synonym.
+  String? currentAccepted;
+
+  /// [name] is the record's species: its name or, when that is a synonym,
+  /// the accepted one.
+  bool isCurrent(String name) => sameSpecies(name, currentName) || (currentAccepted != null && sameSpecies(name, currentAccepted!));
+
+  /// Groups the candidates by accepted name: [acceptedOf] maps a name
+  /// (any case) to its accepted name in GBIF; a synonym's evidence joins
+  /// the accepted species, which remembers the names it came under.
+  void mergeSynonyms(Map<String, String> acceptedOf) {
+    final byNorm = {for (final e in acceptedOf.entries) _norm(e.key): e.value};
+    String? accepted(String name) => byNorm[_norm(binomialOf(name))];
+    final cur = accepted(currentName);
+    if (cur != null && !sameSpecies(cur, binomialOf(currentName))) currentAccepted = cur;
+    for (final c in _candidates.values.toList()) {
+      final a = accepted(c.species);
+      if (a == null || sameSpecies(a, binomialOf(c.species))) continue;
+      _candidates.remove(c.species);
+      final target = _candidates.values.where((x) => sameSpecies(x.species, a)).firstOrNull ?? _candidate(a);
+      target.absorb(c);
+    }
+  }
 
   /// Sources that answered for this record.
   final Set<IdSource> sources = {};
@@ -99,9 +382,10 @@ class RecordIdentification {
   /// Counts one hit of [species] at [identity] % from [source] ([gene] for
   /// GenBank; BOLD is always COI). A hit on the record itself ([self], its
   /// accession [acc]) is kept apart: shown, but not counted as evidence.
-  void addEvidence(IdSource source, String gene, String species, double identity, {bool self = false, String acc = ''}) {
+  void addEvidence(IdSource source, String gene, String species, double identity, {bool self = false, String acc = '', IdHit? hit}) {
     sources.add(source);
     final c = _candidate(species);
+    if (hit != null) c._keep(gene, hit);
     final ev = source == IdSource.genbank ? c.genbank.putIfAbsent(gene, () => IdEvidence(0, 0)) : (c.bold ??= IdEvidence(0, 0));
     if (self) {
       ev.selfIdentity = math.max(ev.selfIdentity ?? 0, identity);
@@ -143,7 +427,7 @@ class RecordIdentification {
   }
 
   /// The candidate with the record's current name, if found.
-  SpeciesCandidate? get current => candidates.where((c) => sameSpecies(c.species, currentName)).firstOrNull;
+  SpeciesCandidate? get current => candidates.where((c) => isCurrent(c.species)).firstOrNull;
 
   /// The best candidate names another species than the record, at an
   /// identity that means the same species. Below that the closest match is
@@ -151,7 +435,7 @@ class RecordIdentification {
   /// which does not contest the name.
   bool get disagrees {
     final c = candidates;
-    if (c.isEmpty || _norm(c.first.species) == _norm(currentName) || c.first.bestIdentity < sameSpeciesIdentity) return false;
+    if (c.isEmpty || isCurrent(c.first.species) || c.first.bestIdentity < sameSpeciesIdentity) return false;
     // The current name matching as well (identical haplotypes of close
     // species) is ambiguous, not a misidentification.
     final cur = current;
@@ -164,6 +448,29 @@ class RecordIdentification {
           for (final e in c.genbank.values) ...e.selfAccessions,
       }.toList()
         ..sort();
+
+  Map<String, dynamic> toJson() => {
+        'accession': accession,
+        'currentName': currentName,
+        if (currentAccepted != null) 'currentAccepted': currentAccepted,
+        'queries': queries,
+        'sources': [for (final x in sources) x.name],
+        'candidates': [for (final c in _candidates.values) c.toJson()],
+      };
+
+  factory RecordIdentification.fromJson(Map<String, dynamic> j) {
+    final r = RecordIdentification(j['accession'] as String, j['currentName'] as String? ?? '')
+      ..currentAccepted = j['currentAccepted'] as String?;
+    r.queries.addAll(((j['queries'] as Map?) ?? const {}).cast<String, String>());
+    for (final x in (j['sources'] as List?) ?? const []) {
+      if (IdSource.values.where((v) => v.name == x).firstOrNull case final v?) r.sources.add(v);
+    }
+    for (final c in (j['candidates'] as List?) ?? const []) {
+      final k = SpeciesCandidate.fromJson((c as Map).cast<String, dynamic>());
+      r._candidates[k.species] = k;
+    }
+    return r;
+  }
 }
 
 /// Identity (%) from which a match is taken as the same species.
@@ -182,11 +489,11 @@ String binomialOf(String name) {
   return '${parts[0]} ${parts[1]}';
 }
 
-/// Minimum share of the query that a hit must cover to count.
-const minCoverage = 0.8;
 
 class SpeciesIdentifier {
-  SpeciesIdentifier({this.onStatus, this.onProgress});
+  SpeciesIdentifier({this.onStatus, this.onProgress, this.options = const SpeciesIdOptions()});
+
+  final SpeciesIdOptions options;
 
   /// Progress messages for the modal.
   final void Function(String message)? onStatus;
@@ -195,7 +502,7 @@ class SpeciesIdentifier {
   /// (submitted, waiting against NCBI's own time estimate, results); BOLD
   /// by sequences completed.
   final void Function(IdSource source, double fraction)? onProgress;
-  final _http = HttpClient()..userAgent = 'SPLACE/4 (https://github.com/luanrabelo/splace)';
+  final _http = HttpClient()..userAgent = 'SPLACE/4 (https://github.com/itvgenomics/splace)';
 
   static const _blast = 'https://blast.ncbi.nlm.nih.gov/Blast.cgi';
   static const _bold = 'https://id.boldsystems.org';
@@ -251,9 +558,10 @@ class SpeciesIdentifier {
   // GenBank (BLAST)
   // -------------------------------------------------------------------------
 
-  /// BLAST hits per query id: (species, identity %, accession).
-  Future<Map<String, List<(String, double, String)>>> blast(List<IdQuery> queries, {CancelToken? cancel}) async {
-    final out = <String, List<(String, double, String)>>{};
+  /// BLAST hits per query id, with their alignments.
+  Future<Map<String, List<IdHit>>> blast(List<IdQuery> queries, {CancelToken? cancel}) async {
+    final out = <String, List<IdHit>>{};
+    final o = options;
     for (var i = 0; i < queries.length; i += blastChunk) {
       final chunk = queries.sublist(i, math.min(i + blastChunk, queries.length));
       final part = i ~/ blastChunk + 1, parts = (queries.length / blastChunk).ceil();
@@ -262,9 +570,12 @@ class SpeciesIdentifier {
       final body = Uri(queryParameters: {
         'CMD': 'Put',
         'PROGRAM': 'blastn',
-        'MEGABLAST': 'on',
-        'DATABASE': 'core_nt',
-        'HITLIST_SIZE': '25',
+        if (o.blastProgram == 'megablast') 'MEGABLAST': 'on',
+        'DATABASE': o.blastDatabase,
+        'HITLIST_SIZE': '${o.hitlistSize}',
+        'EXPECT': '${o.expect}',
+        if (o.wordSize != null) 'WORD_SIZE': '${o.wordSize}',
+        if (o.entrezQuery.trim().isNotEmpty) 'ENTREZ_QUERY': o.entrezQuery.trim(),
         'TOOL': 'splace',
         'QUERY': _fasta(chunk),
       }).query;
@@ -303,12 +614,31 @@ class SpeciesIdentifier {
           final hsp = (h['hsps'] as List?)?.cast<Map>().firstOrNull;
           if (descs.isEmpty || hsp == null) continue;
           final len = (hsp['align_len'] as num).toInt();
-          if (qlen > 0 && len / qlen < minCoverage) continue;
-          final identity = 100 * (hsp['identity'] as num) / len;
+          if (qlen > 0 && len / qlen < 0.3) continue;
+          final ident = (hsp['identity'] as num).toInt();
+          final identity = 100 * ident / len;
+          final gaps = (hsp['gaps'] as num?)?.toInt() ?? 0;
           for (final desc in descs) {
             final name = (desc['sciname'] as String?) ?? '';
             if (name.isEmpty) continue;
-            hits.add((binomialOf(name), identity, (desc['accession'] as String?) ?? ''));
+            hits.add(IdHit(
+              source: IdSource.genbank,
+              species: binomialOf(name),
+              accession: (desc['accession'] as String?) ?? '',
+              title: (desc['title'] as String?) ?? '',
+              identity: identity,
+              alignLength: len,
+              qFrom: (hsp['query_from'] as num?)?.toInt() ?? 0,
+              qTo: (hsp['query_to'] as num?)?.toInt() ?? 0,
+              sFrom: (hsp['hit_from'] as num?)?.toInt() ?? 0,
+              sTo: (hsp['hit_to'] as num?)?.toInt() ?? 0,
+              mismatches: len - ident - gaps,
+              gaps: gaps,
+              evalue: (hsp['evalue'] as num?)?.toDouble(),
+              bitScore: (hsp['bit_score'] as num?)?.toDouble(),
+              qseq: hsp['qseq'] as String?,
+              hseq: hsp['hseq'] as String?,
+            ));
           }
         }
       }
@@ -323,9 +653,11 @@ class SpeciesIdentifier {
   // BOLD (ID engine v5)
   // -------------------------------------------------------------------------
 
-  /// BOLD hits per query id: (species, identity %, process id).
-  Future<Map<String, List<(String, double, String)>>> bold(List<IdQuery> queries, {CancelToken? cancel}) async {
-    final out = <String, List<(String, double, String)>>{};
+  /// BOLD hits per query id. BOLD gives the coordinates, not the aligned
+  /// sequences: the viewer fetches the hit and aligns it.
+  Future<Map<String, List<IdHit>>> bold(List<IdQuery> queries, {CancelToken? cancel}) async {
+    final out = <String, List<IdHit>>{};
+    final o = options;
     for (var i = 0; i < queries.length; i += boldChunk) {
       final chunk = queries.sublist(i, math.min(i + boldChunk, queries.length));
       final part = i ~/ boldChunk, parts = (queries.length / boldChunk).ceil();
@@ -339,7 +671,13 @@ class SpeciesIdentifier {
           '--$boundary--\r\n');
       final sub = jsonDecode(await _send(
         'POST',
-        Uri.parse('$_bold/submission?db=public.tax-derep&mi=0.9&mo=100&maxh=25&order=3'),
+        Uri.parse('$_bold/submission').replace(queryParameters: {
+          'db': o.boldDatabase,
+          'mi': '${o.boldMinIdentity}',
+          'mo': '${o.boldMinOverlap}',
+          'maxh': '${o.boldMaxHits}',
+          'order': '3',
+        }),
         body: body,
         contentType: 'multipart/form-data; boundary=$boundary',
       )) as Map<String, dynamic>;
@@ -366,7 +704,25 @@ class SpeciesIdentifier {
           final v = e.value as Map;
           final species = ((v['taxonomy'] as Map?)?['species'] as String?) ?? '';
           if (species.isEmpty) continue;
-          hits.add((binomialOf(species), (v['pident'] as num).toDouble(), (e.key as String).split('|').first));
+          // "ABTVC001-05|COI-5P|BOLD:AAB1186|…"
+          final key = (e.key as String).split('|');
+          int n(String k) => (v[k] as num?)?.toInt() ?? 0;
+          hits.add(IdHit(
+            source: IdSource.bold,
+            species: binomialOf(species),
+            accession: key.first,
+            title: [key.first, if (key.length > 1) key[1], if (key.length > 2 && key[2].startsWith('BOLD:')) key[2]].join(' · '),
+            identity: (v['pident'] as num).toDouble(),
+            alignLength: n('length'),
+            qFrom: n('qstart'),
+            qTo: n('qend'),
+            sFrom: n('sstart'),
+            sTo: n('send'),
+            mismatches: n('mismatch'),
+            gaps: n('gaps'),
+            evalue: (v['evalue'] as num?)?.toDouble(),
+            bitScore: (v['bitscore'] as num?)?.toDouble(),
+          ));
         }
       }
     }
@@ -382,11 +738,13 @@ class SpeciesIdentifier {
   /// Cache key of one query at one source: record, gene and sequence.
   /// GenBank keys carry a version: answers saved before every description
   /// of merged BLAST hits was read (`genbank|…`) are not reused.
-  static String cacheKey(IdSource source, String record, String gene, String sequence) =>
-      '${source == IdSource.genbank ? 'genbank2' : source.name}|$record|$gene|${fingerprint([SeqRecord('', sequence)])}';
+  /// The parameters of the source are part of the key: changing them
+  /// sends the queries again.
+  static String cacheKey(IdSource source, String record, String gene, String sequence, [SpeciesIdOptions options = const SpeciesIdOptions()]) =>
+      '${source == IdSource.genbank ? 'genbank3~${options.blastSignature}' : 'bold3~${options.boldSignature}'}|$record|$gene|${fingerprint([SeqRecord('', sequence)])}';
 
-  /// Cache entries no longer produced by [cacheKey].
-  static bool staleCacheKey(String key) => key.startsWith('genbank|');
+  /// Cache entries no longer produced by [cacheKey] (no hit details).
+  static bool staleCacheKey(String key) => !(key.startsWith('genbank3~') || key.startsWith('bold3~'));
 
   /// Identifies [records] with the [genes] given (name → sequence per
   /// record): every gene goes to GenBank, COI also to BOLD. Queries found in
@@ -396,7 +754,7 @@ class SpeciesIdentifier {
     Map<String, Map<String, String>> sequences, {
     CancelToken? cancel,
     void Function(String message)? log,
-    Map<String, List<(String, double, String)>>? cache,
+    Map<String, List<IdHit>>? cache,
   }) async {
     failures.clear();
     final store = cache ?? {};
@@ -412,23 +770,31 @@ class SpeciesIdentifier {
           if (e.value.length >= 100) IdQuery(r.accession, e.key, e.value),
     ];
 
-    void add(IdSource source, List<IdQuery> qs, Map<String, List<(String, double, String)>> hits) {
+    for (final q in queries) {
+      ids[q.record]!.queries[q.gene] = q.sequence;
+    }
+
+    void add(IdSource source, List<IdQuery> qs, Map<String, List<IdHit>> hits) {
       for (final q in qs) {
         final list = hits[q.id];
         if (list == null) continue;
         final rid = ids[q.record]!..sources.add(source);
-        for (final (species, identity, acc) in list) {
+        for (final h in list) {
+          // Short hits (a conserved stretch) do not name the species: the
+          // minimum coverage is applied here, so changing it needs no new
+          // search.
+          if (source == IdSource.genbank && q.sequence.isNotEmpty && h.alignLength / q.sequence.length < options.minCoverage) continue;
           // The record itself is shown but is not evidence.
-          final isSelf = source == IdSource.genbank && (self[q.record]?.contains(base(acc)) ?? false);
-          rid.addEvidence(source, q.gene, species, identity, self: isSelf, acc: acc);
+          final isSelf = source == IdSource.genbank && (self[q.record]?.contains(base(h.accession)) ?? false);
+          rid.addEvidence(source, q.gene, h.species, h.identity, self: isSelf, acc: h.accession, hit: h);
         }
       }
     }
 
-    String key(IdSource s, IdQuery q) => cacheKey(s, q.record, q.gene, q.sequence);
+    String key(IdSource s, IdQuery q) => cacheKey(s, q.record, q.gene, q.sequence, options);
 
     /// Answers [qs] from the cache and sends the rest with [run].
-    Future<void> source(IdSource s, List<IdQuery> qs, Future<Map<String, List<(String, double, String)>>> Function(List<IdQuery>) run) async {
+    Future<void> source(IdSource s, List<IdQuery> qs, Future<Map<String, List<IdHit>>> Function(List<IdQuery>) run) async {
       final known = [for (final q in qs) if (store.containsKey(key(s, q))) q];
       final todo = [for (final q in qs) if (!store.containsKey(key(s, q))) q];
       reused += known.length;
@@ -448,7 +814,9 @@ class SpeciesIdentifier {
     reused = 0;
     sent = 0;
     // Both sources run at the same time; a failure of one keeps the other.
-    final coi = queries.where((q) => q.gene == 'COI').toList();
+    // BOLD: the markers its chosen database identifies (COI; rbcL and matK
+    // in the plant database; ITS in the fungal one).
+    final coi = queries.where((q) => options.boldAccepts(q.gene)).toList();
     await Future.wait([
       source(IdSource.genbank, queries, (qs) => blast(qs, cancel: cancel)).catchError((Object e) {
         if (e is CancelledException) throw e;

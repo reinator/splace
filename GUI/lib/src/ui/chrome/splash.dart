@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../common.dart';
+import '../fa.dart';
+import 'project_actions.dart';
 import '../theme.dart';
 import '../widgets/citations.dart';
 import '../widgets/kit.dart';
+import 'tutorial_dialog.dart';
 
 /// Welcome screen (`.splash-overlay`), shown at start and from the help
 /// button.
@@ -23,8 +26,7 @@ class SplashOverlay extends StatelessWidget {
     final steps = [
       (l10n.step1, l10n.splashStep1),
       (l10n.step2, l10n.splashStep2),
-      (l10n.step3, l10n.splashStep3),
-      (l10n.step4, l10n.splashStep4),
+      (l10n.stepMarkers, l10n.splashStepMarkers),
       (l10n.step5, l10n.splashStep5),
       (l10n.step6, l10n.splashStep6),
       (l10n.step7, l10n.splashStep7),
@@ -59,9 +61,9 @@ class SplashOverlay extends StatelessWidget {
                     TextSpan(text: 'E', style: heroBold),
                   ])),
                   const SizedBox(height: 8),
-                  Text('Luan Rabelo & Renato Moreira-Oliveira', style: TextStyle(fontSize: 16, color: t.text)),
+                  Text.rich(TextSpan(children: authorSpans(TextStyle(fontSize: 16, color: t.text)))),
                   const SizedBox(height: 8),
-                  Text('v$appVersion · GPL-3.0 · $githubUrl', style: TextStyle(fontSize: 13, color: t.textMuted, letterSpacing: 0.2)),
+                  Text('v$appVersion · GPL-3.0 · ${githubUrl.replaceFirst('https://', '')}', style: TextStyle(fontSize: 13, color: t.textMuted, letterSpacing: 0.2)),
                 ]),
               ),
             ]),
@@ -81,7 +83,8 @@ class SplashOverlay extends StatelessWidget {
         // by what the step does.
         Expanded(
           child: LayoutBuilder(builder: (context, box) {
-            final rowHeight = (box.maxHeight / steps.length).clamp(54.0, 64.0);
+            // Two lines at 1.5 line spacing fit in each row.
+            final rowHeight = (box.maxHeight / steps.length).clamp(60.0, 72.0);
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Column(children: [
@@ -100,13 +103,35 @@ class SplashOverlay extends StatelessWidget {
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(40, 10, 40, compact ? 16 : 22),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => c.setSplashVisible(false),
-              child: Text(l10n.splashStart),
+          child: Row(children: [
+            // The tutorial on its own, without starting.
+            // In the logo's red, like the step numbers.
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: SplaceRed.c700, foregroundColor: Colors.white),
+              onPressed: () => showTutorial(context),
+              child: Text(l10n.tutorialButton),
             ),
-          ),
+            const SizedBox(width: 12),
+            // A saved project (.splc) continues where it stopped.
+            OutlinedButton.icon(
+              onPressed: c.busy ? null : () => openProjectAction(context),
+              icon: const Icon(FA.folderOpen, size: 14),
+              label: Text(l10n.splashOpenProject),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: () {
+                  // The navigator outlives the welcome screen, which goes
+                  // away now; the tutorial opens over the app.
+                  final nav = Navigator.of(context);
+                  c.setSplashVisible(false);
+                  if (c.tutorialAtStart) showTutorial(nav.context);
+                },
+                child: Text(l10n.splashStart),
+              ),
+            ),
+          ]),
         ),
       ]),
     );
@@ -161,14 +186,14 @@ class _TimelineStep extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(left: inset, right: 16),
             child: Row(children: [
-              // Step number: filled circle in the app blue, like the step
-              // badges of the pipeline.
+              // Step number: filled circle in the logo's red (the blue and
+              // red of the palette).
               Container(
                 width: node,
                 height: node,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: t.accent,
+                  color: SplaceRed.c700,
                   shape: BoxShape.circle,
                   border: Border.all(color: t.surface2, width: 2),
                   boxShadow: shadowSm,
@@ -178,10 +203,10 @@ class _TimelineStep extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Text.rich(
-                  TextSpan(children: [
+                  TextSpan(style: const TextStyle(height: 1.5), children: [
                     TextSpan(text: title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: t.text)),
                     TextSpan(text: '  —  ', style: TextStyle(fontSize: 13, color: t.textMuted)),
-                    TextSpan(style: TextStyle(fontSize: 13, color: t.textMuted), children: citationSpans(body, fontSize: 11.5)),
+                    TextSpan(style: TextStyle(fontSize: 13, color: t.textMuted, height: 1.5), children: citationSpans(body, fontSize: 11.5)),
                   ]),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

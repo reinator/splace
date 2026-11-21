@@ -17,6 +17,11 @@ class GbFeature {
   }
 
   bool get isPseudo => qualifiers.containsKey('pseudo') || qualifiers.containsKey('pseudogene');
+
+  Map<String, dynamic> toJson() => {'type': type, 'location': location, 'qualifiers': qualifiers};
+
+  factory GbFeature.fromJson(Map<String, dynamic> j) =>
+      GbFeature(j['type'] as String, j['location'] as String, (j['qualifiers'] as Map).cast<String, String>());
 }
 
 class TaxonomyRanks {
@@ -36,6 +41,26 @@ class TaxonomyRanks {
 
   bool get isEmpty =>
       kingdom.isEmpty && phylum.isEmpty && klass.isEmpty && order.isEmpty && family.isEmpty && authorship.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'source': source,
+        'kingdom': kingdom,
+        'phylum': phylum,
+        'class': klass,
+        'order': order,
+        'family': family,
+        'authorship': authorship,
+      };
+
+  factory TaxonomyRanks.fromJson(Map<String, dynamic> j) => TaxonomyRanks(
+        source: j['source'] as String? ?? '',
+        kingdom: j['kingdom'] as String? ?? '',
+        phylum: j['phylum'] as String? ?? '',
+        klass: j['class'] as String? ?? '',
+        order: j['order'] as String? ?? '',
+        family: j['family'] as String? ?? '',
+        authorship: j['authorship'] as String? ?? '',
+      );
 }
 
 class GbRecord {
@@ -74,6 +99,11 @@ class GbRecord {
   final String? fileName;
   final int? fileSize;
   final DateTime? fileDate;
+
+  /// The record's header as read (LOCUS to the line before FEATURES:
+  /// definition, references, comments), so a corrected record can be
+  /// written back with it; empty for records built in code.
+  String header = '';
 
   // Editable in the "Edit record" dialog / filled from GBIF.
   String? editedOrganism;
@@ -123,6 +153,26 @@ class GbRecord {
   /// "voucher MZUSP 1234"; null when the title names none.
   String? get voucher => titleVoucher(definition);
 
+  /// Where the specimen was collected, from the source feature
+  /// (`/geo_loc_name`, or `/country` in older records): "Brazil: Para,
+  /// Belem"; null when the record does not say.
+  String? get locality {
+    for (final f in features) {
+      if (f.type != 'source') continue;
+      final v = f.q('geo_loc_name') ?? f.q('country');
+      if (v != null) return v;
+    }
+    return null;
+  }
+
+  /// `/lat_lon` of the source feature ("4.7730 N 73.0370 W").
+  String? get latLon {
+    for (final f in features) {
+      if (f.type == 'source' && f.q('lat_lon') != null) return f.q('lat_lon');
+    }
+    return null;
+  }
+
   /// NCBI Taxonomy id from the source feature (`/db_xref="taxon:8384"`).
   String? get taxId {
     for (final f in features) {
@@ -138,6 +188,47 @@ class GbRecord {
 
   /// The species' SALVE sheet (Brazilian fauna only), when fetched.
   SalveSheet? salve;
+
+  /// Everything about the record, edits included (project files).
+  Map<String, dynamic> toJson() => {
+        'accession': accession,
+        'organism': organism,
+        'lineage': lineage,
+        'definition': definition,
+        'sequence': sequence,
+        'source': source,
+        if (fileName != null) 'fileName': fileName,
+        if (fileSize != null) 'fileSize': fileSize,
+        if (fileDate != null) 'fileDate': fileDate!.toIso8601String(),
+        if (sourceAccessions.isNotEmpty) 'sourceAccessions': sourceAccessions,
+        'header': header,
+        if (editedOrganism != null) 'editedOrganism': editedOrganism,
+        if (editedFamily != null) 'editedFamily': editedFamily,
+        if (!ranks.isEmpty || ranks.source.isNotEmpty) 'ranks': ranks.toJson(),
+        if (conservation != null) 'conservation': conservation,
+        if (salve != null) 'salve': salve!.toJson(),
+        'features': [for (final f in features) f.toJson()],
+      };
+
+  factory GbRecord.fromJson(Map<String, dynamic> j) => GbRecord(
+        accession: j['accession'] as String,
+        organism: j['organism'] as String? ?? '',
+        lineage: j['lineage'] as String? ?? '',
+        definition: j['definition'] as String? ?? '',
+        sequence: j['sequence'] as String? ?? '',
+        source: j['source'] as String? ?? 'file',
+        fileName: j['fileName'] as String?,
+        fileSize: j['fileSize'] as int?,
+        fileDate: j['fileDate'] == null ? null : DateTime.tryParse(j['fileDate'] as String),
+        sourceAccessions: [...?(j['sourceAccessions'] as List?)?.cast<String>()],
+        features: [for (final f in j['features'] as List? ?? const []) GbFeature.fromJson((f as Map).cast<String, dynamic>())],
+      )
+        ..header = j['header'] as String? ?? ''
+        ..editedOrganism = j['editedOrganism'] as String?
+        ..editedFamily = j['editedFamily'] as String?
+        ..ranks = j['ranks'] is Map ? TaxonomyRanks.fromJson((j['ranks'] as Map).cast<String, dynamic>()) : const TaxonomyRanks()
+        ..conservation = j['conservation'] as String?
+        ..salve = j['salve'] is Map ? SalveSheet.fromJson((j['salve'] as Map).cast<String, dynamic>()) : null;
 }
 
 /// What the ICMBio SALVE public API says about a species of the Brazilian
@@ -235,6 +326,89 @@ class SalveSheet {
 
   /// "Vulnerável (VU)" → "Vulnerável".
   String get categoryName => category.replaceAll(RegExp(r'\s*\([A-Z]{2}\)\s*$'), '').trim();
+
+  Map<String, dynamic> toJson() => {
+        'category': category,
+        'code': code,
+        'criteria': criteria,
+        'commonNames': commonNames,
+        'group': group,
+        'biomes': biomes,
+        'states': states,
+        'watersheds': watersheds,
+        'endemic': endemic,
+        'assessed': assessed,
+        'published': published,
+        'situation': situation,
+        'doi': doi,
+        'synonyms': synonyms,
+        'assessors': assessors,
+        'citation': citation,
+        'justification': justification,
+        'url': url,
+        'populationTrend': populationTrend,
+        'generationTime': generationTime,
+        'sexRatio': sexRatio,
+        'migratory': migratory,
+        'reproduction': reproduction,
+        'officialList': officialList,
+        'habitats': habitats,
+        'foodHabits': foodHabits,
+        'interactions': interactions,
+        'threats': threats,
+        'uses': uses,
+        'officialLists': officialLists,
+        'history': history,
+        'actions': actions,
+        'protectedAreas': protectedAreas,
+        'researchNeeds': researchNeeds,
+        'possiblyExtinct': possiblyExtinct,
+        'references': references,
+        'texts': texts,
+      };
+
+  factory SalveSheet.fromJson(Map<String, dynamic> j) {
+    List<String> l(String k) => [...?(j[k] as List?)?.cast<String>()];
+    return SalveSheet(
+        category: j['category'] as String? ?? '',
+        code: j['code'] as String? ?? '',
+        criteria: j['criteria'] as String? ?? '',
+        commonNames: j['commonNames'] as String? ?? '',
+        group: j['group'] as String? ?? '',
+        biomes: j['biomes'] as String? ?? '',
+        states: j['states'] as String? ?? '',
+        watersheds: j['watersheds'] as String? ?? '',
+        endemic: j['endemic'] as String? ?? '',
+        assessed: j['assessed'] as String? ?? '',
+        published: j['published'] as String? ?? '',
+        situation: j['situation'] as String? ?? '',
+        doi: j['doi'] as String? ?? '',
+        synonyms: j['synonyms'] as String? ?? '',
+        assessors: j['assessors'] as String? ?? '',
+        citation: j['citation'] as String? ?? '',
+        justification: j['justification'] as String? ?? '',
+        url: j['url'] as String? ?? '',
+        populationTrend: j['populationTrend'] as String? ?? '',
+        generationTime: j['generationTime'] as String? ?? '',
+        sexRatio: j['sexRatio'] as String? ?? '',
+        migratory: j['migratory'] as String? ?? '',
+        reproduction: j['reproduction'] as String? ?? '',
+        officialList: j['officialList'] as String? ?? '',
+        habitats: l('habitats'),
+        foodHabits: l('foodHabits'),
+        interactions: l('interactions'),
+        threats: l('threats'),
+        uses: l('uses'),
+        officialLists: l('officialLists'),
+        history: l('history'),
+        actions: l('actions'),
+        protectedAreas: l('protectedAreas'),
+        researchNeeds: l('researchNeeds'),
+        possiblyExtinct: j['possiblyExtinct'] == true,
+        references: j['references'] as int? ?? 0,
+        texts: (j['texts'] as Map?)?.cast<String, String>() ?? const {},
+    );
+  }
 }
 
 /// Ranks shown in the records table (`extractTaxonomy` in the HTML app).
@@ -295,6 +469,11 @@ GbRecord? parseGenBank(String text, {String source = 'file', String? fileName, i
   final seq = StringBuffer();
   final sources = <String>[];
   var hasLocus = false;
+  // The header: LOCUS up to the line before FEATURES (or ORIGIN).
+  final locusAt = lines.indexWhere((l) => l.startsWith('LOCUS'));
+  var headerEnd = locusAt < 0 ? -1 : lines.indexWhere((l) => l.startsWith('FEATURES') || l.startsWith('ORIGIN'), locusAt);
+  if (locusAt >= 0 && headerEnd < 0) headerEnd = lines.length;
+  final header = locusAt < 0 ? '' : '${lines.sublist(locusAt, headerEnd).join('\n')}\n';
 
   var i = 0;
   while (i < lines.length) {
@@ -365,7 +544,7 @@ GbRecord? parseGenBank(String text, {String source = 'file', String? fileName, i
     fileSize: fileSize,
     fileDate: fileDate,
     sourceAccessions: sources,
-  );
+  )..header = header;
 }
 
 final _labelSuffix = RegExp(

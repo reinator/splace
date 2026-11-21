@@ -57,7 +57,11 @@ class _ConcatSectionState extends State<ConcatSection> {
     void toggleOutgroup(String x) => c.setConcat(o.copyWith(outgroups: o.outgroups.contains(x) ? (List.of(o.outgroups)..remove(x)) : [...o.outgroups, x]));
 
     final source = c.useTrimmed && anyTrimmed ? l10n.srcTrimmed : l10n.srcAligned;
-    final schemeName = switch (o.scheme) {
+    // Only the schemes that mean something for these alignments.
+    final schemes = c.partitionSchemes;
+    final scheme = c.effectiveScheme;
+    final anyCodons = projectLoci.any((l) => l.coding);
+    final schemeName = switch (scheme) {
       PartitionScheme.byLocusAndCodon => l10n.schemeByLocusCodon,
       PartitionScheme.byLocus => l10n.schemeByLocus,
       PartitionScheme.byCodonPosition => l10n.schemeByCodon,
@@ -68,8 +72,7 @@ class _ConcatSectionState extends State<ConcatSection> {
         : (o.excludePositions.isEmpty ? l10n.concatNothingExcluded : codonPositions(context, o.excludePositions));
 
     return StepSection(
-      badge: '7',
-      icon: FA.tableColumns,
+      badge: '6',
       title: l10n.step7,
       description: l10n.step7Intro,
       active: active,
@@ -78,7 +81,7 @@ class _ConcatSectionState extends State<ConcatSection> {
         const SizedBox(height: 16),
         // 1. Which alignments.
         _Block(
-          badge: '7a',
+          badge: '6a',
           title: l10n.concatBlockSource,
           body: l10n.concatBlockSourceBody,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -110,26 +113,43 @@ class _ConcatSectionState extends State<ConcatSection> {
         const SizedBox(height: 12),
         // 2. Partitions and codon positions.
         _Block(
-          badge: '7b',
+          badge: '6b',
           title: l10n.concatBlockPartitions,
           body: l10n.concatBlockPartitionsBody,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            for (final (scheme, title, body) in [
-              (PartitionScheme.byLocusAndCodon, '${l10n.schemeByLocusCodon} ${l10n.recommendedTag}', l10n.schemeByLocusCodonBody),
+            // Why some schemes are not offered (one marker, or no codon
+            // positions known).
+            if (schemes.length < 4) ...[
+              TonePanel(
+                tone: PanelTone.info,
+                icon: FA.circleInfo,
+                child: Text(
+                  includedLoci <= 1
+                      ? (anyCodons ? l10n.schemesOneCoding : l10n.schemesOneNoCodons)
+                      : l10n.schemesNoCodons,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            for (final (s, title, body) in [
+              (PartitionScheme.byLocusAndCodon, l10n.schemeByLocusCodon, l10n.schemeByLocusCodonBody),
               (PartitionScheme.byLocus, l10n.schemeByLocus, l10n.schemeByLocusBody),
               (PartitionScheme.byCodonPosition, l10n.schemeByCodon, l10n.schemeByCodonBody),
               (PartitionScheme.none, l10n.schemeNone, l10n.schemeNoneBody),
             ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _SchemeOption(
-                  selected: o.scheme == scheme,
-                  title: title,
-                  body: body,
-                  onTap: () => c.setConcat(copy(scheme: scheme)),
-                  picture: _SchemePicture(scheme: scheme, loci: projectLoci),
+              if (schemes.contains(s))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _SchemeOption(
+                    selected: scheme == s,
+                    title: s == schemes.first ? '$title ${l10n.recommendedTag}' : title,
+                    body: body,
+                    onTap: () => c.setConcat(copy(scheme: s)),
+                    picture: _SchemePicture(scheme: s, loci: projectLoci),
+                  ),
                 ),
-              ),
+            if (anyCodons) ...[
             const SizedBox(height: 14),
             Row(children: [
               Text(l10n.codonExclusion, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: t.text)),
@@ -162,12 +182,13 @@ class _ConcatSectionState extends State<ConcatSection> {
             ]),
             const SizedBox(height: 10),
             CodonExclusionExample(excluded: o.excludePositions),
+            ],
           ]),
         ),
         const SizedBox(height: 16),
         // 3. Outgroup, next to the partitions.
         _Block(
-          badge: '7c',
+          badge: '6c',
           title: l10n.concatBlockOutgroup,
           body: l10n.concatBlockOutgroupBody,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -212,12 +233,12 @@ class _ConcatSectionState extends State<ConcatSection> {
         const SizedBox(height: 12),
         // What will be built, right above the button.
         SubAnchor(
-          id: '7d',
+          id: '6d',
           child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: t.accentSoft, borderRadius: BorderRadius.circular(12), border: Border.all(color: t.accentSoftBorder)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            SubHeading(id: '7d', title: l10n.subBuildMatrix, body: l10n.concatSummaryTitle),
+            SubHeading(id: '6d', title: l10n.subBuildMatrix, body: l10n.concatSummaryTitle),
             Wrap(spacing: 18, runSpacing: 6, children: [
               for (final (k, v) in [
                 (l10n.concatSummaryLoci, '$includedLoci'),

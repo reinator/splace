@@ -6,6 +6,7 @@ import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
 import '../widgets/kit.dart';
+import 'barcoding_card.dart';
 import 'genbank_records_panel.dart';
 import 'organizer_dialog.dart';
 
@@ -24,13 +25,18 @@ class RecordsSection extends StatelessWidget {
     final fa = c.inputs.isNotEmpty;
     return StepSection(
       badge: '2',
-      icon: FA.listCheck,
       title: l10n.step2,
       count: c.records.length + c.inputs.fold<int>(0, (a, f) => a + f.records.length),
       active: active,
+      // The buttons go in the title row; with both kinds of data, each
+      // part keeps its own next to its heading.
+      actions: [
+        if (gb && !fa) const GenBankRecordsActions(),
+        if (fa && !gb) const _FastaHeadersActions(),
+      ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (gb) ...[
-          if (fa) SectionHeading(icon: FA.dna, title: l10n.gbRecordsHeading),
+          if (fa) SectionHeading(icon: FA.dna, title: l10n.gbRecordsHeading, trailing: const GenBankRecordsActions()),
           const GenBankRecordsPanel(),
         ],
         if (gb && fa) const SizedBox(height: 24),
@@ -38,12 +44,36 @@ class RecordsSection extends StatelessWidget {
           SubAnchor(
             id: fastaHeadersSub(c),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SubHeading(id: fastaHeadersSub(c), title: l10n.fastaHeadersHeading),
+              SubHeading(id: fastaHeadersSub(c), title: l10n.fastaHeadersHeading, trailing: gb ? const _FastaHeadersActions() : null),
               const _FastaHeadersPanel(),
+              const SizedBox(height: 16),
+              const BarcodingCard(),
             ]),
           ),
       ]),
     );
+  }
+}
+
+/// Buttons of the FASTA headers (organize, clear).
+class _FastaHeadersActions extends StatelessWidget {
+  const _FastaHeadersActions();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ProjectScope.of(context);
+    final l10n = context.l10n;
+    final t = context.tokens;
+    return Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      if (c.organizing)
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: t.accent)),
+          const SizedBox(width: 8),
+          Text(l10n.organizing, style: TextStyle(fontSize: 13, color: t.textMuted)),
+        ]),
+      ChipButton(label: l10n.orgOpen, icon: FA.tableColumns, style: ChipButtonStyle.accent, onPressed: c.busy ? null : () => showOrganizerDialog(context)),
+      ChipButton(label: l10n.clearFasta, icon: FA.trashCan, style: ChipButtonStyle.danger, onPressed: c.busy ? null : c.clearInputs),
+    ]);
   }
 }
 
@@ -94,29 +124,13 @@ class _FastaHeadersPanelState extends State<_FastaHeadersPanel> {
     };
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          const Spacer(),
-          if (c.organizing) ...[
-            SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: t.accent)),
-            const SizedBox(width: 8),
-            Text(l10n.organizing, style: TextStyle(fontSize: 13, color: t.textMuted)),
-            const SizedBox(width: 10),
-          ],
-          ChipButton(label: l10n.orgOpen, icon: FA.tableColumns, style: ChipButtonStyle.accent, onPressed: c.busy ? null : () => showOrganizerDialog(context)),
-          const SizedBox(width: 8),
-          ChipButton(label: l10n.clearFasta, icon: FA.trashCan, style: ChipButtonStyle.danger, onPressed: c.busy ? null : c.clearInputs),
-        ]),
-        const SizedBox(height: 10),
         // `.step2-intro-card`
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: t.accentSoftBorder),
-            gradient: Theme.of(context).brightness == Brightness.dark
-                ? null
-                : const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xEBECF1FF), Color(0xFAF7F9FF)]),
-            color: Theme.of(context).brightness == Brightness.dark ? t.accentSoft : null,
+            color: t.surface,
           ),
           child: DefaultTextStyle.merge(
             style: TextStyle(color: t.accentText, fontSize: 14, height: 1.55),

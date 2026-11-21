@@ -56,6 +56,15 @@ case "$target" in
 esac
 
 mkdir -p "$out"
+# LSD2 (ultrametric tree for GMYC): the official v.2.4.1 release has a
+# macOS build for Intel only, so on a Mac it is built universal here.
+if [ "$target" = mac ]; then
+  if [ ! -d lsd2 ]; then
+    curl -sSL -o lsd2.tar.gz "https://codeload.github.com/tothuhien/lsd2/tar.gz/refs/tags/v.2.4.1"
+    mkdir -p lsd2 && tar -xzf lsd2.tar.gz -C lsd2 --strip-components=1 && rm lsd2.tar.gz
+  fi
+  clang++ -O3 -w -std=c++11 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o "$out/lsd2" lsd2/src/*.cpp
+fi
 (cd asap && build -o "$out/asap$exe" $ASAP_SRC)
 (cd abgd && build -o "$out/abgd$exe" $ABGD_SRC)
 cp asapy/LICENSE.txt "$out/asap-abgd.LICENSE.txt"

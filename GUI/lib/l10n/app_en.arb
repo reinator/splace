@@ -41,9 +41,9 @@
   "splashStep3": "Choose which feature types (CDS, rRNA, tRNA) enter the analysis, or show SPLACE where FASTA headers keep the sample and locus names.",
   "splashStep4": "Pick the markers for the matrix and review missing and duplicated sequences in the gene presence and length heatmaps.",
   "splashStep5": "Align each marker with [[MAFFT]] and trim it with [[trimAl]] or [[ClipKIT]], keeping whole codons in protein-coding loci.",
-  "splashStep6": "Test substitution saturation by codon position with the index of [[Iss (saturation)|Xia]] and decide which positions to keep.",
+  "splashStep6": "Test substitution saturation of each coding gene at each codon position with [[PhyKIT]] and decide which positions to keep.",
   "splashStep7": "Concatenate the aligned loci into a supermatrix and export NEXUS, PHYLIP and partition files, optionally split by codon position.",
-  "splashStep8": "Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees.",
+  "splashStep8": "Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees, and delimit species with [[mPTP]], [[GMYC]], [[ASAP]] and [[ABGD]].",
   "step1": "Load Data",
   "step2": "Loaded Records",
   "step3": "Feature Types",
@@ -65,7 +65,7 @@
   "tipMixedTitle": "Mixed headers",
   "tipMixedBody": "sample and locus in the **same header** (>Bufo_bufo_COI) or **NCBI tags** ([gene=COX1]).",
   "tipAlignedTitle": "Already aligned?",
-  "tipAlignedBody": "You can **skip MAFFT** in step 5 and go straight to trimming, saturation and trees.",
+  "tipAlignedBody": "You can **skip MAFFT** in step 4 and go straight to trimming, saturation and trees.",
   "optionN": "Option {n}",
   "@optionN": {
     "placeholders": {
@@ -165,9 +165,6 @@
   "selectAll": "Select All",
   "selectNone": "None",
   "sharedOnly": "Shared Only",
-  "legendSelectAll": "selects every visible marker",
-  "legendNone": "clears all selections",
-  "legendShared": "markers present in all samples",
   "missingTitle": "Missing markers",
   "missingIn": "missing in {n} sample(s)",
   "@missingIn": {
@@ -246,12 +243,12 @@
   "statAligned": "Aligned",
   "statTrimmed": "Trimmed",
   "statusError": "Error",
-  "saturationIntro": "Each marker is tested with PhyKIT (Philippe et al. 2011): IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.",
-  "saturationThresholds": "Heuristic thresholds, set in 6a (test parameters): moderate below the moderate limit of PhyKIT's saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.",
+  "saturationIntro": "Each marker is tested with [[PhyKIT]], method of [[Philippe 2011|]]: IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.",
+  "saturationThresholds": "Heuristic thresholds, set in 5a (test parameters): moderate below the moderate limit of PhyKIT's saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.",
   "runSaturation": "Run saturation test",
   "recommendation": "Recommendation",
-  "recKeepAll": "Keep all three codon positions. In step 7b, partition the matrix by codon position so each one gets its own substitution model.",
-  "recAminoAcids": "All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 5b) or use slower markers.",
+  "recKeepAll": "Keep all three codon positions. In step 6b, partition the matrix by codon position so each one gets its own substitution model.",
+  "recAminoAcids": "All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 4b) or use slower markers.",
   "recUndetermined": "There are too few sites or sequence pairs to judge saturation. Keep all positions.",
   "applyPerLocus": "Use each gene's own result",
   "concatenated": "Concatenated",
@@ -307,7 +304,7 @@
   "schemeByLocusCodon": "By locus and codon position",
   "schemeByCodon": "By codon position (all loci)",
   "codonExclusion": "Codon positions",
-  "codonExclusionInfo": "Excluded positions are removed from coding loci only. The saturation test (step 6) can fill this in.",
+  "codonExclusionInfo": "Excluded positions are removed from coding loci only. The saturation test (step 5) can fill this in.",
   "excludePosition": "Exclude position {n}",
   "@excludePosition": {
     "placeholders": {
@@ -577,7 +574,7 @@
   "featureCdsInfo": "Protein-coding sequences (genes translated into proteins)",
   "featureRrnaInfo": "Ribosomal RNA genes (12S, 16S, etc.)",
   "featureTrnaInfo": "Transfer RNA genes",
-  "featureTypesHint": "Turn on at least one category to list the markers in step 4.",
+  "featureTypesHint": "Turn on at least one category to list the markers below.",
   "unknownGenesButton": "{n} unknown names",
   "@unknownGenesButton": {
     "placeholders": {
@@ -1081,7 +1078,7 @@
   },
   "whenToUse": "When to use",
   "trimCodonHandling": "Protein-coding genes",
-  "trimCodonHandlingInfo": "Codon positions are used later for the partitions and the saturation test (step 6), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 7b, not here.",
+  "trimCodonHandlingInfo": "Codon positions are used later for the partitions and the saturation test (step 5), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 6b, not here.",
   "alignRunning": "Aligning with MAFFT",
   "trimRunning": "Trimming alignments",
   "markersProgress": "{done} of {total} markers · {mode}",
@@ -1134,7 +1131,6 @@
   "unknownApply": "Apply Corrections",
   "more": "more",
   "defaultPhylogeny": "Default to Phylogeny",
-  "legendDefault": "recommended set for phylogenetic analysis",
   "tooltipAll": "Select every visible marker",
   "tooltipNone": "Clear every selected marker",
   "tooltipShared": "Select only genes present in all genomes (no missing data)",
@@ -1376,7 +1372,7 @@
   "partitionSites": "Sites",
   "partitionType": "Type",
   "noneSelected": "none selected",
-  "outgroupFromStep7": "chosen in step 7",
+  "outgroupFromStep7": "chosen in step 6",
   "substitutionModel": "Substitution Model",
   "modelTest": "ModelFinder: auto best-fit (TEST)",
   "modelMfp": "MFP: ModelFinder Plus",
@@ -1843,7 +1839,7 @@
   "siCacheClear": "Clear saved results",
   "trimFrameWarning": "**trimAl removes single columns, not codons.** In a protein-coding gene aligned as DNA, removing one or two bases of a codon shifts the reading frame of everything after it: 1st, 2nd and 3rd codon positions get mixed. Without \"Keep the reading frame\" these genes become one partition without codon positions and are left out of the saturation test.",
   "frameLostTag": "Reading frame lost in trimming",
-  "frameLostInfo": "trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 5e and trim again to keep codon partitions.",
+  "frameLostInfo": "trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 4d and trim again to keep codon partitions.",
   "frameShiftTag": "{n} sequence(s) with frame shifts",
   "@frameShiftTag": {
     "placeholders": {
@@ -1852,7 +1848,7 @@
       }
     }
   },
-  "frameShiftInfo": "MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (5b) avoids it.",
+  "frameShiftInfo": "MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (4b) avoids it.",
   "saturationRunning": "Saturation test",
   "saturationProgress": "{done} of {total} alignments",
   "@saturationProgress": {
@@ -2228,7 +2224,7 @@
       }
     }
   },
-  "missMatrixNote": "In the supermatrix (step 7) a missing marker becomes '?' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.",
+  "missMatrixNote": "In the supermatrix (step 6) a missing marker becomes '?' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.",
   "missFixableNote": "{n} gap(s) can be fixed in SPLACE (orange tags). Hover a tag to see how.",
   "@missFixableNote": {
     "placeholders": {
@@ -2305,7 +2301,7 @@
   },
   "satSourceMafft": "Tested on the MAFFT alignment (not trimmed).",
   "satSourceClipkit": "Tested on the trimmed alignment (ClipKIT on the proteins, back-translated): only whole codons were removed, so every base keeps its codon position.",
-  "satSourceTrimmed": "Tested on the trimmed alignment: trimAl kept {kept} of the {total} MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 5 to see which MAFFT column it is).",
+  "satSourceTrimmed": "Tested on the trimmed alignment: trimAl kept {kept} of the {total} MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 4 to see which MAFFT column it is).",
   "@satSourceTrimmed": {
     "placeholders": {
       "kept": {
@@ -2564,7 +2560,7 @@
     }
   },
   "recWhatToDo": "Suggestion",
-  "recExcludeOne": "Remove the {positions} codon position from the matrix (step 7b) and keep the other two, partitioned by codon position.",
+  "recExcludeOne": "Remove the {positions} codon position from the matrix (step 6b) and keep the other two, partitioned by codon position.",
   "@recExcludeOne": {
     "placeholders": {
       "positions": {
@@ -2572,7 +2568,7 @@
       }
     }
   },
-  "recExcludeMany": "Remove the {positions} codon positions from the matrix (step 7b) and keep the remaining one.",
+  "recExcludeMany": "Remove the {positions} codon positions from the matrix (step 6b) and keep the remaining one.",
   "@recExcludeMany": {
     "placeholders": {
       "positions": {
@@ -2597,7 +2593,7 @@
       }
     }
   },
-  "applyExclude": "Mark {positions} in step 7b",
+  "applyExclude": "Mark {positions} in step 6b",
   "@applyExclude": {
     "placeholders": {
       "positions": {
@@ -2605,7 +2601,7 @@
       }
     }
   },
-  "applyKeepAll": "Leave every \"Exclude position\" unmarked in step 7b",
+  "applyKeepAll": "Leave every \"Exclude position\" unmarked in step 6b",
   "applyPerLocusInfo": "Each gene excludes only the positions saturated in it. Genes whose result differs from the overall suggestion: {loci}.",
   "@applyPerLocusInfo": {
     "placeholders": {
@@ -2622,8 +2618,8 @@
       }
     }
   },
-  "recStatusKeep": "Step 7b now keeps all positions.",
-  "recStatusExclude": "Step 7b now excludes the {positions} position(s).",
+  "recStatusKeep": "Step 6b now keeps all positions.",
+  "recStatusExclude": "Step 6b now excludes the {positions} position(s).",
   "@recStatusExclude": {
     "placeholders": {
       "positions": {
@@ -2631,7 +2627,7 @@
       }
     }
   },
-  "recStatusPerLocus": "Step 7b now excludes positions per gene ({n} genes).",
+  "recStatusPerLocus": "Step 6b now excludes positions per gene ({n} genes).",
   "@recStatusPerLocus": {
     "placeholders": {
       "n": {
@@ -2705,14 +2701,14 @@
   "concatHow3": "The partition file tells IQ-TREE / RAxML-NG where each locus (and each codon position) starts and ends, so each part can get its own substitution model.",
   "concatPictureCaption": "? = taxon without that locus",
   "concatBlockSource": "Which alignments to join",
-  "concatBlockSourceBody": "The trimmed alignments of step 5 (without the badly aligned columns) or the MAFFT output as it is.",
+  "concatBlockSourceBody": "The trimmed alignments of step 4 (without the badly aligned columns) or the MAFFT output as it is.",
   "concatBlockPartitions": "How to split the matrix into partitions",
   "concatBlockPartitionsBody": "Each partition gets its own substitution model in the tree search. Codon positions can also be removed here.",
   "schemeByLocusCodonBody": "Each locus is a partition and, in protein-coding loci, each codon position (1st, 2nd, 3rd) gets its own. Codon positions evolve at very different rates; with MFP+MERGE, IQ-TREE joins the partitions that behave alike.",
   "schemeByLocusBody": "One partition per locus: each gene gets its own model, and its three codon positions share it. Good for rRNAs, non-coding loci or loci with few sites.",
   "schemeByCodonBody": "Three partitions shared by all coding loci (all 1st positions together, all 2nd, all 3rd); each non-coding locus stays a partition of its own. Fewer models than by locus and position.",
   "schemeNoneBody": "One model for the whole matrix (no partition file). Simplest, but usually fits worse when genes or positions evolve differently.",
-  "codonExclusionHelp": "Removed positions leave the coding loci only. Step 6 (saturation) can fill this in.",
+  "codonExclusionHelp": "Removed positions leave the coding loci only. Step 5 (saturation) can fill this in.",
   "concatSummaryTitle": "What will be built",
   "concatSummaryLoci": "Loci",
   "concatSummarySource": "Alignments",
@@ -2780,7 +2776,7 @@
   "treeTransparent": "Transparent",
   "treePickColor": "Choose a colour",
   "concatBlockOutgroup": "Which taxa root the tree (outgroup)",
-  "concatBlockOutgroupBody": "Pick one or more taxa outside the group you study; the trees of steps 8 and 9 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.",
+  "concatBlockOutgroupBody": "Pick one or more taxa outside the group you study; the trees of steps 7 and 8 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.",
   "schemeOneModel": "one model for everything",
   "schemePartitionsCount": "{n} partition(s)",
   "@schemePartitionsCount": {
@@ -3066,7 +3062,7 @@
   "iqBnni": "Refine the UFBoot trees (--bnni)",
   "iqBnniBody": "Optimises each bootstrap tree with NNI moves. Recommended: it reduces overestimated support when the model does not fit the data perfectly.",
   "bothTitle": "Run IQ-TREE and RAxML-NG together",
-  "bothInfo": "Both are maximum-likelihood methods. Comparing their trees (step 9, Compare trees) shows which clades do not depend on the program.",
+  "bothInfo": "Both are maximum-likelihood methods. Comparing their trees (step 8, Compare trees) shows which clades do not depend on the program.",
   "bothBody": "Both analyses start at the same time with the options chosen in the two cards above. The threads are split so the computer stays usable: IQ-TREE gets {iq} and RAxML-NG {rx}. Change the total in the settings (top bar).",
   "@bothBody": {
     "placeholders": {
@@ -3099,9 +3095,9 @@
       }
     }
   },
-  "satUnlocksStep7": "Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 7, which opens afterwards.",
+  "satUnlocksStep7": "Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 6, which opens afterwards.",
   "satAllGenes": "All genes together",
-  "satAllGenesInfo": "\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 7). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene's row allows a choice per gene.",
+  "satAllGenesInfo": "\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 6). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene's row allows a choice per gene.",
   "exampleLabel": "Example",
   "exampleNt": "The same alignment in the three modes. Here the gap of species B falls inside codons 3 and 4 and shifts the reading frame.",
   "exampleAa": "The same genes translated: one letter per codon, so fewer and more conserved sites.",
@@ -3280,7 +3276,7 @@
       }
     }
   },
-  "orgMarkersInfo": "How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 4, where you choose which to use.",
+  "orgMarkersInfo": "How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 3, where you choose which to use.",
   "orgDuplicates": "{n} sample(s) with more than one sequence of a marker",
   "@orgDuplicates": {
     "placeholders": {
@@ -3322,7 +3318,7 @@
       }
     }
   },
-  "orgPendingBody": "Then one FASTA per marker is written with every sample, and the markers appear in step 4.",
+  "orgPendingBody": "Then one FASTA per marker is written with every sample, and the markers appear in step 3.",
   "orgMatrix": "Matrix",
   "orgWritten": "FASTA per marker",
   "findMarker": "Find a marker",
@@ -3366,8 +3362,8 @@
       }
     }
   },
-  "satOptionalLoci": "Optional for loci: step 7 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.",
-  "satOptionalLociNoCoding": "Optional for loci: step 7 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.",
+  "satOptionalLoci": "Optional for loci: step 6 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.",
+  "satOptionalLociNoCoding": "Optional for loci: step 6 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.",
   "exampleTrimNone": "None of the {total} columns is removed: a MAFFT alignment has no column made only of gaps. This option only matters for alignments edited by hand or subsets of sequences.",
   "@exampleTrimNone": {
     "placeholders": {
@@ -3539,7 +3535,7 @@
       }
     }
   },
-  "satOptionalPartial": "Optional here: step 7 is already open. {markers} came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.",
+  "satOptionalPartial": "Optional here: step 6 is already open. {markers} came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.",
   "@satOptionalPartial": {
     "placeholders": {
       "markers": {
@@ -3547,7 +3543,7 @@
       }
     }
   },
-  "satPartialMixed": "{markers} have partial sequences: the test is optional for them. Step 7 waits for the complete markers.",
+  "satPartialMixed": "{markers} have partial sequences: the test is optional for them. Step 6 waits for the complete markers.",
   "@satPartialMixed": {
     "placeholders": {
       "markers": {
@@ -3563,7 +3559,7 @@
       }
     }
   },
-  "headerConflictBlock": "{n} header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment stays locked until every header is unique.",
+  "headerConflictBlock": "{n} header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment and every step after it (saturation, matrix, trees, delimitation) stay locked until every header is unique.",
   "@headerConflictBlock": {
     "placeholders": {
       "n": {
@@ -3572,7 +3568,7 @@
     }
   },
   "headerAddAccession": "Add Accession",
-  "alignBlockedHeader": "Locked: repeated FASTA headers (5a)",
+  "alignBlockedHeader": "Locked: repeated FASTA headers (4a)",
   "recGenesCount": "Saturated in {n} of {total} genes.",
   "@recGenesCount": {
     "placeholders": {
@@ -3606,7 +3602,7 @@
       }
     }
   },
-  "rec7bPreview": "How \"{section}\" in step 7b will look:",
+  "rec7bPreview": "How \"{section}\" in step 6b will look:",
   "@rec7bPreview": {
     "placeholders": {
       "section": {
@@ -3728,7 +3724,24 @@
   "colAssessed": "Assessed",
   "colSheet": "Sheet",
   "geneNamesAllKnown": "All gene names recognized",
-  "geneReviewAgain": "Review again ({n})",
+  "geneReviewAgain": "Review gene names again ({n})",
+  "geneReviewWhichTitle": "The review shows these genes again:",
+  "geneReviewWhichUnknown": "Not found in SynGenes: {names}",
+  "@geneReviewWhichUnknown": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "geneReviewWhichConflicts": "/gene and /product disagree: {pairs}",
+  "@geneReviewWhichConflicts": {
+    "placeholders": {
+      "pairs": {
+        "type": "String"
+      }
+    }
+  },
   "@geneReviewAgain": {
     "placeholders": {
       "n": {
@@ -3798,7 +3811,7 @@
   "satParamsTitle": "Test parameters",
   "satParamsBody": "How the saturation of each marker is measured and when it is called moderate or saturated. Changes apply on the next run.",
   "satParamMethod": "Method",
-  "satParamMethodValue": "PhyKIT saturation (Steenwyk et al. 2021; Philippe et al. 2011): slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree",
+  "satParamMethodValue": "[[PhyKIT]] saturation, method of [[Philippe 2011|]]: slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree",
   "satParamDistance": "Trees",
   "satParamDistanceValue": "IQ-TREE, one per gene (fast search) with the model below; the branch lengths of each codon subset are estimated on that topology (-te)",
   "satParamSubsets": "Sites tested",
@@ -3940,5 +3953,532 @@
         "type": "String"
       }
     }
-  }
+  },
+  "delimTitle": "Species delimitation",
+  "delimIntro": "IQ-TREE and RAxML-NG infer the tree but do not delimit species, so SPLACE runs published delimitation programs: [[mPTP]] and [[GMYC]] on the maximum-likelihood trees, and [[ASAP]] and [[ABGD]] on the alignments (pairwise distances). Each result gets its own button on the tree (step 8). A delimitation is a hypothesis: compare the methods and confirm it with other evidence.",
+  "delimTrees": "ML trees to delimit",
+  "delimModels": "Models",
+  "delimModelMulti": "mPTP (one rate per species)",
+  "delimModelSingle": "PTP (one rate for all)",
+  "delimMinbr": "Minimum branch length from the data (--minbr_auto)",
+  "delimMinbrInfo": "Branches shorter than the smallest p-distance of the supermatrix carry no substitution and are ignored. Off: mPTP's default (0.0001).",
+  "delimCrop": "Root on the outgroup and leave it out (--outgroup_crop)",
+  "delimCropInfo": "The outgroups of step 6c root the tree and are not delimited, so their long branches do not change the result.",
+  "delimRun": "Delimit species",
+  "delimRunning": "mPTP: species delimitation",
+  "delimNone": "No delimitation yet.",
+  "delimSpecies": "{n} species",
+  "@delimSpecies": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "delimSingletons": "{n} with one tip",
+  "@delimSingletons": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "delimLrtFailed": "LRT failed: one species preferred",
+  "delimViewOnTree": "Show on the tree",
+  "delimMinbrCommand": "Minimum branch length",
+  "delimSpeciesList": "Delimited species",
+  "treeDelimitation": "Species delimitation",
+  "treeDelimitationInfo": "Each button adds a column of bars beside the labels: one bar per species delimited by that tool on that tree (consecutive species alternate colours). Tips are matched by name, so a delimitation can be compared on any tree. Run them in step 7e.",
+  "treeDelimitationCircular": "Shown in the rectangular layout only",
+  "citeFeatured": "Gene names and taxonomy",
+  "citeRoleHint": "Each reference says what the tool did in this project.",
+  "citeRoleLabel": "What it did:",
+  "delimOnTrees": "On the trees (mPTP, GMYC)",
+  "delimTreesIntro": "mPTP finds where the branching of the ML tree changes from speciation (between species) to coalescence (within species). The [[PTP]] model uses one coalescent rate for all species; mPTP gives each species its own rate, which copes better with uneven sampling. [[GMYC]] (single threshold, pGMYC) reads the ML tree made ultrametric by [[LSD2]] (relative dates) and finds where the waiting times between branchings change from speciation to coalescence.",
+  "delimOnAlignments": "On the alignments (ASAP, ABGD)",
+  "delimAlignmentsIntro": "Single-locus methods based on pairwise distances, usually run on a barcode marker (COI, 16S…). ASAP builds partitions by hierarchical clustering and ranks them by its score; ABGD looks for the barcode gap between intra- and interspecific distances over a range of priors.",
+  "delimAlignments": "Alignments",
+  "delimNoAlignments": "No DNA alignment yet.",
+  "delimSupermatrix": "Supermatrix",
+  "delimDistance": "Distance",
+  "delimDistanceInfo": "Pairwise distance of ASAP and ABGD (both default to Jukes-Cantor). ABGD offers JC69 and K2P only; with another distance ABGD uses JC69.",
+  "delimPMin": "ABGD prior Pmin",
+  "delimPMax": "ABGD prior Pmax",
+  "delimSteps": "ABGD steps",
+  "delimSlope": "ABGD gap width (X)",
+  "delimPriorInfo": "ABGD tries priors of maximum intraspecific divergence from Pmin to Pmax (log scale) and gives one partition per prior. Defaults are ABGD's own (0.001 to 0.1, 10 steps).",
+  "delimSlopeInfo": "Relative gap width (ABGD -X, default 1.5): lower values find smaller gaps.",
+  "delimPartition": "Partition shown",
+  "delimPartitionAsapInfo": "ASAP proposes several partitions ranked by its score (lower is better); the best one is shown first. The one chosen here goes to the tree and to the methods text.",
+  "delimPartitionAbgdInfo": "ABGD gives an initial and a recursive partition for each prior P. Shown first: the initial partition at the prior nearest 0.01; look for partitions that stay the same over several priors. The one chosen here goes to the tree and to the methods text.",
+  "delimAsapScore": "ASAP score {score}",
+  "@delimAsapScore": {
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "delimInitial": "initial",
+  "delimRecursive": "recursive",
+  "delimModelGmyc": "GMYC (ultrametric tree by LSD2)",
+  "delimLsd2Command": "Ultrametric tree (LSD2)",
+  "exportGbButton": "Export corrected GenBank",
+  "exportGbChoose": "Save here",
+  "exportGbInfo": "Writes every record as a GenBank file (.gb) with the species name as identified or edited, the lineage of the taxonomy and the gene names standardized by SynGenes (the original name is kept in a /note). Useful for a newly assembled genome before submission. A copy goes to the project folder (00_genbank_corrected).",
+  "barcodingSwitch": "These sequences are DNA barcodes",
+  "barcodingSwitchInfo": "One specimen per sequence (COI, 16S, ITS…): identify each one against GenBank and BOLD and export the BOLD submission spreadsheet.",
+  "barcodingLocus": "Barcode marker",
+  "barcodingLocusInfo": "The locus of the FASTA files with the barcodes. COI is sent to BOLD and GenBank; other markers to GenBank only.",
+  "barcodingCount": "{n} specimens",
+  "@barcodingCount": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "barcodingSourcesCoi": "BOLD ID Engine + GenBank BLAST",
+  "barcodingSourcesGenbank": "GenBank BLAST (BOLD identifies COI only)",
+  "barcodingIdentify": "Identify specimens",
+  "barcodingTaxonomy": "Taxonomy (GBIF)",
+  "barcodingTaxonomyInfo": "Fills phylum, class, order and family of the names kept, from GBIF (dataFishing method), for the BOLD sheet.",
+  "barcodingExport": "Export BOLD spreadsheet (.xlsx)",
+  "barcodingExportInfo": "Writes the official BOLD5 single-page specimen template (sheet Submissions): sample id, taxonomy and identification filled; voucher and collection data left for you. A FASTA with the sample ids as headers is saved next to it for the sequence upload.",
+  "barcodingExported": "BOLD spreadsheet saved with {n} specimens (and the sequences FASTA)",
+  "@barcodingExported": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "barcodingColSample": "Sample",
+  "barcodingColMatches": "Best matches",
+  "barcodingColName": "Name kept",
+  "barcodingNoMatch": "no match",
+  "barcodingNameHint": "Genus species",
+  "barcodingPick": "Choose a match",
+  "tutorialTitle": "How to use SPLACE",
+  "tutorialSubtitle": "Each step with what it is for and what to do there. Close it at any time.",
+  "tutorialInterface": "The interface",
+  "tutorialWhatToDo": "What to do",
+  "tutorialPrev": "Previous",
+  "tutorialNext": "Next",
+  "tutorialFinish": "Start working",
+  "tutorialShowAtStart": "Show this tutorial after Start App",
+  "tutorialButton": "Tutorial",
+  "tutorialPageOf": "{n} of {total}",
+  "@tutorialPageOf": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "newProject": "New project",
+  "newProjectTitle": "Start a new project?",
+  "newProjectBody": "SPLACE starts again with no data, in a new project folder, so you can analyse another group. Settings, the NCBI key and the tools found are kept.",
+  "newProjectKept": "The files of the current project stay in {dir}.",
+  "@newProjectKept": {
+    "placeholders": {
+      "dir": {
+        "type": "String"
+      }
+    }
+  },
+  "newProjectConfirm": "New project",
+  "tutorialPlay": "Play",
+  "tutorialPause": "Pause",
+  "tutorialItemOf": "Item {n} of {total}",
+  "@tutorialItemOf": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "tutorialNextStep": "Next: {step}",
+  "@tutorialNextStep": {
+    "placeholders": {
+      "step": {
+        "type": "String"
+      }
+    }
+  },
+  "taxSpeciesRecognized": "Species recognized:",
+  "taxSynonyms": "Also search its synonyms (GBIF)",
+  "taxSynonymsInfo": "Records may be filed under an older name (e.g. Bufo marinus for Rhinella marina). NCBI already finds the synonyms it knows; GBIF adds the accepted name and every synonym it lists, all in one NCBI query. The records are imported under their current NCBI name.",
+  "taxSynonymsLoading": "Looking up the synonyms in GBIF…",
+  "taxSynonymsError": "GBIF could not be reached: {error}",
+  "@taxSynonymsError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "taxSynonymsNone": "GBIF has no synonyms for this name: it is searched alone.",
+  "taxSynonymsFound": "{n} names searched together:",
+  "@taxSynonymsFound": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "examplesLabel": "Example data:",
+  "examplesEmpty": "No example files yet: put them in {folder} and rebuild the app.",
+  "@examplesEmpty": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "examplesFiles": "Loads the {n} file(s) of {folder}.",
+  "@examplesFiles": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      },
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "exampleGenbank": "GenBank example",
+  "exampleLoci": "Loci example (FASTA)",
+  "exampleBarcoding": "Barcoding example (FASTA)",
+  "reviewFiledAs": "filed as",
+  "markerBold": "Also search BOLD Systems",
+  "markerBoldInfo": "Public records of BOLD for {markers}. Each record shows where it came from: NCBI, BOLD, or NCBI + BOLD when BOLD mirrors a GenBank record (imported once, from GenBank). Any rank can be searched (species, genus, family…); synonyms BOLD knows are searched too.",
+  "@markerBoldInfo": {
+    "placeholders": {
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "markerBoldNone": "BOLD holds {markers} for this organelle: select one to search BOLD too.",
+  "@markerBoldNone": {
+    "placeholders": {
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "siFoundAs": "also as {names}",
+  "@siFoundAs": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "siVerdictAccepted": "The accepted name in GBIF is {name}: choose it to update the record.",
+  "@siVerdictAccepted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "headerConflictUndetermined": "{n} name(s) repeat inside the same marker. Records of one species are joined into one sample, but records not identified to species (sp., cf., aff., a genus only) or a FASTA sample with the same name are different specimens. Name them in step 2 (species identification or the records table) or remove them: the alignment and every step after it stay locked until every name is unique.",
+  "@headerConflictUndetermined": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "tipFieldCountry": "Country",
+  "tipFieldLocality": "Locality",
+  "schemesOneCoding": "One marker: \"by locus\" would be a single partition, so it can be partitioned by codon position (its reading frame is known) or kept as one partition.",
+  "schemesOneNoCodons": "One marker without known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the matrix is a single partition.",
+  "schemesNoCodons": "No marker has known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the markers can only be partitioned by locus.",
+  "trimPlanTitle": "How each marker will be trimmed",
+  "trimWhyNoFrame": "partial sequences without a confirmed reading frame in the nucleotide alignment (align in Codon-aware mode to keep codons); one partition without codon positions",
+  "trimWhyNonCoding": "not protein-coding",
+  "trimWhyColumns": "trimAl by columns breaks codons: its codon positions are lost",
+  "stepMarkers": "Features and Markers",
+  "stepMarkersFasta": "Samples and Markers",
+  "splashStepMarkers": "Choose which feature types (CDS, rRNA, tRNA) enter the analysis, or show SPLACE where FASTA headers keep the sample and locus names; then pick the markers for the matrix, reviewing missing and duplicated sequences in the presence and length heatmaps.",
+  "dropUndetermined": "Leave out the {n} record(s) not identified to species",
+  "@dropUndetermined": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "idAlnTitle": "Alignments of the identification",
+  "idAlnOpen": "See the alignments (your sequence and the hits)",
+  "idAlnAll": "All sources",
+  "idAlnQuery": "Query",
+  "idAlnHit": "hit",
+  "idAlnCopy": "Copy as FASTA",
+  "idAlnNone": "No hits for this marker.",
+  "idAlnIdentity": "identity",
+  "idAlnCoverage": "coverage",
+  "idAlnMismatches": "mismatches",
+  "idAlnGaps": "gaps",
+  "idAlnLoading": "BOLD gives where the hit aligns, not the alignment: fetching its sequence from the BOLD portal and aligning it…",
+  "idAlnLoadError": "The BOLD sequence could not be fetched: {error}",
+  "@idAlnLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "idpTitle": "Search parameters",
+  "idpSubtitle": "GenBank BLAST and the BOLD ID engine. Changing a parameter sends the searches again; answers with the same parameters are reused.",
+  "idpDatabase": "Database",
+  "idpBlastDbInfo": "core_nt: the default nucleotide database of web BLAST (core sequences, faster). nt: the complete nucleotide collection. refseq_select_rna / refseq_rna: RefSeq transcripts only.",
+  "idpProgram": "Program",
+  "idpProgramInfo": "megablast: for the same or very close species (fast, long words). blastn: more sensitive, finds more distant relatives (slower).",
+  "idpHits": "Max results",
+  "idpHitsInfo": "How many target sequences BLAST returns per query (HITLIST_SIZE).",
+  "idpExpect": "E-value",
+  "idpExpectInfo": "Highest expect value kept (EXPECT): lower is stricter.",
+  "idpWord": "Word size",
+  "idpWordInfo": "Length of the seed matches (WORD_SIZE). Empty: the program's default (28 for megablast, 11 for blastn).",
+  "idpCoverage": "Min coverage (%)",
+  "idpCoverageInfo": "Share of your sequence a hit must cover to count (applied by SPLACE; changing it needs no new search).",
+  "idpEntrez": "Restrict to (Entrez query)",
+  "idpEntrezInfo": "Optional: search only records matching an Entrez query, e.g. Bufonidae[Organism] or Anura[Organism] (ENTREZ_QUERY).",
+  "idpBoldDbInfo": "public.tax-derep: public animal COI, one record per haplotype and taxon (recommended). species: records identified to species. all.tax-derep: public and private records (taxonomy only). all.animal-alt: animal records of other markers. public.plants: rbcL and matK. public.fungi: ITS.",
+  "idpMinIdentity": "Min identity (%)",
+  "idpMinIdentityInfo": "Hits below this identity are not returned (70–100 %).",
+  "idpMinOverlap": "Min overlap (bp)",
+  "idpMinOverlapInfo": "Shortest alignment with your sequence that counts.",
+  "idpMaxHits": "Max hits",
+  "idpMaxHitsInfo": "How many hits BOLD returns per sequence.",
+  "idpBoldMarkers": "This database identifies: {markers}.",
+  "@idpBoldMarkers": {
+    "placeholders": {
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "speciesIdBoldBodyFor": "ID engine, database {db}: {markers}.",
+  "@speciesIdBoldBodyFor": {
+    "placeholders": {
+      "db": {
+        "type": "String"
+      },
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "speciesIdBoldOffFor": "Select {markers} to search BOLD too (the database can be changed in the parameters).",
+  "@speciesIdBoldOffFor": {
+    "placeholders": {
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "exampleLociShort": "Loci example",
+  "exampleBarcodingShort": "Barcoding example",
+  "speciesIdGenesHintFor": "Choose one or more genes. Every gene is searched in GenBank with BLAST; BOLD takes the markers of its database ({markers}).",
+  "@speciesIdGenesHintFor": {
+    "placeholders": {
+      "markers": {
+        "type": "String"
+      }
+    }
+  },
+  "speciesIdGenbankBodyFor": "BLAST ({program}) against {db}, up to {hits} results per gene.",
+  "@speciesIdGenbankBodyFor": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      },
+      "db": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "trimPlanCodonsTitle": "Whole codons (reading frame known)",
+  "trimPlanColumnsTitle": "Column by column — {why}",
+  "@trimPlanColumnsTitle": {
+    "placeholders": {
+      "why": {
+        "type": "String"
+      }
+    }
+  },
+  "openProject": "Open project",
+  "saveProject": "Save project",
+  "saveProjectTooltip": "Save project (.splc): data, parameters and results, to continue later or share (Ctrl+S; Save as: Ctrl+Shift+S)",
+  "openProjectTooltip": "Open a SPLACE project (.splc) (Ctrl+O)",
+  "openProjectTitle": "Open another project?",
+  "openProjectBody": "{file} opens where it was saved. The current analysis is closed: save it first (Save project) to come back to it.",
+  "@openProjectBody": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "projectSaveFailed": "The project could not be saved: see the log.",
+  "splashOpenProject": "Open project",
+  "windowTitleNew": "Unsaved project",
+  "windowTitleUnsaved": "unsaved changes",
+  "windowTitleSaved": "saved",
+  "projectSavedTitle": "Project saved",
+  "exportGbDoneTitle": "{n} GenBank file(s) saved",
+  "@exportGbDoneTitle": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "delimSettings": "Settings",
+  "delimLrtLevel": "LRT p-value · {tool}",
+  "@delimLrtLevel": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "delimLrtInfoMptp": "Significance level of the likelihood-ratio test of mPTP (--pvalue, default 0.001). When the p-value of the test is above it, the one-species model is kept and every tip goes into one species.",
+  "delimLrtInfoGmyc": "Significance level of the GMYC likelihood-ratio test (default 0.01). Above it GMYC does not reject a single species and joins every tip.",
+  "delimOnePerSpecies": "Every tip of the supermatrix is a different species (one sequence per species). PTP, mPTP and GMYC look for where the tree changes from branching between species to branching within them; without several individuals per species that change is not there, the test tends to fail and the whole tree comes out as one species. Use several sequences per species, or ASAP/ABGD on a marker.",
+  "delimCollapsed": "The likelihood-ratio test did not reject the one-species model (p = {p}, above the limit {alpha}), so {tool} put all {tips} tips in one species.",
+  "@delimCollapsed": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      },
+      "p": {
+        "type": "String"
+      },
+      "alpha": {
+        "type": "String"
+      },
+      "tips": {
+        "type": "String"
+      }
+    }
+  },
+  "delimCollapsedBest": "Its best model had found {n} species, without statistical support.",
+  "@delimCollapsedBest": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "delimCollapsedOnePerSpecies": "Here every tip is a different species: these methods need several individuals per species. With one sequence each, use ASAP or ABGD on a marker, or compare the tree with the taxonomy.",
+  "delimCollapsedTry": "Try a less strict limit (LRT p-value in the settings above), more sequences per species, or ASAP/ABGD on a marker.",
+  "delimLrtNs": "LRT not significant",
+  "treeIdentify": "Identify by BLAST…",
+  "treeIdTitle": "Identify by BLAST",
+  "treeIdSubtitle": "{n} tip(s) of the tree",
+  "@treeIdSubtitle": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdIntro": "Each tip is sent with its sequence of the marker you choose to GenBank BLAST (and BOLD for COI, or rbcL, matK and ITS in its plant and fungal databases), with the options of the identification in step 2. Useful when a genus falls inside another one: the best match tells whether the sample is what its name says.",
+  "treeIdMarker": "Marker",
+  "treeIdMarkerTips": "{n} of {total} tips have it",
+  "@treeIdMarkerTips": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdNoMarker": "None of these tips has a DNA marker sequence of at least 100 bases.",
+  "treeIdOptions": "BLAST: {program} on {db}, hits covering at least {coverage} % of the sequence; same species from {identity} % identity. Answers already received are reused.",
+  "@treeIdOptions": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      },
+      "db": {
+        "type": "String"
+      },
+      "coverage": {
+        "type": "String"
+      },
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdRun": "Identify",
+  "treeIdRunning": "Identifying {n} tip(s) with {marker}…",
+  "@treeIdRunning": {
+    "placeholders": {
+      "marker": {
+        "type": "String"
+      },
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdOtherMarker": "Another marker",
+  "treeIdRename": "Rename {n} tip(s) in the figure",
+  "@treeIdRename": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdRenameOne": "Rename in the figure as {name}",
+  "@treeIdRenameOne": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdConfirmed": "Confirmed",
+  "treeIdOtherSpecies": "Another species",
+  "treeIdOtherGenus": "Another genus",
+  "treeIdAmbiguous": "Ambiguous (its species matches as well)",
+  "treeIdNoMatch": "No species at ≥ {identity} %",
+  "@treeIdNoMatch": {
+    "placeholders": {
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdNone": "No result",
+  "treeIdCurrent": "Name:",
+  "treeIdCurrentAt": "its name at {pct}",
+  "@treeIdCurrentAt": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
+  "treeIdHits": "Alignments"
 }

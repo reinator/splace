@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../../services/ncbi.dart' show foldForSearch;
 import '../fa.dart';
 import '../theme.dart';
+import 'citations.dart';
 import 'splace_tooltip.dart';
 
 /// Flutter versions of the HTML interface's building blocks. Class names in
@@ -47,7 +48,6 @@ class StepSection extends StatelessWidget {
   const StepSection({
     super.key,
     this.badge,
-    required this.icon,
     required this.title,
     this.description,
     this.count,
@@ -57,7 +57,6 @@ class StepSection extends StatelessWidget {
   });
 
   final String? badge;
-  final IconData icon;
   final String title;
   final String? description;
   final int? count;
@@ -85,8 +84,6 @@ class StepSection extends StatelessWidget {
           children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               if (badge != null) ...[StepBadge(badge!, active: active), const SizedBox(width: 8)],
-              Icon(icon, size: 16, color: t.accent),
-              const SizedBox(width: 8),
               Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: t.text)),
               if (count != null) ...[const SizedBox(width: 8), CountPill('$count')],
             ]),
@@ -95,7 +92,8 @@ class StepSection extends StatelessWidget {
         ),
         if (description != null) ...[
           const SizedBox(height: 10),
-          Text(description!, style: TextStyle(fontSize: 14, color: t.textMuted)),
+          // `[[Tool]]` markers become citation pills.
+          Text.rich(TextSpan(style: TextStyle(fontSize: 14, color: t.textMuted, height: 1.5), children: citationSpans(description!, fontSize: 12.5))),
         ],
         const SizedBox(height: 14),
         child,
@@ -796,6 +794,8 @@ class SplaceSelect<T> extends StatelessWidget {
       enableSearch: false,
       // Value in body text, like the text fields next to it.
       textStyle: TextStyle(fontSize: 14, color: t.text),
+      // 44 px like the text fields (the menu's own minimum is 48).
+      inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(constraints: const BoxConstraints.tightFor(height: 44)),
       // A plain chevron instead of the default 48 px IconButton, so the
       // field keeps the 44 px height and the icon stays centred.
       decorationBuilder: (context, menu) => InputDecoration(
@@ -1622,12 +1622,16 @@ class NumberField extends StatefulWidget {
     this.step = 1,
     this.decimals = 0,
     this.width = 120,
+    this.height = 44,
     this.suffix,
   });
 
   final double value, min, max, step;
   final int decimals;
-  final double width;
+
+  /// The height of the app's text fields and menus by default, so a row
+  /// of fields lines up.
+  final double width, height;
   final String? suffix;
   final ValueChanged<double> onChanged;
 
@@ -1667,11 +1671,11 @@ class _NumberFieldState extends State<NumberField> {
     Widget btn(IconData icon, double delta) => InkWell(
           borderRadius: BorderRadius.circular(6),
           onTap: () => _set((double.tryParse(_ctrl.text.replaceAll(',', '.')) ?? widget.value) + delta),
-          child: SizedBox(width: 26, height: 34, child: Icon(icon, size: 10, color: t.textMuted)),
+          child: SizedBox(width: 26, height: widget.height - 2, child: Icon(icon, size: 10, color: t.textMuted)),
         );
     return Container(
       width: widget.width,
-      height: 36,
+      height: widget.height,
       decoration: BoxDecoration(color: t.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: t.border)),
       child: Row(children: [
         btn(FA.minus, -widget.step),

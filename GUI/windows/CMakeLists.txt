@@ -102,15 +102,16 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# External tools (MAFFT, trimAl, IQ-TREE, seqkit…) go to tools/ next to the
-# executable, so the bundle folder is self-contained. SPLACE_TOOLS_DIR
-# defaults to the binaries kept in the repository for the Electron app.
-set(SPLACE_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../electron/bin/win" CACHE PATH "Folder with the bundled tools")
+# External tools (MAFFT, trimAl, IQ-TREE, RAxML-NG, mPTP) go to tools/ next to
+# the executable, so the bundle folder is self-contained. SPLACE_TOOLS_DIR
+# defaults to the binaries kept in the repository (GUI/tools/win).
+set(SPLACE_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../tools/win" CACHE PATH "Folder with the bundled tools")
 if(EXISTS "${SPLACE_TOOLS_DIR}")
   install(DIRECTORY "${SPLACE_TOOLS_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/tools"
-    USE_SOURCE_PERMISSIONS COMPONENT Runtime)
+    USE_SOURCE_PERMISSIONS COMPONENT Runtime
+    PATTERN ".gitattributes" EXCLUDE)
 endif()
-# RAxML-NG: electron/bin/win/raxml-ng.exe is built from the official source
+# RAxML-NG: tools/win/raxml-ng.exe is built from the official source
 # by tool/raxml-ng-windows/build.sh (RAxML-NG has no Windows release), so it
 # runs without WSL.
 

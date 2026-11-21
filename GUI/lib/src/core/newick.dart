@@ -373,6 +373,8 @@ class TipInfo {
     this.kingdom = '',
     this.accession = '',
     this.voucher = '',
+    this.locality = '',
+    this.latLon = '',
     this.status = '',
     this.statusName = '',
     this.commonName = '',
@@ -386,6 +388,13 @@ class TipInfo {
   /// Binomial ("Genus species").
   final String species;
   final String genus, family, order, klass, phylum, kingdom, accession, voucher;
+
+  /// Where the specimen was collected ("Colombia: Meta, San Juan de Arama")
+  /// and its coordinates, when the record says (optional).
+  final String locality, latLon;
+
+  /// The country of [locality].
+  String get country => locality.split(':').first.trim();
 
   /// From the species' SALVE sheet (Brazilian fauna): IUCN category code
   /// and name, first common name, endemic to Brazil ("Sim"/"Não") and

@@ -46,3 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# MAFFT for Windows writes its temporary files here during development.
+tools/win/tmp/
+
+# ClipKIT, PhyKIT and GMYC built by tool/package/python_tools.ps1 (PyInstaller)
+/tools/win/clipkit/
+/tools/win/phykit/
+/tools/win/gmyc/

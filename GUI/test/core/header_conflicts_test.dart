@@ -77,10 +77,30 @@ void main() {
     c.confirmHeader();
     expect(c.headerConfirmed, isTrue);
 
-    // One sample per species joins them on purpose.
+    // One sample per species joins them on purpose: not a conflict.
     c.setOnePerTaxon(true);
-    expect(c.headerConflicts(), isNotEmpty);
+    expect(c.headerConflicts(), isEmpty);
     expect(c.headerBlocked, isFalse);
+  });
+
+  test('records not named to species are not joined: every step after the names stays locked', () async {
+    final gb = File(p.join(tmp.path, 'sp.gb'))
+      ..writeAsStringSync([
+        _record('MK000005.1', 'Caranx sp.', 'COX1', 'cytochrome c oxidase subunit I'),
+        _record('MK000006.1', 'Caranx sp.', 'COX1', 'cytochrome c oxidase subunit I'),
+      ].join());
+    await c.addGenBankFiles([gb.path]);
+    c.setOnePerTaxon(true);
+    c.toggleMarker('COI', true);
+    final dups = c.headerConflicts();
+    expect(dups.values.single, ['MK000005.1', 'MK000006.1']);
+    expect(c.headerBlocked, isTrue);
+    await c.alignAll();
+    await c.buildMatrix();
+    await c.runSaturation();
+    expect(c.loci.values.where((l) => l.aligned != null), isEmpty);
+    expect(c.matrix, isNull);
+    expect(c.logs.where((l) => l.message.contains('blocked')), isNotEmpty);
   });
 
   test('partial markers make the saturation test optional', () async {

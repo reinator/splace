@@ -288,9 +288,16 @@ Map<String, List<CodonCandidate>> extractCodonCandidates(
       final offset = (codonStart - 1).clamp(0, 2);
       if (offset > 0) log?.call('[CDS extraction] [$gene] "$name": /codon_start=$codonStart, trimmed $offset bp');
       final table = int.tryParse(f.q('transl_table') ?? '');
+      // A fragment that runs past the end of the record (`>`) ends in the
+      // middle of a codon: only its whole codons are used.
+      var dna = raw.substring(offset);
+      if (f.location.contains('>') && dna.length % 3 != 0) {
+        log?.call('[CDS extraction] [$gene] "$name": partial at the 3\' end, last ${dna.length % 3} bp (incomplete codon) left out');
+        dna = dna.substring(0, dna.length - dna.length % 3);
+      }
       out.putIfAbsent(gene, () => []).add(CodonCandidate(
             name,
-            raw.substring(offset),
+            dna,
             table != null && isKnownGeneticCode(table) ? table : fallbackCode,
             table != null,
           ));

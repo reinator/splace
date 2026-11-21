@@ -23,8 +23,11 @@ bool looksLikeNcbiApiKey(String? v) => v != null && RegExp(r'^[A-Za-z0-9_-]{20,}
 enum Organelle { mitochondrion, chloroplast }
 
 class GenomeSearch {
-  const GenomeSearch({required this.taxon, this.organelle = Organelle.mitochondrion, this.completeOnly = false, this.refseqOnly = false});
+  const GenomeSearch({required this.taxon, this.organelle = Organelle.mitochondrion, this.completeOnly = false, this.refseqOnly = false, this.synonyms = const []});
   final String taxon;
+
+  /// Other names of the species (GBIF), searched together with [taxon].
+  final List<String> synonyms;
   final Organelle organelle;
   final bool completeOnly;
   final bool refseqOnly;
@@ -33,7 +36,7 @@ class GenomeSearch {
   String get term {
     final scopes = completeOnly ? ['complete genome'] : ['complete genome', 'partial genome'];
     return [
-      '"${taxon.trim()}"[Organism]',
+      organismQuery(taxon, synonyms),
       scopes.length == 1 ? '"${scopes.first}"[Title]' : '(${scopes.map((s) => '"$s"[Title]').join(' OR ')})',
       organelle == Organelle.chloroplast
           ? '(chloroplast[Title] OR plastid[Title] OR chloroplast[Filter])'
@@ -48,14 +51,21 @@ enum GenomeClass { complete, partial, mixed, unknown }
 
 /// One NCBI hit shown in the "Review genomes before importing" dialog.
 class GenomeCandidate {
-  GenomeCandidate({required this.id, required this.accession, required this.title, required this.species, required this.description})
+  GenomeCandidate({required this.id, required this.accession, required this.title, required this.species, required this.description, this.filedAs})
       : classification = _classify(title),
         unverified = RegExp(r'\bunverified\b', caseSensitive: false).hasMatch(title);
 
   final String id;
   final String accession;
   final String title;
+  /// The current NCBI name (esummary `organism`, the ORGANISM of the
+  /// record once imported).
   final String species;
+
+  /// The name in the title when it differs from [species]: the title keeps
+  /// the name of the submission (e.g. Bufo marinus) and NCBI never updates
+  /// it, while the organism follows the taxonomy (Rhinella marina).
+  final String? filedAs;
   final String description;
   final GenomeClass classification;
   final bool unverified;
@@ -66,6 +76,17 @@ class GenomeCandidate {
 
   /// Marker searches: the markers whose query found this record.
   final Set<String> markers = {};
+
+  /// Where the record was found: NCBI, BOLD or both (a BOLD record mirrored
+  /// in GenBank).
+  final Set<String> sources = {'NCBI'};
+
+  /// A record found only in BOLD, ready to import (no NCBI download).
+  GbRecord? boldRecord;
+
+  /// BOLD details shown in the review: process id, country, BIN and the
+  /// GenBank accession of the same sequence.
+  String? boldId, country, bin, genbank;
 
   static GenomeClass _classify(String title) {
     final t = title.toLowerCase();
@@ -80,14 +101,28 @@ class GenomeCandidate {
   factory GenomeCandidate.fromSummary(String id, Map<String, dynamic> s) {
     final title = (s['title'] as String?) ?? '';
     final accession = (s['accessionversion'] as String?) ?? (s['caption'] as String?) ?? id;
-    final species = _speciesFromTitle(title);
-    return GenomeCandidate(id: id, accession: accession, title: title, species: species, description: _cleanDescription(title, accession, species))
+    final inTitle = _speciesFromTitle(title);
+    final organism = ((s['organism'] as String?) ?? '').trim();
+    final species = organism.isNotEmpty ? organism : inTitle;
+    var description = _cleanDescription(title, accession, inTitle);
+    // The description starts with the current name, not the old one.
+    if (inTitle.isNotEmpty && species != inTitle && description.startsWith(inTitle)) {
+      description = '$species${description.substring(inTitle.length)}';
+    }
+    return GenomeCandidate(
+      id: id,
+      accession: accession,
+      title: title,
+      species: species,
+      description: description,
+      filedAs: inTitle.isNotEmpty && inTitle.toLowerCase() != species.toLowerCase() ? inTitle : null,
+    )
       ..length = s['slen'] is int ? s['slen'] as int : int.tryParse('${s['slen'] ?? ''}');
   }
 
   bool matches(String query) {
     final q = _fold(query);
-    return q.isEmpty || _fold('$accession $id $species $description $title').contains(q);
+    return q.isEmpty || _fold('$accession $id $species ${filedAs ?? ''} $description $title ${sources.join(' ')} ${country ?? ''} ${bin ?? ''}').contains(q);
   }
 }
 
@@ -139,7 +174,7 @@ class NcbiClient {
 
   final String cacheDir;
   String? apiKey;
-  final _http = HttpClient()..userAgent = 'SPLACE/4 (https://github.com/luanrabelo/splace)';
+  final _http = HttpClient()..userAgent = 'SPLACE/4 (https://github.com/itvgenomics/splace)';
   DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get hasKey => looksLikeNcbiApiKey(apiKey);
@@ -396,6 +431,44 @@ class NcbiClient {
       out.addAll(parseNcbiTaxonomyXml(xml));
     }
     return out;
+  }
+
+  /// The accepted name of [species] in GBIF and its synonyms (species rank
+  /// or below), accepted first; empty when GBIF does not know the name.
+  Future<List<String>> gbifSynonyms(String species) async {
+    Future<dynamic> get(Uri uri) async {
+      final req = await _http.getUrl(uri);
+      req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final res = await req.close();
+      final body = await res.transform(utf8.decoder).join();
+      NetMeter.add(received: body.length, sent: uri.toString().length);
+      if (res.statusCode != 200) throw HttpException('GBIF returned ${res.statusCode}', uri: uri);
+      return jsonDecode(body);
+    }
+
+    final match = await get(Uri.parse('https://api.gbif.org/v1/species/match').replace(queryParameters: {'name': species})) as Map<String, dynamic>;
+    final key = match['acceptedUsageKey'] ?? match['speciesKey'] ?? match['usageKey'];
+    if (key == null || match['matchType'] == 'NONE') return const [];
+    final syn = await get(Uri.parse('https://api.gbif.org/v1/species/$key/synonyms').replace(queryParameters: {'limit': '200'})) as Map<String, dynamic>;
+    return gbifSynonymNames(match, ((syn['results'] as List?) ?? const []).cast<Map<String, dynamic>>());
+  }
+
+  /// The accepted species of [name] in the GBIF backbone (the name itself
+  /// when accepted; Rhinella marina for Bufo marinus), or null when GBIF
+  /// does not match it to a species with confidence.
+  Future<String?> gbifAccepted(String name) async {
+    final uri = Uri.parse('https://api.gbif.org/v1/species/match').replace(queryParameters: {'name': name});
+    final req = await _http.getUrl(uri);
+    req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    final res = await req.close();
+    final body = await res.transform(utf8.decoder).join();
+    NetMeter.add(received: body.length, sent: uri.toString().length);
+    if (res.statusCode != 200) throw HttpException('GBIF returned ${res.statusCode}', uri: uri);
+    final m = jsonDecode(body) as Map<String, dynamic>;
+    final type = '${m['matchType'] ?? 'NONE'}';
+    if (type == 'NONE' || type == 'HIGHERRANK' || ((m['confidence'] as num?) ?? 0) < 90) return null;
+    if (!const {'SPECIES', 'SUBSPECIES', 'VARIETY', 'FORM'}.contains('${m['rank']}')) return null;
+    return m['species'] as String?;
   }
 
   Future<TaxonInfo?> gbif(String species) async {

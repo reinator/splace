@@ -56,8 +56,12 @@ void main() {
       GbRecord(accession: 'NC_1.1', organism: 'Caranx ruber', lineage: '', definition: '', features: const [], sequence: seq),
     ];
     final cache = {
-      SpeciesIdentifier.cacheKey(IdSource.genbank, 'NC_1.1', 'COI', seq): [('Caranx bartholomaei', 99.5, 'X1.1')],
-      SpeciesIdentifier.cacheKey(IdSource.bold, 'NC_1.1', 'COI', seq): [('Caranx bartholomaei', 100.0, 'P1')],
+      SpeciesIdentifier.cacheKey(IdSource.genbank, 'NC_1.1', 'COI', seq): [
+        IdHit(source: IdSource.genbank, species: 'Caranx bartholomaei', accession: 'X1.1', identity: 99.5, alignLength: seq.length),
+      ],
+      SpeciesIdentifier.cacheKey(IdSource.bold, 'NC_1.1', 'COI', seq): [
+        IdHit(source: IdSource.bold, species: 'Caranx bartholomaei', accession: 'P1', identity: 100.0, alignLength: seq.length),
+      ],
     };
     final id = SpeciesIdentifier();
     final out = await id.identify(records, {

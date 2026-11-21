@@ -17,20 +17,25 @@ requirements:
   run:
     - python >=3.12
     - biopython
-    - iqtree
+    - requests
+    - pyyaml
+    - pandas
+    - seaborn
+    - matplotlib
     - syngenes
     - mafft
     - trimal
+    - iqtree >=3
 
 about:
-  home: "https://github.com/luanrabelo/splace"
+  home: "https://github.com/itvgenomics/splace"
   license: "GPL-3.0"
   license_family: GPL
-  summary: "A Python class for standardizing mitochondrial and chloroplast gene nomenclatures."
+  summary: "SPLACE: split, align and concatenate organellar genes for phylogenomic inference (MAFFT, trimAl, IQ-TREE 3)."
   description: |
-    **SPLACE** is a comprehensive Python toolkit designated to automate phylogenomic analysis pipelines. It handles gene splitting, alignment, trimming, and concatenation, and now supports direct phylogenetic tree inference. It integrates with **SynGenes** for gene name standardization, **MAFFT** for alignment, **TrimAl** for quality control, and **IQ-TREE** for phylogeny reconstruction, utilizing asynchronous I/O and parallel processing for high performance.
-  dev_url: "https://github.com/luanrabelo/splace"
-  doc_url: "https://github.com/luanrabelo/splace#readme"
+    **SPLACE** is a comprehensive Python toolkit designated to automate phylogenomic analysis pipelines. It handles gene splitting, alignment, trimming, and concatenation, and now supports direct phylogenetic tree inference. It integrates with **SynGenes** for gene name standardization, **MAFFT** for alignment, **trimAl** for quality control, and **IQ-TREE 3** for phylogeny reconstruction, utilizing asynchronous I/O and parallel processing for high performance.
+  dev_url: "https://github.com/itvgenomics/splace"
+  doc_url: "https://github.com/itvgenomics/splace#readme"
 
 extra:
   recipe-maintainers:

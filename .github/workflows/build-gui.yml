@@ -90,6 +90,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      # ClipKIT, PhyKIT and GMYC are turned into standalone programs.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # ASAP and ABGD (species delimitation) have no macOS release: built
+      # here from source as universal binaries into tools/mac.
+      - name: Build ASAP and ABGD
+        run: sh tool/delimitation/build.sh mac
       - name: Build the disk image
         run: bash tool/package/macos.sh
       - uses: actions/upload-artifact@v4

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -5,7 +7,20 @@ import '../core/saturation.dart';
 import '../state/project_controller.dart';
 
 const appVersion = '4.2.2';
-const githubUrl = 'https://github.com/luanrabelo/splace';
+/// The project's repository (the organization's, not a personal fork).
+const githubUrl = 'https://github.com/itvgenomics/splace';
+
+/// "Luan **Rabelo** & Renato **Moreira-Oliveira**": the authors with the
+/// surnames in bold, in [style].
+List<InlineSpan> authorSpans(TextStyle style) {
+  final bold = style.copyWith(fontWeight: FontWeight.w700);
+  return [
+    TextSpan(text: 'Luan ', style: style),
+    TextSpan(text: 'Rabelo', style: bold),
+    TextSpan(text: ' & Renato ', style: style),
+    TextSpan(text: 'Moreira-Oliveira', style: bold),
+  ];
+}
 
 extension L10nX on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this);
@@ -30,7 +45,14 @@ class ProjectScope extends InheritedNotifier<ProjectController> {
 String fastaHeadersSub(ProjectController c) => c.records.isNotEmpty ? '2d' : '2a';
 
 /// Letter of the FASTA part of step 3 (after the feature types, 3a).
-String fastaFieldsSub(ProjectController c) => c.records.isNotEmpty && c.taxonomyResolved ? '3b' : '3a';
+/// Lettered parts of step 3 (features and markers), in order: the GenBank
+/// feature types, the FASTA fields, the markers and their two heatmaps.
+String step3Sub(ProjectController c, String part) {
+  final parts = [if (c.records.isNotEmpty && c.taxonomyResolved) 'features', if (c.inputs.isNotEmpty) 'fasta', 'markers', 'presence', 'length'];
+  return '3${'abcdefgh'[math.max(0, parts.indexOf(part))]}';
+}
+
+String fastaFieldsSub(ProjectController c) => step3Sub(c, 'fasta');
 
 int stepState(StepStatus s) => switch (s) {
       StepStatus.idle => 0,
@@ -126,3 +148,24 @@ String verdictLabel(BuildContext context, SaturationVerdict v) => switch (v) {
 
 String fmt(double? v, [int digits = 2]) => v == null ? '—' : v.toStringAsFixed(digits);
 String pct(double v, [int digits = 1]) => (v * 100).toStringAsFixed(digits);
+
+/// [text] with each of the species [names] in it in italics (verdicts,
+/// confirmations): scientific names are always written in italics.
+TextSpan italicNames(String text, Iterable<String?> names, {TextStyle? style}) {
+  final list = {
+    for (final n in names)
+      if (n != null && n.trim().length > 2) n.trim(),
+  }.toList()
+    ..sort((a, b) => b.length - a.length);
+  if (list.isEmpty) return TextSpan(text: text, style: style);
+  final re = RegExp(list.map(RegExp.escape).join('|'));
+  final spans = <InlineSpan>[];
+  var at = 0;
+  for (final m in re.allMatches(text)) {
+    if (m.start > at) spans.add(TextSpan(text: text.substring(at, m.start)));
+    spans.add(TextSpan(text: m.group(0), style: const TextStyle(fontStyle: FontStyle.italic)));
+    at = m.end;
+  }
+  if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+  return TextSpan(style: style, children: spans);
+}

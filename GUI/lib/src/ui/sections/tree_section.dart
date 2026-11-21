@@ -8,6 +8,7 @@ import '../../state/project_controller.dart';
 import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
+import '../chrome/tree_identify_dialog.dart';
 import '../widgets/kit.dart';
 import '../widgets/tree_viewer.dart';
 
@@ -50,13 +51,12 @@ class TreeSection extends StatelessWidget {
     final newick = file.existsSync() ? file.readAsStringSync().trim() : '';
     final bootstrap = chosen.run.engine != 'IQ-TREE' || (chosen.run.command?.contains(' -b ') ?? false);
     return StepSection(
-      badge: '9',
-      icon: FA.diagramProject,
+      badge: '8',
       title: l10n.step9,
       description: l10n.treeViewIntro,
       active: active,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        SubAnchor(id: '9a', child: SubHeading(id: '9a', title: l10n.subTree)),
+        SubAnchor(id: '8a', child: SubHeading(id: '8a', title: l10n.subTree)),
         Row(children: [
           Expanded(
             child: Field(
@@ -91,6 +91,23 @@ class TreeSection extends StatelessWidget {
             bootstrapScale: bootstrap,
             tipInfo: c.tipInfo(),
             title: label(chosen),
+            // The figure as it was left (also from a project file).
+            figure: c.treeFigures[chosen.path],
+            onFigureChanged: (f) => c.setTreeFigure(chosen.path, f),
+            // A tip or clade can be identified by BLAST with one marker.
+            onIdentify: c.loci.isEmpty ? null : (context, tips) => showTreeIdentifyDialog(context, tips),
+            // Each species delimitation (tool · tree) has its button; the
+            // tips are matched by name, so they can be compared on any tree.
+            delimitations: [
+              for (final d in c.delimitationsDone)
+                TreeDelimitation(
+                  id: d.id,
+                  // A failed test says so (every tip is one species).
+                  label: '${d.label} · ${d.time} (${d.result!.collapsed ? '1 · ${l10n.delimLrtNs}' : d.result!.species.length})',
+                  title: d.label,
+                  species: d.result!.species,
+                ),
+            ],
             compareWith: [
               for (final x in trees)
                 if (x.path != chosen.path)
@@ -129,7 +146,7 @@ class ResultsZipCard extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Padding(padding: EdgeInsets.only(top: 2), child: StepBadge('9b', size: 26)),
+            const Padding(padding: EdgeInsets.only(top: 2), child: StepBadge('8b', size: 26)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

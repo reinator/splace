@@ -10,16 +10,9 @@ import '../theme.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/kit.dart';
 
-const geneticCodes = {
-  1: '1 · Standard (nuclear)',
-  2: '2 · Vertebrate mitochondrial',
-  4: '4 · Mold/protozoan/coelenterate mitochondrial',
-  5: '5 · Invertebrate mitochondrial',
-  9: '9 · Echinoderm/flatworm mitochondrial',
-  11: '11 · Bacterial, archaeal and plant plastid',
-};
 
-/// External tools, threads, genetic code and project folder, in a modal
+/// External tools, threads and project folder, in a modal (the genetic
+/// code is chosen in step 5, where it is used),
 /// styled like the HTML "FASTA Header Builder" dialog.
 Future<void> showToolsDialog(BuildContext context) => showDialog(
       context: context,
@@ -61,16 +54,6 @@ class _ToolsDialog extends StatelessWidget {
               divisions: Platform.numberOfProcessors > 1 ? Platform.numberOfProcessors - 1 : 1,
               label: '${c.threads}',
               onChanged: (v) => c.setThreads(v.round()),
-            ),
-          ),
-          Field(
-            label: l10n.geneticCode,
-            child: DropdownButtonFormField<int>(
-        icon: dropdownChevron,
-              initialValue: c.geneticCode,
-              isExpanded: true,
-              items: [for (final e in geneticCodes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-              onChanged: (v) => c.setGeneticCode(v!),
             ),
           ),
         ]),

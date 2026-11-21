@@ -58,15 +58,6 @@ class MarkersSection extends StatelessWidget {
       if (selected.contains(d.locus)) (faDup[d.locus] ??= []).add(d);
     }
 
-    Widget legend(String pill, String text, ChipButtonStyle style) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(children: [
-            IgnorePointer(child: ChipButton(label: pill, style: style, onPressed: () {})),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text)),
-          ]),
-        );
-
     final data = HeatmapData(
       rows: [for (final s in samples) s.label],
       rowItalic: [for (final s in samples) s.italic],
@@ -97,10 +88,12 @@ class MarkersSection extends StatelessWidget {
     );
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      StepSection(
-        badge: '4',
-        icon: FA.barcode,
-        title: l10n.step4,
+      // Part of step 3: its own card, lettered after the feature types.
+      SubAnchor(
+        id: step3Sub(c, 'markers'),
+        child: StepSection(
+        badge: step3Sub(c, 'markers'),
+        title: l10n.subChooseMarkers,
         count: selected.length,
         active: active,
         actions: [
@@ -111,24 +104,7 @@ class MarkersSection extends StatelessWidget {
             SplaceTooltip(message: l10n.tooltipDefault, child: ChipButton(label: l10n.defaultPhylogeny, style: ChipButtonStyle.accent, onPressed: c.selectDefaultMarkers)),
         ],
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          SubAnchor(id: '4a', child: SubHeading(id: '4a', title: l10n.subChooseMarkers)),
-          TonePanel(
-            tone: PanelTone.info,
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(padding: const EdgeInsets.only(top: 8), child: Icon(FA.circleInfo, size: 15, color: t.accent)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  legend(l10n.selectAll, '— ${l10n.legendSelectAll}', ChipButtonStyle.neutral),
-                  legend(l10n.selectNone, '— ${l10n.legendNone}', ChipButtonStyle.neutral),
-                  legend(l10n.sharedOnly, '— ${l10n.legendShared}', ChipButtonStyle.soft),
-                  if (hasGb) legend(l10n.defaultPhylogeny, '— ${l10n.legendDefault}', ChipButtonStyle.accent),
-                ]),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 14),
-          const SizedBox(height: 6),
+          // What each button above does is in its tooltip.
           if (markers.isEmpty)
             Text(l10n.noMarkers, style: TextStyle(fontStyle: FontStyle.italic, color: t.textFaint))
           else
@@ -224,9 +200,11 @@ class MarkersSection extends StatelessWidget {
           ],
         ]),
       ),
-      if (markers.isNotEmpty)
+      ),
+      // The presence heatmap once a marker is chosen.
+      if (selected.isNotEmpty)
         _HeatmapPanel(
-          badge: '4b',
+          badge: step3Sub(c, 'presence'),
           icon: FA.tableCells,
           title: l10n.heatmapTitle,
           summary: l10n.heatmapSummary('${markers.length}', '$n'),
@@ -238,7 +216,7 @@ class MarkersSection extends StatelessWidget {
         ),
       if (selected.isNotEmpty)
         _HeatmapPanel(
-          badge: '4c',
+          badge: step3Sub(c, 'length'),
           icon: FA.chartLine,
           title: l10n.lengthHeatmapTitle,
           summary: l10n.lengthHeatmapBody,
@@ -773,7 +751,6 @@ class _HeatmapPanelState extends State<_HeatmapPanel> {
       id: widget.badge,
       child: StepSection(
       badge: widget.badge,
-      icon: widget.icon,
       title: widget.title,
       actions: [
         if (_open) ...widget.legend,

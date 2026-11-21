@@ -7,6 +7,7 @@ import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
 import '../widgets/examples.dart';
+import '../widgets/citations.dart';
 import '../widgets/kit.dart';
 import '../widgets/saturation_plot.dart';
 import '../widgets/splace_tooltip.dart';
@@ -42,15 +43,14 @@ class _SaturationSectionState extends State<SaturationSection> {
     final canRun = c.canTestSaturation;
 
     return StepSection(
-      badge: '6',
-      icon: FA.chartLine,
+      badge: '5',
       title: l10n.step6,
       description: l10n.saturationIntro,
       active: widget.active,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SubAnchor(id: '6a', child: SubHeading(id: '6a', title: l10n.subRunSaturation)),
+          SubAnchor(id: '5a', child: SubHeading(id: '5a', title: l10n.subRunSaturation)),
           const _SaturationParams(),
           const SizedBox(height: 12),
           if (c.saturationStale) ...[
@@ -90,8 +90,8 @@ class _SaturationSectionState extends State<SaturationSection> {
           if (reports.isNotEmpty) ...[
             const SizedBox(height: 22),
             SubAnchor(
-              id: '6b',
-              child: SubHeading(id: '6b', title: l10n.saturationHeatmapTitle, body: l10n.saturationHeatmapHelp),
+              id: '5b',
+              child: SubHeading(id: '5b', title: l10n.saturationHeatmapTitle, body: l10n.saturationHeatmapHelp),
             ),
             const SizedBox(height: 8),
             _Heatmap(reports: reports, selected: selected?.name, onSelect: (n) => setState(() => _selected = n)),
@@ -99,7 +99,7 @@ class _SaturationSectionState extends State<SaturationSection> {
           // Table, then the plots of the selected row, then the suggestion
           // (which leads into step 7: concatenation and partitions).
           if (selected != null) ...[const SizedBox(height: 14), _detail(context, selected)],
-          if (pooled != null) ...[const SizedBox(height: 18), SubAnchor(id: '6c', child: _Recommendation(controller: c, pooled: pooled))],
+          if (pooled != null) ...[const SizedBox(height: 18), SubAnchor(id: '5c', child: _Recommendation(controller: c, pooled: pooled))],
         ],
       ),
     );
@@ -401,7 +401,7 @@ class _Recommendation extends StatelessWidget {
       decoration: BoxDecoration(color: t.surface2, borderRadius: BorderRadius.circular(16), border: Border.all(color: t.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          const StepBadge('6c', size: 26),
+          const StepBadge('5c', size: 26),
           const SizedBox(width: 10),
           Expanded(child: Text(l10n.recTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.text))),
           InfoDot(l10n.saturationThresholds),
@@ -793,7 +793,7 @@ class _SaturationParams extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 4),
           child: Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: t.text, height: 1.45), children: [
             TextSpan(text: '$label: ', style: TextStyle(color: t.textMuted)),
-            TextSpan(text: value, style: const TextStyle(fontWeight: FontWeight.w600)),
+            TextSpan(style: const TextStyle(fontWeight: FontWeight.w600), children: citationSpans(value, fontSize: 12)),
           ])),
         );
     return Container(

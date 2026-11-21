@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-enum ExternalTool { mafft, trimal, iqtree, raxmlng, clipkit, phykit }
+enum ExternalTool { mafft, trimal, iqtree, raxmlng, clipkit, phykit, mptp, asap, abgd, lsd2, gmyc }
 
 extension ExternalToolInfo on ExternalTool {
   String get label => switch (this) {
@@ -13,6 +13,11 @@ extension ExternalToolInfo on ExternalTool {
         ExternalTool.raxmlng => 'RAxML-NG',
         ExternalTool.clipkit => 'ClipKIT',
         ExternalTool.phykit => 'PhyKIT',
+        ExternalTool.mptp => 'mPTP',
+        ExternalTool.asap => 'ASAP',
+        ExternalTool.abgd => 'ABGD',
+        ExternalTool.lsd2 => 'LSD2',
+        ExternalTool.gmyc => 'GMYC',
       };
 
   /// Python package of the tools run as `python -m <module>`.
@@ -30,9 +35,25 @@ extension ExternalToolInfo on ExternalTool {
         ExternalTool.raxmlng => ['raxml-ng'],
         ExternalTool.clipkit => ['clipkit'],
         ExternalTool.phykit => ['phykit'],
+        ExternalTool.mptp => ['mptp'],
+        ExternalTool.asap => ['asap'],
+        ExternalTool.abgd => ['abgd'],
+        ExternalTool.lsd2 => ['lsd2'],
+        ExternalTool.gmyc => ['gmyc'],
       };
 
   List<String> get versionArgs => ['--version'];
+
+  /// ASAP and ABGD print no version (their usage has numbers that would be
+  /// read as one).
+  bool get reportsVersion => this != ExternalTool.asap && this != ExternalTool.abgd && this != ExternalTool.lsd2;
+
+  /// Python script run when no packaged program is found (GMYC: the pGMYC
+  /// command line in tool/gmyc), with the Python modules it needs.
+  (String, List<String>)? get pythonScript => switch (this) {
+        ExternalTool.gmyc => ('gmyc/splace_gmyc.py', ['ete3', 'scipy']),
+        _ => null,
+      };
 
   String get installHint => switch (this) {
         ExternalTool.raxmlng =>
@@ -40,12 +61,16 @@ extension ExternalToolInfo on ExternalTool {
         ExternalTool.iqtree => 'conda install -c bioconda iqtree',
         ExternalTool.mafft => 'conda install -c bioconda mafft',
         ExternalTool.trimal => 'conda install -c bioconda trimal',
-        ExternalTool.clipkit => 'pip install clipkit  (or the "Install ClipKIT" button in step 5)',
-        ExternalTool.phykit => 'pip install phykit  (or the "Install PhyKIT" button in step 6)',
+        ExternalTool.clipkit => 'pip install clipkit  (or the "Install ClipKIT" button in step 4)',
+        ExternalTool.phykit => 'pip install phykit  (or the "Install PhyKIT" button in step 5)',
+        ExternalTool.mptp => 'conda install -c bioconda mptp  (SPLACE ships mptp in tools/; binaries at github.com/Pas-Kapli/mptp/releases)',
+        ExternalTool.asap || ExternalTool.abgd => 'SPLACE ships it in tools/ (built by GUI/tool/delimitation/build.sh from the iTaxoTools sources)',
+        ExternalTool.lsd2 => 'SPLACE ships it in tools/ (official binaries at github.com/tothuhien/lsd2)',
+        ExternalTool.gmyc => 'packaged in tools/gmyc, or Python 3 with: pip install ete3 scipy',
       };
 
   /// Optional tools do not produce warnings when missing.
-  bool get optional => this == ExternalTool.clipkit || this == ExternalTool.phykit;
+  bool get optional => this == ExternalTool.clipkit || this == ExternalTool.phykit || this == ExternalTool.mptp || this == ExternalTool.asap || this == ExternalTool.abgd || this == ExternalTool.lsd2 || this == ExternalTool.gmyc;
 }
 
 /// How a tool is executed.
@@ -205,6 +230,14 @@ class ToolLocator {
       final onPath = _searchPath(name);
       if (onPath != null) return _withVersion(ResolvedTool(tool, onPath, ToolRuntime.native));
     }
+    if (tool.pythonScript case (final script, final modules)?) {
+      final path = _scriptPath(script);
+      final py = path == null ? null : await findPython();
+      if (path != null && py != null && await _pythonHas(py, modules.join(', '))) {
+        return _withVersion(ResolvedTool(tool, py.executable, ToolRuntime.native, prefixArgs: [...py.args, path]));
+      }
+      return null;
+    }
     if (tool.pythonModule case final module?) {
       final py = await findPython();
       if (py != null && await _pythonHas(py, module)) {
@@ -229,7 +262,7 @@ class ToolLocator {
   }
 
   /// Candidate folders with bundled binaries: the app's `tools/` folder for
-  /// installed builds, and the repository's `electron/bin` during
+  /// installed builds, and the repository's `GUI/tools/<platform>` during
   /// development.
   static List<String> bundledBinDirs() {
     final dirs = <String>[];
@@ -239,7 +272,8 @@ class ToolLocator {
     // Development: walk up from the working directory to the repository.
     var dir = Directory.current.absolute;
     for (var i = 0; i < 6; i++) {
-      dirs.add(p.join(dir.path, 'electron', 'bin', platformBinFolder));
+      dirs.add(p.join(dir.path, 'tools', platformBinFolder));
+      dirs.add(p.join(dir.path, 'GUI', 'tools', platformBinFolder));
       final parent = dir.parent;
       if (parent.path == dir.path) break;
       dir = parent;
@@ -251,7 +285,7 @@ class ToolLocator {
   static List<String> bundledWslDirs() => [
         p.join(bundledToolsDir, 'wsl'),
         for (final d in bundledBinDirs())
-          if (d.endsWith(p.join('electron', 'bin', 'win'))) p.join(p.dirname(d), 'linux'),
+          if (d.endsWith(p.join('tools', 'win'))) p.join(p.dirname(d), 'linux'),
       ];
 
   static bool? _wsl;
@@ -265,6 +299,22 @@ class ToolLocator {
       _wsl = false;
     }
     return _wsl!;
+  }
+
+  /// [relative] (under `tool/`) in the app's tools folder or in the
+  /// repository's GUI/tool (development).
+  static String? _scriptPath(String relative) {
+    final candidates = [p.join(bundledToolsDir, relative)];
+    var dir = Directory.current.absolute;
+    for (var i = 0; i < 6; i++) {
+      candidates
+        ..add(p.join(dir.path, 'tool', relative))
+        ..add(p.join(dir.path, 'GUI', 'tool', relative));
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+    return candidates.where((c) => File(c).existsSync()).firstOrNull;
   }
 
   static Future<bool> _pythonHas(PythonCommand py, String module) async {
@@ -312,6 +362,7 @@ class ToolLocator {
   }
 
   static Future<ResolvedTool> _withVersion(ResolvedTool t) async {
+    if (!t.tool.reportsVersion) return t;
     if (t.tool.pythonModule != null && t.prefixArgs.isNotEmpty) {
       final code = t.tool == ExternalTool.phykit
           ? 'from phykit.version import __version__ as v; print(v)'

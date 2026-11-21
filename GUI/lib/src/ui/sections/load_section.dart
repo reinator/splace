@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/taxonomy_sources.dart' show isSpeciesName;
+import '../../core/bold.dart' show boldMarkerCodes, boldServes;
 import '../../core/marker_search.dart';
 import '../../core/syngenes.dart';
 import '../../services/ncbi.dart';
@@ -10,6 +14,8 @@ import '../chrome/genome_review_dialog.dart';
 import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
+import '../widgets/example_data.dart';
+import '../widgets/html_text.dart';
 import '../widgets/kit.dart';
 import '../widgets/splace_tooltip.dart';
 
@@ -39,6 +45,9 @@ class _LoadSectionState extends State<LoadSection> {
   final Set<String> _genes = {'COI', '12S', 'CYTB'};
   bool _includeGenomes = false;
 
+  /// Individual markers: BOLD Systems too, for COI and the plant barcodes.
+  bool _bold = true;
+
   static const _defaultGenes = {Organelle.mitochondrion: {'COI', '12S', 'CYTB'}, Organelle.chloroplast: {'rbcL', 'matK'}};
 
   OrganelleType get _type => _organelle == Organelle.chloroplast ? OrganelleType.cp : OrganelleType.mt;
@@ -49,19 +58,83 @@ class _LoadSectionState extends State<LoadSection> {
         organelle: _type,
         includeGenomes: _includeGenomes,
         refseqOnly: _refseqOnly,
+        synonyms: _synonymsInUse,
+        bold: _bold,
       );
   bool _dragGb = false;
   bool _dragFa = false;
 
+  /// A species name in 1a: searched with its synonyms from GBIF when
+  /// [_withSynonyms] is on.
+  bool _withSynonyms = false;
+  List<String>? _synonyms;
+  String? _synonymsFor;
+  bool _synonymsLoading = false;
+  String? _synonymsError;
+  Timer? _synonymsDebounce;
+
+  bool get _isSpecies => isSpeciesName(_taxon.text);
+
+  /// Example files bundled in assets/examples, by kind.
+  Map<ExampleKind, List<String>> _examples = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    listExampleAssets().then((e) {
+      if (mounted) setState(() => _examples = e);
+    });
+    loadExampleTooltips().then((t) {
+      if (mounted) setState(() => _tips = t);
+    });
+  }
+
+  /// Tooltips of the example buttons (assets/examples/tooltips.json, HTML).
+  Map<String, Map<String, String>> _tips = const {};
+
+  /// Synonyms in use for the current name (empty when off or not found).
+  List<String> get _synonymsInUse => _withSynonyms && _isSpecies && _synonymsFor == _taxon.text.trim() ? (_synonyms ?? const []) : const [];
+
+  /// Fetches the synonyms of the typed species from GBIF.
+  Future<void> _loadSynonyms() async {
+    final name = _taxon.text.trim();
+    if (!_withSynonyms || !isSpeciesName(name) || _synonymsFor == name) return;
+    setState(() {
+      _synonymsLoading = true;
+      _synonymsError = null;
+    });
+    final c = ProjectScope.read(context);
+    try {
+      final names = await c.ncbi.gbifSynonyms(name);
+      if (!mounted || _taxon.text.trim() != name) return;
+      setState(() {
+        _synonyms = names;
+        _synonymsFor = name;
+      });
+      c.log(names.isEmpty ? 'GBIF does not know $name: searching the name alone' : 'GBIF synonyms of $name: ${names.join(', ')}', source: 'GBIF');
+    } catch (e) {
+      if (mounted) setState(() => _synonymsError = '$e');
+    } finally {
+      if (mounted) setState(() => _synonymsLoading = false);
+    }
+  }
+
+  void _onTaxonChanged() {
+    setState(() {});
+    _synonymsDebounce?.cancel();
+    if (_withSynonyms && _isSpecies) _synonymsDebounce = Timer(const Duration(milliseconds: 700), _loadSynonyms);
+  }
+
   @override
   void dispose() {
+    _synonymsDebounce?.cancel();
     _taxon.dispose();
     _accessions.dispose();
     super.dispose();
   }
 
   GenomeSearch get _search =>
-      GenomeSearch(taxon: _taxon.text.trim(), organelle: _organelle, completeOnly: _completeOnly, refseqOnly: _refseqOnly);
+      GenomeSearch(taxon: _taxon.text.trim(), organelle: _organelle, completeOnly: _completeOnly, refseqOnly: _refseqOnly, synonyms: _synonymsInUse);
 
   Future<void> _runMarkerSearch() async {
     final c = ProjectScope.read(context);
@@ -125,6 +198,30 @@ class _LoadSectionState extends State<LoadSection> {
           message: tooltip,
           child: ChipButton(label: l10n.example, icon: FA.wandMagicSparkles, style: ChipButtonStyle.soft, onPressed: onTap),
         );
+    final lang = Localizations.localeOf(context).languageCode;
+
+    /// An example button whose tooltip comes from tooltips.json ([key]),
+    /// in HTML; [fallback] when the file has none.
+    Widget editableExample(String key, String label, VoidCallback? onTap, String fallback) {
+      final html = exampleTooltip(_tips, key, lang);
+      return SplaceTooltip(
+        message: html == null ? fallback : '',
+        richMessage: html == null ? null : htmlSpan(html),
+        child: ChipButton(label: label, icon: FA.wandMagicSparkles, style: ChipButtonStyle.soft, onPressed: onTap),
+      );
+    }
+
+    /// Example data bundled in assets/examples/<kind>: the button loads it
+    /// (disabled, saying where to put the files, while the folder is empty).
+    Widget dataExample(ExampleKind k, String key, String label) {
+      final files = _examples[k] ?? const <String>[];
+      return editableExample(
+        key,
+        label,
+        c.busy || files.isEmpty ? null : () => loadExample(c, k, files),
+        files.isEmpty ? l10n.examplesEmpty(k.source) : l10n.examplesFiles('${files.length}', k.source),
+      );
+    }
 
 
     final option1 = OptionCard(
@@ -173,12 +270,14 @@ class _LoadSectionState extends State<LoadSection> {
               label: l10n.taxName,
               child: TextField(
                 controller: _taxon,
+                // A species (two names) is written in italics.
+                style: _isSpecies ? const TextStyle(fontStyle: FontStyle.italic) : null,
                 decoration: InputDecoration(
                   hintText: 'Carangidae',
                   prefixIcon: Icon(FA.magnifyingGlass, size: 13, color: t.textFaint),
                   prefixIconConstraints: const BoxConstraints(minWidth: 38),
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => _onTaxonChanged(),
                 onSubmitted: (_) => taxonOk && !c.busy ? _runSearch() : null,
               ),
             ),
@@ -227,6 +326,53 @@ class _LoadSectionState extends State<LoadSection> {
             ),
           ),
         ]),
+        // A species: it can also be searched under its other names.
+        if (_isSpecies) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: t.surface2, borderRadius: BorderRadius.circular(10), border: Border.all(color: t.border)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: t.text), children: [
+                TextSpan(text: '${l10n.taxSpeciesRecognized} ', style: TextStyle(color: t.textMuted)),
+                TextSpan(text: _taxon.text.trim(), style: const TextStyle(fontStyle: FontStyle.italic, fontWeight: FontWeight.w600)),
+              ])),
+              const SizedBox(height: 10),
+              SwitchBox(
+                label: l10n.taxSynonyms,
+                detail: l10n.taxSynonymsInfo,
+                value: _withSynonyms,
+                onChanged: (v) {
+                  setState(() => _withSynonyms = v);
+                  if (v) _loadSynonyms();
+                },
+              ),
+              if (_withSynonyms) ...[
+                const SizedBox(height: 10),
+                if (_synonymsLoading)
+                  Row(children: [
+                    SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: t.accent)),
+                    const SizedBox(width: 8),
+                    Text(l10n.taxSynonymsLoading, style: TextStyle(fontSize: 12.5, color: t.textMuted)),
+                  ])
+                else if (_synonymsError != null)
+                  Text(l10n.taxSynonymsError(_synonymsError!), style: const TextStyle(fontSize: 12.5, color: SplaceTokens.danger))
+                else if (_synonymsFor == _taxon.text.trim())
+                  _synonymsInUse.isEmpty
+                      ? Text(l10n.taxSynonymsNone, style: TextStyle(fontSize: 12.5, color: t.textMuted))
+                      : Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                          Text(l10n.taxSynonymsFound('${_synonymsInUse.length}'), style: TextStyle(fontSize: 12.5, color: t.textMuted)),
+                          for (final n in _synonymsInUse)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: t.accentSoft, borderRadius: BorderRadius.circular(8), border: Border.all(color: t.accentSoftBorder)),
+                              child: Text(n, style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: t.accentText)),
+                            ),
+                        ]),
+              ],
+            ]),
+          ),
+        ],
         if (_markerMode) ...[
           const SizedBox(height: 12),
           Field(
@@ -240,6 +386,16 @@ class _LoadSectionState extends State<LoadSection> {
                   onPressed: () => setState(() => _genes.contains(g) ? _genes.remove(g) : _genes.add(g)),
                 ),
             ]),
+          ),
+          const SizedBox(height: 12),
+          // BOLD Systems: COI and the plant barcodes of the chloroplast.
+          SwitchBox(
+            label: l10n.markerBold,
+            detail: boldServes(_type, _genes)
+                ? l10n.markerBoldInfo([for (final g in syngenesMarkers(_type)) if (_genes.contains(g) && boldServes(_type, [g])) '$g (${boldMarkerCodes[g]!.join(', ')})'].join(', '))
+                : l10n.markerBoldNone(_type == OrganelleType.cp ? 'rbcL, matK, rpoB, rpoC1, ycf1' : 'COI'),
+            value: _bold && boldServes(_type, _genes),
+            onChanged: boldServes(_type, _genes) ? (v) => setState(() => _bold = v) : null,
           ),
         ],
         const SizedBox(height: 12),
@@ -263,7 +419,7 @@ class _LoadSectionState extends State<LoadSection> {
       title: l10n.accTitle,
       info: l10n.accInfo,
       text: l10n.accBody,
-      action: example(() => setState(() => _accessions.text = ncbiExampleAccessions), l10n.accExampleTooltip),
+      action: editableExample('1b', l10n.example, () => setState(() => _accessions.text = ncbiExampleAccessions), l10n.accExampleTooltip),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         TextField(
           controller: _accessions,
@@ -293,6 +449,7 @@ class _LoadSectionState extends State<LoadSection> {
       title: l10n.gbFilesTitle,
       info: l10n.gbFilesInfo,
       text: l10n.gbFilesBody,
+      action: dataExample(ExampleKind.genbank, '1c', l10n.example),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         DropTarget(
           onDragEntered: (_) => setState(() => _dragGb = true),
@@ -316,6 +473,11 @@ class _LoadSectionState extends State<LoadSection> {
       title: l10n.filesTitle,
       info: l10n.filesInfo,
       text: l10n.filesBody,
+      // Two kinds of FASTA example: loci and DNA barcodes.
+      action: Wrap(spacing: 8, runSpacing: 6, children: [
+        dataExample(ExampleKind.loci, '1d_loci', l10n.exampleLociShort),
+        dataExample(ExampleKind.barcoding, '1d_barcoding', l10n.exampleBarcodingShort),
+      ]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         DropTarget(
           onDragEntered: (_) => setState(() => _dragFa = true),
@@ -336,7 +498,6 @@ class _LoadSectionState extends State<LoadSection> {
 
     return StepSection(
       badge: '1',
-      icon: FA.dna,
       title: l10n.step1,
       description: l10n.step1Intro,
       active: widget.active,

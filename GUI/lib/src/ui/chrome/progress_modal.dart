@@ -73,6 +73,7 @@ class _ProgressModalState extends State<ProgressModal> {
       ModalKind.iqtree => (FA.diagramProject, l10n.iqtreeRunning, l10n.treeRunSubtitle(m.subject, _elapsed(m))),
       ModalKind.raxml => (FA.diagramProject, l10n.raxmlRunning, l10n.treeRunSubtitle(m.subject, _elapsed(m))),
       ModalKind.bothTrees => (FA.diagramProject, l10n.bothRunning, l10n.bothRunningSub(m.subject, _elapsed(m))),
+      ModalKind.delimitation => (FA.users, l10n.delimRunning, m.subject),
     };
     final tall = tree != null || m.items.isNotEmpty;
     final finishedIcon = m.failed ? FA.circleXmark : FA.circleCheck;
@@ -206,7 +207,7 @@ class _ProgressModalState extends State<ProgressModal> {
                           ModalKind.speciesId => l10n.speciesIdFooter,
                           ModalKind.alignment => l10n.alignFooter,
                           ModalKind.trimming => l10n.trimFooter,
-                          ModalKind.saturation || ModalKind.matrix => l10n.localFooter,
+                          ModalKind.saturation || ModalKind.matrix || ModalKind.delimitation => l10n.localFooter,
                           ModalKind.iqtree || ModalKind.raxml || ModalKind.bothTrees => l10n.treeFooter,
                           _ => l10n.progressFooter,
                         },

@@ -23,6 +23,8 @@ UninstallDisplayIcon={app}\splace.exe
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+; Project files (.splc) open in SPLACE (task "splcassoc").
+ChangesAssociations=yes
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
@@ -31,6 +33,7 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "splcassoc"; Description: "Open SPLACE project files (.splc) with SPLACE"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "{#Bundle}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -38,6 +41,13 @@ Source: "{#Bundle}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 [Icons]
 Name: "{autoprograms}\SPLACE"; Filename: "{app}\splace.exe"
 Name: "{autodesktop}\SPLACE"; Filename: "{app}\splace.exe"; Tasks: desktopicon
+
+; For the current user only (HKA = HKCU when installed without admin rights).
+[Registry]
+Root: HKA; Subkey: "Software\Classes\.splc"; ValueType: string; ValueName: ""; ValueData: "SPLACE.Project"; Flags: uninsdeletevalue; Tasks: splcassoc
+Root: HKA; Subkey: "Software\Classes\SPLACE.Project"; ValueType: string; ValueName: ""; ValueData: "SPLACE project"; Flags: uninsdeletekey; Tasks: splcassoc
+Root: HKA; Subkey: "Software\Classes\SPLACE.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\splace.exe,0"; Tasks: splcassoc
+Root: HKA; Subkey: "Software\Classes\SPLACE.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\splace.exe"" ""%1"""; Tasks: splcassoc
 
 [Run]
 Filename: "{app}\splace.exe"; Description: "{cm:LaunchProgram,SPLACE}"; Flags: nowait postinstall skipifsilent

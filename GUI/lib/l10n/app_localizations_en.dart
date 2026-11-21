@@ -122,7 +122,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get splashStep6 =>
-      'Test substitution saturation by codon position with the index of [[Iss (saturation)|Xia]] and decide which positions to keep.';
+      'Test substitution saturation of each coding gene at each codon position with [[PhyKIT]] and decide which positions to keep.';
 
   @override
   String get splashStep7 =>
@@ -130,7 +130,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get splashStep8 =>
-      'Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees.';
+      'Estimate the maximum-likelihood phylogeny with [[IQ-TREE 3|IQ-TREE]] or [[RAxML-NG]], with branch support and optional per-gene trees, and delimit species with [[mPTP]], [[GMYC]], [[ASAP]] and [[ABGD]].';
 
   @override
   String get step1 => 'Load Data';
@@ -202,7 +202,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tipAlignedBody =>
-      'You can **skip MAFFT** in step 5 and go straight to trimming, saturation and trees.';
+      'You can **skip MAFFT** in step 4 and go straight to trimming, saturation and trees.';
 
   @override
   String optionN(String n) {
@@ -397,15 +397,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sharedOnly => 'Shared Only';
 
   @override
-  String get legendSelectAll => 'selects every visible marker';
-
-  @override
-  String get legendNone => 'clears all selections';
-
-  @override
-  String get legendShared => 'markers present in all samples';
-
-  @override
   String get missingTitle => 'Missing markers';
 
   @override
@@ -530,11 +521,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saturationIntro =>
-      'Each marker is tested with PhyKIT (Philippe et al. 2011): IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.';
+      'Each marker is tested with [[PhyKIT]], method of [[Philippe 2011|]]: IQ-TREE infers the tree of the gene, then, for the 1st, 2nd and 3rd codon positions (and 1st+2nd, all sites), PhyKIT regresses the uncorrected p-distance of every pair of taxa on their distance in the tree. A value near 1 means no saturation; the closer to 0, the more the observed differences hide repeated substitutions.';
 
   @override
   String get saturationThresholds =>
-      'Heuristic thresholds, set in 6a (test parameters): moderate below the moderate limit of PhyKIT\'s saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.';
+      'Heuristic thresholds, set in 5a (test parameters): moderate below the moderate limit of PhyKIT\'s saturation value, saturated below the saturated limit; too little divergence (mean p) counts as OK.';
 
   @override
   String get runSaturation => 'Run saturation test';
@@ -544,11 +535,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recKeepAll =>
-      'Keep all three codon positions. In step 7b, partition the matrix by codon position so each one gets its own substitution model.';
+      'Keep all three codon positions. In step 6b, partition the matrix by codon position so each one gets its own substitution model.';
 
   @override
   String get recAminoAcids =>
-      'All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 5b) or use slower markers.';
+      'All three positions are saturated: at this divergence the nucleotides say little about the relationships. Align as amino acids (step 4b) or use slower markers.';
 
   @override
   String get recUndetermined =>
@@ -664,7 +655,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get codonExclusionInfo =>
-      'Excluded positions are removed from coding loci only. The saturation test (step 6) can fill this in.';
+      'Excluded positions are removed from coding loci only. The saturation test (step 5) can fill this in.';
 
   @override
   String excludePosition(String n) {
@@ -1255,7 +1246,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get featureTypesHint =>
-      'Turn on at least one category to list the markers in step 4.';
+      'Turn on at least one category to list the markers below.';
 
   @override
   String unknownGenesButton(String n) {
@@ -1755,7 +1746,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trimCodonHandlingInfo =>
-      'Codon positions are used later for the partitions and the saturation test (step 6), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 7b, not here.';
+      'Codon positions are used later for the partitions and the saturation test (step 5), so coding genes should keep whole codons. trimAl does it with -backtrans (it trims the translated alignment and writes back the codons; -ignorestopcodon because it checks stops with the standard code) and ClipKIT with --codon. Excluding a codon position from the supermatrix is decided in step 6b, not here.';
 
   @override
   String get alignRunning => 'Aligning with MAFFT';
@@ -1795,9 +1786,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defaultPhylogeny => 'Default to Phylogeny';
-
-  @override
-  String get legendDefault => 'recommended set for phylogenetic analysis';
 
   @override
   String get tooltipAll => 'Select every visible marker';
@@ -2298,7 +2286,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noneSelected => 'none selected';
 
   @override
-  String get outgroupFromStep7 => 'chosen in step 7';
+  String get outgroupFromStep7 => 'chosen in step 6';
 
   @override
   String get substitutionModel => 'Substitution Model';
@@ -2811,7 +2799,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get frameLostInfo =>
-      'trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 5e and trim again to keep codon partitions.';
+      'trimAl removed single columns of this coding gene, so its length may not be a multiple of 3 and the codon positions are unknown. It is concatenated as one partition and left out of the saturation test. Turn on \"Keep the reading frame\" in 4d and trim again to keep codon partitions.';
 
   @override
   String frameShiftTag(String n) {
@@ -2820,7 +2808,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get frameShiftInfo =>
-      'MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (5b) avoids it.';
+      'MAFFT placed gaps that are not multiples of 3 inside these sequences: from that gap on, their bases sit in the wrong codon position of the column. This is common when coding genes are aligned as nucleotides. Codon partitions and the saturation test are approximate for them; the Codon-aware mode (4b) avoids it.';
 
   @override
   String get saturationRunning => 'Saturation test';
@@ -3162,7 +3150,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get missMatrixNote =>
-      'In the supermatrix (step 7) a missing marker becomes \'?\' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.';
+      'In the supermatrix (step 6) a missing marker becomes \'?\' for that sample when “Allow missing sequences” is on; otherwise markers absent from any taxon are left out. A few gaps are normal; a sample missing most markers adds little and may be worth removing.';
 
   @override
   String missFixableNote(String n) {
@@ -3259,7 +3247,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String satSourceTrimmed(String kept, String total) {
-    return 'Tested on the trimmed alignment: trimAl kept $kept of the $total MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 5 to see which MAFFT column it is).';
+    return 'Tested on the trimmed alignment: trimAl kept $kept of the $total MAFFT codons, and SPLACE removed only whole codons, so every column keeps the codon position it had in the MAFFT alignment (hover a trimmed column in step 4 to see which MAFFT column it is).';
   }
 
   @override
@@ -3489,12 +3477,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String recExcludeOne(String positions) {
-    return 'Remove the $positions codon position from the matrix (step 7b) and keep the other two, partitioned by codon position.';
+    return 'Remove the $positions codon position from the matrix (step 6b) and keep the other two, partitioned by codon position.';
   }
 
   @override
   String recExcludeMany(String positions) {
-    return 'Remove the $positions codon positions from the matrix (step 7b) and keep the remaining one.';
+    return 'Remove the $positions codon positions from the matrix (step 6b) and keep the remaining one.';
   }
 
   @override
@@ -3513,12 +3501,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String applyExclude(String positions) {
-    return 'Mark $positions in step 7b';
+    return 'Mark $positions in step 6b';
   }
 
   @override
   String get applyKeepAll =>
-      'Leave every \"Exclude position\" unmarked in step 7b';
+      'Leave every \"Exclude position\" unmarked in step 6b';
 
   @override
   String applyPerLocusInfo(String loci) {
@@ -3531,16 +3519,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get recStatusKeep => 'Step 7b now keeps all positions.';
+  String get recStatusKeep => 'Step 6b now keeps all positions.';
 
   @override
   String recStatusExclude(String positions) {
-    return 'Step 7b now excludes the $positions position(s).';
+    return 'Step 6b now excludes the $positions position(s).';
   }
 
   @override
   String recStatusPerLocus(String n) {
-    return 'Step 7b now excludes positions per gene ($n genes).';
+    return 'Step 6b now excludes positions per gene ($n genes).';
   }
 
   @override
@@ -3736,7 +3724,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get concatBlockSourceBody =>
-      'The trimmed alignments of step 5 (without the badly aligned columns) or the MAFFT output as it is.';
+      'The trimmed alignments of step 4 (without the badly aligned columns) or the MAFFT output as it is.';
 
   @override
   String get concatBlockPartitions => 'How to split the matrix into partitions';
@@ -3763,7 +3751,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get codonExclusionHelp =>
-      'Removed positions leave the coding loci only. Step 6 (saturation) can fill this in.';
+      'Removed positions leave the coding loci only. Step 5 (saturation) can fill this in.';
 
   @override
   String get concatSummaryTitle => 'What will be built';
@@ -3956,7 +3944,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get concatBlockOutgroupBody =>
-      'Pick one or more taxa outside the group you study; the trees of steps 8 and 9 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.';
+      'Pick one or more taxa outside the group you study; the trees of steps 7 and 8 are rooted on them. Without an outgroup the tree viewer roots at the midpoint.';
 
   @override
   String get schemeOneModel => 'one model for everything';
@@ -4421,7 +4409,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bothInfo =>
-      'Both are maximum-likelihood methods. Comparing their trees (step 9, Compare trees) shows which clades do not depend on the program.';
+      'Both are maximum-likelihood methods. Comparing their trees (step 8, Compare trees) shows which clades do not depend on the program.';
 
   @override
   String bothBody(String iq, String rx) {
@@ -4446,14 +4434,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get satUnlocksStep7 =>
-      'Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 7, which opens afterwards.';
+      'Run the test to continue: its suggestion (which codon positions to keep) is used to build the matrix in step 6, which opens afterwards.';
 
   @override
   String get satAllGenes => 'All genes together';
 
   @override
   String get satAllGenesInfo =>
-      '\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 7). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene\'s row allows a choice per gene.';
+      '\"All genes together\" joins the coding genes only for this test (the matrix itself is built in step 6). It is the row that decides the suggestion of which codon positions to remove from the whole matrix; each gene\'s row allows a choice per gene.';
 
   @override
   String get exampleLabel => 'Example';
@@ -4676,7 +4664,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orgMarkersInfo =>
-      'How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 4, where you choose which to use.';
+      'How many samples each marker has, and what to do when a sample has more than one sequence of the same marker. Every marker goes to step 3, where you choose which to use.';
 
   @override
   String orgDuplicates(String n) {
@@ -4710,7 +4698,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orgPendingBody =>
-      'Then one FASTA per marker is written with every sample, and the markers appear in step 4.';
+      'Then one FASTA per marker is written with every sample, and the markers appear in step 3.';
 
   @override
   String get orgMatrix => 'Matrix';
@@ -4749,11 +4737,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get satOptionalLoci =>
-      'Optional for loci: step 7 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.';
+      'Optional for loci: step 6 is already open. The markers marked as protein-coding are tested by codon position; the others on all their sites.';
 
   @override
   String get satOptionalLociNoCoding =>
-      'Optional for loci: step 7 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.';
+      'Optional for loci: step 6 is already open. No marker is protein-coding, so each locus is tested on all its sites (there are no codon positions): the test shows which loci are saturated.';
 
   @override
   String exampleTrimNone(String total) {
@@ -4949,12 +4937,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String satOptionalPartial(String markers) {
-    return 'Optional here: step 7 is already open. $markers came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.';
+    return 'Optional here: step 6 is already open. $markers came from individual-marker records with partial sequences (fragments such as barcodes, marked < or > in GenBank), so the test is a guide, not a requirement.';
   }
 
   @override
   String satPartialMixed(String markers) {
-    return '$markers have partial sequences: the test is optional for them. Step 7 waits for the complete markers.';
+    return '$markers have partial sequences: the test is optional for them. Step 6 waits for the complete markers.';
   }
 
   @override
@@ -4964,14 +4952,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String headerConflictBlock(String n) {
-    return '$n header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment stays locked until every header is unique.';
+    return '$n header(s) repeat inside the same marker, so those sequences could not be told apart in the alignment or the tree. Add a field that tells them apart (Accession or Voucher), or turn on \"One sample per species\" to join them. The alignment and every step after it (saturation, matrix, trees, delimitation) stay locked until every header is unique.';
   }
 
   @override
   String get headerAddAccession => 'Add Accession';
 
   @override
-  String get alignBlockedHeader => 'Locked: repeated FASTA headers (5a)';
+  String get alignBlockedHeader => 'Locked: repeated FASTA headers (4a)';
 
   @override
   String recGenesCount(String n, String total) {
@@ -4990,7 +4978,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String rec7bPreview(String section) {
-    return 'How \"$section\" in step 7b will look:';
+    return 'How \"$section\" in step 6b will look:';
   }
 
   @override
@@ -5194,7 +5182,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String geneReviewAgain(String n) {
-    return 'Review again ($n)';
+    return 'Review gene names again ($n)';
+  }
+
+  @override
+  String get geneReviewWhichTitle => 'The review shows these genes again:';
+
+  @override
+  String geneReviewWhichUnknown(String names) {
+    return 'Not found in SynGenes: $names';
+  }
+
+  @override
+  String geneReviewWhichConflicts(String pairs) {
+    return '/gene and /product disagree: $pairs';
   }
 
   @override
@@ -5314,7 +5315,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get satParamMethodValue =>
-      'PhyKIT saturation (Steenwyk et al. 2021; Philippe et al. 2011): slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree';
+      '[[PhyKIT]] saturation, method of [[Philippe 2011|]]: slope of the uncorrected p-distance of every pair of taxa on their patristic distance in the tree';
 
   @override
   String get satParamDistance => 'Trees';
@@ -5658,4 +5659,773 @@ class AppLocalizationsEn extends AppLocalizations {
   String trimCasesCaptionTool(String tool) {
     return 'Same alignment, two ways. Column by column, trimAl removes the columns it marks (×) one by one, so the codon positions (coloured ruler) fall out of order (!). With $tool the whole codon of every marked column goes (+): the 1st, 2nd and 3rd positions stay in order for the partitions and the saturation test.';
   }
+
+  @override
+  String get delimTitle => 'Species delimitation';
+
+  @override
+  String get delimIntro =>
+      'IQ-TREE and RAxML-NG infer the tree but do not delimit species, so SPLACE runs published delimitation programs: [[mPTP]] and [[GMYC]] on the maximum-likelihood trees, and [[ASAP]] and [[ABGD]] on the alignments (pairwise distances). Each result gets its own button on the tree (step 8). A delimitation is a hypothesis: compare the methods and confirm it with other evidence.';
+
+  @override
+  String get delimTrees => 'ML trees to delimit';
+
+  @override
+  String get delimModels => 'Models';
+
+  @override
+  String get delimModelMulti => 'mPTP (one rate per species)';
+
+  @override
+  String get delimModelSingle => 'PTP (one rate for all)';
+
+  @override
+  String get delimMinbr => 'Minimum branch length from the data (--minbr_auto)';
+
+  @override
+  String get delimMinbrInfo =>
+      'Branches shorter than the smallest p-distance of the supermatrix carry no substitution and are ignored. Off: mPTP\'s default (0.0001).';
+
+  @override
+  String get delimCrop =>
+      'Root on the outgroup and leave it out (--outgroup_crop)';
+
+  @override
+  String get delimCropInfo =>
+      'The outgroups of step 6c root the tree and are not delimited, so their long branches do not change the result.';
+
+  @override
+  String get delimRun => 'Delimit species';
+
+  @override
+  String get delimRunning => 'mPTP: species delimitation';
+
+  @override
+  String get delimNone => 'No delimitation yet.';
+
+  @override
+  String delimSpecies(String n) {
+    return '$n species';
+  }
+
+  @override
+  String delimSingletons(String n) {
+    return '$n with one tip';
+  }
+
+  @override
+  String get delimLrtFailed => 'LRT failed: one species preferred';
+
+  @override
+  String get delimViewOnTree => 'Show on the tree';
+
+  @override
+  String get delimMinbrCommand => 'Minimum branch length';
+
+  @override
+  String get delimSpeciesList => 'Delimited species';
+
+  @override
+  String get treeDelimitation => 'Species delimitation';
+
+  @override
+  String get treeDelimitationInfo =>
+      'Each button adds a column of bars beside the labels: one bar per species delimited by that tool on that tree (consecutive species alternate colours). Tips are matched by name, so a delimitation can be compared on any tree. Run them in step 7e.';
+
+  @override
+  String get treeDelimitationCircular => 'Shown in the rectangular layout only';
+
+  @override
+  String get citeFeatured => 'Gene names and taxonomy';
+
+  @override
+  String get citeRoleHint =>
+      'Each reference says what the tool did in this project.';
+
+  @override
+  String get citeRoleLabel => 'What it did:';
+
+  @override
+  String get delimOnTrees => 'On the trees (mPTP, GMYC)';
+
+  @override
+  String get delimTreesIntro =>
+      'mPTP finds where the branching of the ML tree changes from speciation (between species) to coalescence (within species). The [[PTP]] model uses one coalescent rate for all species; mPTP gives each species its own rate, which copes better with uneven sampling. [[GMYC]] (single threshold, pGMYC) reads the ML tree made ultrametric by [[LSD2]] (relative dates) and finds where the waiting times between branchings change from speciation to coalescence.';
+
+  @override
+  String get delimOnAlignments => 'On the alignments (ASAP, ABGD)';
+
+  @override
+  String get delimAlignmentsIntro =>
+      'Single-locus methods based on pairwise distances, usually run on a barcode marker (COI, 16S…). ASAP builds partitions by hierarchical clustering and ranks them by its score; ABGD looks for the barcode gap between intra- and interspecific distances over a range of priors.';
+
+  @override
+  String get delimAlignments => 'Alignments';
+
+  @override
+  String get delimNoAlignments => 'No DNA alignment yet.';
+
+  @override
+  String get delimSupermatrix => 'Supermatrix';
+
+  @override
+  String get delimDistance => 'Distance';
+
+  @override
+  String get delimDistanceInfo =>
+      'Pairwise distance of ASAP and ABGD (both default to Jukes-Cantor). ABGD offers JC69 and K2P only; with another distance ABGD uses JC69.';
+
+  @override
+  String get delimPMin => 'ABGD prior Pmin';
+
+  @override
+  String get delimPMax => 'ABGD prior Pmax';
+
+  @override
+  String get delimSteps => 'ABGD steps';
+
+  @override
+  String get delimSlope => 'ABGD gap width (X)';
+
+  @override
+  String get delimPriorInfo =>
+      'ABGD tries priors of maximum intraspecific divergence from Pmin to Pmax (log scale) and gives one partition per prior. Defaults are ABGD\'s own (0.001 to 0.1, 10 steps).';
+
+  @override
+  String get delimSlopeInfo =>
+      'Relative gap width (ABGD -X, default 1.5): lower values find smaller gaps.';
+
+  @override
+  String get delimPartition => 'Partition shown';
+
+  @override
+  String get delimPartitionAsapInfo =>
+      'ASAP proposes several partitions ranked by its score (lower is better); the best one is shown first. The one chosen here goes to the tree and to the methods text.';
+
+  @override
+  String get delimPartitionAbgdInfo =>
+      'ABGD gives an initial and a recursive partition for each prior P. Shown first: the initial partition at the prior nearest 0.01; look for partitions that stay the same over several priors. The one chosen here goes to the tree and to the methods text.';
+
+  @override
+  String delimAsapScore(String score) {
+    return 'ASAP score $score';
+  }
+
+  @override
+  String get delimInitial => 'initial';
+
+  @override
+  String get delimRecursive => 'recursive';
+
+  @override
+  String get delimModelGmyc => 'GMYC (ultrametric tree by LSD2)';
+
+  @override
+  String get delimLsd2Command => 'Ultrametric tree (LSD2)';
+
+  @override
+  String get exportGbButton => 'Export corrected GenBank';
+
+  @override
+  String get exportGbChoose => 'Save here';
+
+  @override
+  String get exportGbInfo =>
+      'Writes every record as a GenBank file (.gb) with the species name as identified or edited, the lineage of the taxonomy and the gene names standardized by SynGenes (the original name is kept in a /note). Useful for a newly assembled genome before submission. A copy goes to the project folder (00_genbank_corrected).';
+
+  @override
+  String get barcodingSwitch => 'These sequences are DNA barcodes';
+
+  @override
+  String get barcodingSwitchInfo =>
+      'One specimen per sequence (COI, 16S, ITS…): identify each one against GenBank and BOLD and export the BOLD submission spreadsheet.';
+
+  @override
+  String get barcodingLocus => 'Barcode marker';
+
+  @override
+  String get barcodingLocusInfo =>
+      'The locus of the FASTA files with the barcodes. COI is sent to BOLD and GenBank; other markers to GenBank only.';
+
+  @override
+  String barcodingCount(String n) {
+    return '$n specimens';
+  }
+
+  @override
+  String get barcodingSourcesCoi => 'BOLD ID Engine + GenBank BLAST';
+
+  @override
+  String get barcodingSourcesGenbank =>
+      'GenBank BLAST (BOLD identifies COI only)';
+
+  @override
+  String get barcodingIdentify => 'Identify specimens';
+
+  @override
+  String get barcodingTaxonomy => 'Taxonomy (GBIF)';
+
+  @override
+  String get barcodingTaxonomyInfo =>
+      'Fills phylum, class, order and family of the names kept, from GBIF (dataFishing method), for the BOLD sheet.';
+
+  @override
+  String get barcodingExport => 'Export BOLD spreadsheet (.xlsx)';
+
+  @override
+  String get barcodingExportInfo =>
+      'Writes the official BOLD5 single-page specimen template (sheet Submissions): sample id, taxonomy and identification filled; voucher and collection data left for you. A FASTA with the sample ids as headers is saved next to it for the sequence upload.';
+
+  @override
+  String barcodingExported(String n) {
+    return 'BOLD spreadsheet saved with $n specimens (and the sequences FASTA)';
+  }
+
+  @override
+  String get barcodingColSample => 'Sample';
+
+  @override
+  String get barcodingColMatches => 'Best matches';
+
+  @override
+  String get barcodingColName => 'Name kept';
+
+  @override
+  String get barcodingNoMatch => 'no match';
+
+  @override
+  String get barcodingNameHint => 'Genus species';
+
+  @override
+  String get barcodingPick => 'Choose a match';
+
+  @override
+  String get tutorialTitle => 'How to use SPLACE';
+
+  @override
+  String get tutorialSubtitle =>
+      'Each step with what it is for and what to do there. Close it at any time.';
+
+  @override
+  String get tutorialInterface => 'The interface';
+
+  @override
+  String get tutorialWhatToDo => 'What to do';
+
+  @override
+  String get tutorialPrev => 'Previous';
+
+  @override
+  String get tutorialNext => 'Next';
+
+  @override
+  String get tutorialFinish => 'Start working';
+
+  @override
+  String get tutorialShowAtStart => 'Show this tutorial after Start App';
+
+  @override
+  String get tutorialButton => 'Tutorial';
+
+  @override
+  String tutorialPageOf(String n, String total) {
+    return '$n of $total';
+  }
+
+  @override
+  String get newProject => 'New project';
+
+  @override
+  String get newProjectTitle => 'Start a new project?';
+
+  @override
+  String get newProjectBody =>
+      'SPLACE starts again with no data, in a new project folder, so you can analyse another group. Settings, the NCBI key and the tools found are kept.';
+
+  @override
+  String newProjectKept(String dir) {
+    return 'The files of the current project stay in $dir.';
+  }
+
+  @override
+  String get newProjectConfirm => 'New project';
+
+  @override
+  String get tutorialPlay => 'Play';
+
+  @override
+  String get tutorialPause => 'Pause';
+
+  @override
+  String tutorialItemOf(String n, String total) {
+    return 'Item $n of $total';
+  }
+
+  @override
+  String tutorialNextStep(String step) {
+    return 'Next: $step';
+  }
+
+  @override
+  String get taxSpeciesRecognized => 'Species recognized:';
+
+  @override
+  String get taxSynonyms => 'Also search its synonyms (GBIF)';
+
+  @override
+  String get taxSynonymsInfo =>
+      'Records may be filed under an older name (e.g. Bufo marinus for Rhinella marina). NCBI already finds the synonyms it knows; GBIF adds the accepted name and every synonym it lists, all in one NCBI query. The records are imported under their current NCBI name.';
+
+  @override
+  String get taxSynonymsLoading => 'Looking up the synonyms in GBIF…';
+
+  @override
+  String taxSynonymsError(String error) {
+    return 'GBIF could not be reached: $error';
+  }
+
+  @override
+  String get taxSynonymsNone =>
+      'GBIF has no synonyms for this name: it is searched alone.';
+
+  @override
+  String taxSynonymsFound(String n) {
+    return '$n names searched together:';
+  }
+
+  @override
+  String get examplesLabel => 'Example data:';
+
+  @override
+  String examplesEmpty(String folder) {
+    return 'No example files yet: put them in $folder and rebuild the app.';
+  }
+
+  @override
+  String examplesFiles(String n, String folder) {
+    return 'Loads the $n file(s) of $folder.';
+  }
+
+  @override
+  String get exampleGenbank => 'GenBank example';
+
+  @override
+  String get exampleLoci => 'Loci example (FASTA)';
+
+  @override
+  String get exampleBarcoding => 'Barcoding example (FASTA)';
+
+  @override
+  String get reviewFiledAs => 'filed as';
+
+  @override
+  String get markerBold => 'Also search BOLD Systems';
+
+  @override
+  String markerBoldInfo(String markers) {
+    return 'Public records of BOLD for $markers. Each record shows where it came from: NCBI, BOLD, or NCBI + BOLD when BOLD mirrors a GenBank record (imported once, from GenBank). Any rank can be searched (species, genus, family…); synonyms BOLD knows are searched too.';
+  }
+
+  @override
+  String markerBoldNone(String markers) {
+    return 'BOLD holds $markers for this organelle: select one to search BOLD too.';
+  }
+
+  @override
+  String siFoundAs(String names) {
+    return 'also as $names';
+  }
+
+  @override
+  String siVerdictAccepted(String name) {
+    return 'The accepted name in GBIF is $name: choose it to update the record.';
+  }
+
+  @override
+  String headerConflictUndetermined(String n) {
+    return '$n name(s) repeat inside the same marker. Records of one species are joined into one sample, but records not identified to species (sp., cf., aff., a genus only) or a FASTA sample with the same name are different specimens. Name them in step 2 (species identification or the records table) or remove them: the alignment and every step after it stay locked until every name is unique.';
+  }
+
+  @override
+  String get tipFieldCountry => 'Country';
+
+  @override
+  String get tipFieldLocality => 'Locality';
+
+  @override
+  String get schemesOneCoding =>
+      'One marker: \"by locus\" would be a single partition, so it can be partitioned by codon position (its reading frame is known) or kept as one partition.';
+
+  @override
+  String get schemesOneNoCodons =>
+      'One marker without known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the matrix is a single partition.';
+
+  @override
+  String get schemesNoCodons =>
+      'No marker has known codon positions (non-coding, protein, fragments without a confirmed reading frame, or frame lost in trimming): the markers can only be partitioned by locus.';
+
+  @override
+  String get trimPlanTitle => 'How each marker will be trimmed';
+
+  @override
+  String get trimWhyNoFrame =>
+      'partial sequences without a confirmed reading frame in the nucleotide alignment (align in Codon-aware mode to keep codons); one partition without codon positions';
+
+  @override
+  String get trimWhyNonCoding => 'not protein-coding';
+
+  @override
+  String get trimWhyColumns =>
+      'trimAl by columns breaks codons: its codon positions are lost';
+
+  @override
+  String get stepMarkers => 'Features and Markers';
+
+  @override
+  String get stepMarkersFasta => 'Samples and Markers';
+
+  @override
+  String get splashStepMarkers =>
+      'Choose which feature types (CDS, rRNA, tRNA) enter the analysis, or show SPLACE where FASTA headers keep the sample and locus names; then pick the markers for the matrix, reviewing missing and duplicated sequences in the presence and length heatmaps.';
+
+  @override
+  String dropUndetermined(String n) {
+    return 'Leave out the $n record(s) not identified to species';
+  }
+
+  @override
+  String get idAlnTitle => 'Alignments of the identification';
+
+  @override
+  String get idAlnOpen => 'See the alignments (your sequence and the hits)';
+
+  @override
+  String get idAlnAll => 'All sources';
+
+  @override
+  String get idAlnQuery => 'Query';
+
+  @override
+  String get idAlnHit => 'hit';
+
+  @override
+  String get idAlnCopy => 'Copy as FASTA';
+
+  @override
+  String get idAlnNone => 'No hits for this marker.';
+
+  @override
+  String get idAlnIdentity => 'identity';
+
+  @override
+  String get idAlnCoverage => 'coverage';
+
+  @override
+  String get idAlnMismatches => 'mismatches';
+
+  @override
+  String get idAlnGaps => 'gaps';
+
+  @override
+  String get idAlnLoading =>
+      'BOLD gives where the hit aligns, not the alignment: fetching its sequence from the BOLD portal and aligning it…';
+
+  @override
+  String idAlnLoadError(String error) {
+    return 'The BOLD sequence could not be fetched: $error';
+  }
+
+  @override
+  String get idpTitle => 'Search parameters';
+
+  @override
+  String get idpSubtitle =>
+      'GenBank BLAST and the BOLD ID engine. Changing a parameter sends the searches again; answers with the same parameters are reused.';
+
+  @override
+  String get idpDatabase => 'Database';
+
+  @override
+  String get idpBlastDbInfo =>
+      'core_nt: the default nucleotide database of web BLAST (core sequences, faster). nt: the complete nucleotide collection. refseq_select_rna / refseq_rna: RefSeq transcripts only.';
+
+  @override
+  String get idpProgram => 'Program';
+
+  @override
+  String get idpProgramInfo =>
+      'megablast: for the same or very close species (fast, long words). blastn: more sensitive, finds more distant relatives (slower).';
+
+  @override
+  String get idpHits => 'Max results';
+
+  @override
+  String get idpHitsInfo =>
+      'How many target sequences BLAST returns per query (HITLIST_SIZE).';
+
+  @override
+  String get idpExpect => 'E-value';
+
+  @override
+  String get idpExpectInfo =>
+      'Highest expect value kept (EXPECT): lower is stricter.';
+
+  @override
+  String get idpWord => 'Word size';
+
+  @override
+  String get idpWordInfo =>
+      'Length of the seed matches (WORD_SIZE). Empty: the program\'s default (28 for megablast, 11 for blastn).';
+
+  @override
+  String get idpCoverage => 'Min coverage (%)';
+
+  @override
+  String get idpCoverageInfo =>
+      'Share of your sequence a hit must cover to count (applied by SPLACE; changing it needs no new search).';
+
+  @override
+  String get idpEntrez => 'Restrict to (Entrez query)';
+
+  @override
+  String get idpEntrezInfo =>
+      'Optional: search only records matching an Entrez query, e.g. Bufonidae[Organism] or Anura[Organism] (ENTREZ_QUERY).';
+
+  @override
+  String get idpBoldDbInfo =>
+      'public.tax-derep: public animal COI, one record per haplotype and taxon (recommended). species: records identified to species. all.tax-derep: public and private records (taxonomy only). all.animal-alt: animal records of other markers. public.plants: rbcL and matK. public.fungi: ITS.';
+
+  @override
+  String get idpMinIdentity => 'Min identity (%)';
+
+  @override
+  String get idpMinIdentityInfo =>
+      'Hits below this identity are not returned (70–100 %).';
+
+  @override
+  String get idpMinOverlap => 'Min overlap (bp)';
+
+  @override
+  String get idpMinOverlapInfo =>
+      'Shortest alignment with your sequence that counts.';
+
+  @override
+  String get idpMaxHits => 'Max hits';
+
+  @override
+  String get idpMaxHitsInfo => 'How many hits BOLD returns per sequence.';
+
+  @override
+  String idpBoldMarkers(String markers) {
+    return 'This database identifies: $markers.';
+  }
+
+  @override
+  String speciesIdBoldBodyFor(String db, String markers) {
+    return 'ID engine, database $db: $markers.';
+  }
+
+  @override
+  String speciesIdBoldOffFor(String markers) {
+    return 'Select $markers to search BOLD too (the database can be changed in the parameters).';
+  }
+
+  @override
+  String get exampleLociShort => 'Loci example';
+
+  @override
+  String get exampleBarcodingShort => 'Barcoding example';
+
+  @override
+  String speciesIdGenesHintFor(String markers) {
+    return 'Choose one or more genes. Every gene is searched in GenBank with BLAST; BOLD takes the markers of its database ($markers).';
+  }
+
+  @override
+  String speciesIdGenbankBodyFor(String program, String db, String hits) {
+    return 'BLAST ($program) against $db, up to $hits results per gene.';
+  }
+
+  @override
+  String get trimPlanCodonsTitle => 'Whole codons (reading frame known)';
+
+  @override
+  String trimPlanColumnsTitle(String why) {
+    return 'Column by column — $why';
+  }
+
+  @override
+  String get openProject => 'Open project';
+
+  @override
+  String get saveProject => 'Save project';
+
+  @override
+  String get saveProjectTooltip =>
+      'Save project (.splc): data, parameters and results, to continue later or share (Ctrl+S; Save as: Ctrl+Shift+S)';
+
+  @override
+  String get openProjectTooltip => 'Open a SPLACE project (.splc) (Ctrl+O)';
+
+  @override
+  String get openProjectTitle => 'Open another project?';
+
+  @override
+  String openProjectBody(String file) {
+    return '$file opens where it was saved. The current analysis is closed: save it first (Save project) to come back to it.';
+  }
+
+  @override
+  String get projectSaveFailed =>
+      'The project could not be saved: see the log.';
+
+  @override
+  String get splashOpenProject => 'Open project';
+
+  @override
+  String get windowTitleNew => 'Unsaved project';
+
+  @override
+  String get windowTitleUnsaved => 'unsaved changes';
+
+  @override
+  String get windowTitleSaved => 'saved';
+
+  @override
+  String get projectSavedTitle => 'Project saved';
+
+  @override
+  String exportGbDoneTitle(String n) {
+    return '$n GenBank file(s) saved';
+  }
+
+  @override
+  String get delimSettings => 'Settings';
+
+  @override
+  String delimLrtLevel(String tool) {
+    return 'LRT p-value · $tool';
+  }
+
+  @override
+  String get delimLrtInfoMptp =>
+      'Significance level of the likelihood-ratio test of mPTP (--pvalue, default 0.001). When the p-value of the test is above it, the one-species model is kept and every tip goes into one species.';
+
+  @override
+  String get delimLrtInfoGmyc =>
+      'Significance level of the GMYC likelihood-ratio test (default 0.01). Above it GMYC does not reject a single species and joins every tip.';
+
+  @override
+  String get delimOnePerSpecies =>
+      'Every tip of the supermatrix is a different species (one sequence per species). PTP, mPTP and GMYC look for where the tree changes from branching between species to branching within them; without several individuals per species that change is not there, the test tends to fail and the whole tree comes out as one species. Use several sequences per species, or ASAP/ABGD on a marker.';
+
+  @override
+  String delimCollapsed(String tool, String p, String alpha, String tips) {
+    return 'The likelihood-ratio test did not reject the one-species model (p = $p, above the limit $alpha), so $tool put all $tips tips in one species.';
+  }
+
+  @override
+  String delimCollapsedBest(String n) {
+    return 'Its best model had found $n species, without statistical support.';
+  }
+
+  @override
+  String get delimCollapsedOnePerSpecies =>
+      'Here every tip is a different species: these methods need several individuals per species. With one sequence each, use ASAP or ABGD on a marker, or compare the tree with the taxonomy.';
+
+  @override
+  String get delimCollapsedTry =>
+      'Try a less strict limit (LRT p-value in the settings above), more sequences per species, or ASAP/ABGD on a marker.';
+
+  @override
+  String get delimLrtNs => 'LRT not significant';
+
+  @override
+  String get treeIdentify => 'Identify by BLAST…';
+
+  @override
+  String get treeIdTitle => 'Identify by BLAST';
+
+  @override
+  String treeIdSubtitle(String n) {
+    return '$n tip(s) of the tree';
+  }
+
+  @override
+  String get treeIdIntro =>
+      'Each tip is sent with its sequence of the marker you choose to GenBank BLAST (and BOLD for COI, or rbcL, matK and ITS in its plant and fungal databases), with the options of the identification in step 2. Useful when a genus falls inside another one: the best match tells whether the sample is what its name says.';
+
+  @override
+  String get treeIdMarker => 'Marker';
+
+  @override
+  String treeIdMarkerTips(String n, String total) {
+    return '$n of $total tips have it';
+  }
+
+  @override
+  String get treeIdNoMarker =>
+      'None of these tips has a DNA marker sequence of at least 100 bases.';
+
+  @override
+  String treeIdOptions(
+    String program,
+    String db,
+    String coverage,
+    String identity,
+  ) {
+    return 'BLAST: $program on $db, hits covering at least $coverage % of the sequence; same species from $identity % identity. Answers already received are reused.';
+  }
+
+  @override
+  String get treeIdRun => 'Identify';
+
+  @override
+  String treeIdRunning(String marker, String n) {
+    return 'Identifying $n tip(s) with $marker…';
+  }
+
+  @override
+  String get treeIdOtherMarker => 'Another marker';
+
+  @override
+  String treeIdRename(String n) {
+    return 'Rename $n tip(s) in the figure';
+  }
+
+  @override
+  String treeIdRenameOne(String name) {
+    return 'Rename in the figure as $name';
+  }
+
+  @override
+  String get treeIdConfirmed => 'Confirmed';
+
+  @override
+  String get treeIdOtherSpecies => 'Another species';
+
+  @override
+  String get treeIdOtherGenus => 'Another genus';
+
+  @override
+  String get treeIdAmbiguous => 'Ambiguous (its species matches as well)';
+
+  @override
+  String treeIdNoMatch(String identity) {
+    return 'No species at ≥ $identity %';
+  }
+
+  @override
+  String get treeIdNone => 'No result';
+
+  @override
+  String get treeIdCurrent => 'Name:';
+
+  @override
+  String treeIdCurrentAt(String pct) {
+    return 'its name at $pct';
+  }
+
+  @override
+  String get treeIdHits => 'Alignments';
 }

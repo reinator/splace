@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -19,6 +21,7 @@ import 'salve_widgets.dart' show iucnColors;
 import 'splace_tooltip.dart';
 
 part 'tree_circular.dart';
+part 'tree_figure_state.dart';
 part 'tree_tangle.dart';
 
 enum TreeRooting { asIs, outgroup, midpoint, manual }
@@ -30,7 +33,7 @@ enum TreeShape { phylogram, cladogram }
 enum TreeSupport { numbers, dots, none }
 
 /// Parts a tip label can be built from.
-enum TipField { label, species, genus, family, order, klass, phylum, accession, voucher, conservation, commonName, endemic, biomes, trend, officialList }
+enum TipField { label, species, genus, family, order, klass, phylum, accession, voucher, country, locality, conservation, commonName, endemic, biomes, trend, officialList }
 
 /// Heatmap columns beside the tip labels, from the SALVE sheets.
 enum HeatField { status, trend, officialList, threats, endemic, biomes }
@@ -66,16 +69,23 @@ _HeatCell _yesNo(String v) => switch (v.toLowerCase()) {
 
 /// One cell of the heatmap: its colour (null: empty) and a short text.
 class _HeatCell {
-  const _HeatCell(this.fill, [this.text = '', this.ink = Colors.white]);
+  const _HeatCell(this.fill, [this.text = '', this.ink = Colors.white, this.group]);
   final Color? fill;
   final String text;
   final Color ink;
+
+  /// Joined columns: consecutive rows with the same group form one bar.
+  final String? group;
 }
 
 /// The heatmap: column titles and the cells of each tip (by tip name).
 class _Heat {
-  const _Heat(this.titles, this.cells, this.cell, this.headerH, [this.gap = 2]);
+  const _Heat(this.titles, this.cells, this.cell, this.headerH, [this.gap = 2, this.joined = const {}]);
   final List<String> titles;
+
+  /// Columns drawn as one bar per run of rows of the same group (species
+  /// delimitation) instead of a square per row.
+  final Set<int> joined;
   final Map<String, List<_HeatCell>> cells;
 
   /// Side of a cell and height of the turned titles above the columns.
@@ -84,6 +94,17 @@ class _Heat {
   final double gap;
   double get width => titles.isEmpty ? 0 : titles.length * (cell + gap) + 6;
 }
+
+/// A species delimitation that can be drawn beside the tips: [label] on
+/// its button, [title] above its column, the tips of each species.
+class TreeDelimitation {
+  const TreeDelimitation({required this.id, required this.label, required this.title, required this.species});
+  final String id, label, title;
+  final List<List<String>> species;
+}
+
+/// Colours of the delimitation bars: consecutive species alternate.
+const delimitationColors = [SplaceBlue.c700, SplaceBlue.c300];
 
 /// Ranks the rows can be coloured by.
 enum TaxRank { species, genus, family, order, klass, phylum, kingdom }
@@ -173,6 +194,8 @@ const _presets = <String, List<LabelPart>>{
   'species': [LabelPart(TipField.species, italic: true)],
   'speciesVoucher': [LabelPart(TipField.species, italic: true), LabelPart(TipField.voucher, bold: true, parens: true)],
   'speciesAccession': [LabelPart(TipField.species, italic: true), LabelPart(TipField.accession, bold: true, parens: true)],
+  // Tips without a locality show the species alone.
+  'speciesLocality': [LabelPart(TipField.species, italic: true), LabelPart(TipField.locality, parens: true)],
   'familySpecies': [LabelPart(TipField.family, bold: true), LabelPart(TipField.species, italic: true), LabelPart(TipField.accession, parens: true)],
 };
 
@@ -181,7 +204,6 @@ const _presets = <String, List<LabelPart>>{
 const _fonts = ['Montserrat', 'Arial', 'Calibri', 'Times New Roman', 'Georgia', 'Courier New'];
 
 /// Colours of the row groups (one per taxon, in order down the tree).
-const _groupColors = SplacePalette.categorical;
 
 /// Swatches of the colour picker.
 const _swatches = [
@@ -307,9 +329,30 @@ class TreeViewer extends StatefulWidget {
     this.tipInfo = const {},
     this.title = '',
     this.compareWith = const [],
+    this.delimitations = const [],
+    this.figure,
+    this.onFigureChanged,
+    this.onIdentify,
   });
 
   final String newick;
+
+  /// Figure saved before (options and edits, see [treeFigureVersion]): the
+  /// viewer opens as it was left.
+  final Map<String, dynamic>? figure;
+
+  /// Called (shortly after the edits stop) with the figure as JSON, so the
+  /// project keeps it and saves it in the project file.
+  final ValueChanged<Map<String, dynamic>>? onFigureChanged;
+
+  /// "Identify by BLAST" of a tip or clade: gets its tips (names as in
+  /// the tree) and gives back the tips to rename in the figure (tip → new
+  /// name, in italic), or null.
+  final Future<Map<String, String>?> Function(BuildContext context, List<String> tips)? onIdentify;
+
+  /// Species delimitations (mPTP…) that can be shown as bars beside the
+  /// tips, each with its own button; tips are matched by name.
+  final List<TreeDelimitation> delimitations;
 
   /// Name of the tree (editor header, comparison heading).
   final String title;
@@ -386,6 +429,16 @@ class _TreeViewerState extends State<TreeViewer> {
 
   /// SALVE heatmap columns beside the labels.
   final Set<HeatField> _heat = {};
+
+  /// Delimitations shown as bars beside the labels (ids, in the order
+  /// they were turned on).
+  final List<String> _delims = [];
+
+  List<TreeDelimitation> get _shownDelims => [
+        for (final id in _delims) ?widget.delimitations.where((d) => d.id == id).firstOrNull,
+      ];
+
+  void _toggleDelim(String id) => setState(() => _delims.contains(id) ? _delims.remove(id) : _delims.add(id));
   String _query = '';
   TreeNode? _selected, _hover;
   final Set<TreeNode> _collapsed = {};
@@ -502,6 +555,38 @@ class _TreeViewerState extends State<TreeViewer> {
       _format = _presets['speciesAccession']!;
     }
     _build();
+    final saved = widget.figure;
+    if (saved != null) {
+      try {
+        _applyFigure(saved);
+        _lastFigure = jsonEncode(saved);
+      } catch (_) {
+        // A figure that cannot be read: the defaults stay.
+      }
+    }
+    _changes.addListener(_figureChanged);
+  }
+
+  /// The figure as last reported to [TreeViewer.onFigureChanged].
+  String? _lastFigure;
+  Timer? _figureTimer;
+
+  void _figureChanged() {
+    if (widget.onFigureChanged == null) return;
+    _figureTimer?.cancel();
+    _figureTimer = Timer(const Duration(milliseconds: 600), _reportFigure);
+  }
+
+  void _reportFigure() {
+    _figureTimer?.cancel();
+    _figureTimer = null;
+    final report = widget.onFigureChanged;
+    if (report == null || _tree == null) return;
+    final j = _figureJson();
+    final text = jsonEncode(j);
+    if (text == _lastFigure) return;
+    _lastFigure = text;
+    report(j);
   }
 
   @override
@@ -526,6 +611,9 @@ class _TreeViewerState extends State<TreeViewer> {
 
   @override
   void dispose() {
+    // Edits made in the last moment are kept too.
+    if (_figureTimer != null) _reportFigure();
+    _changes.removeListener(_figureChanged);
     final editor = _editor;
     final changes = _changes;
     if (editor != null && editor.isActive) {
@@ -692,12 +780,12 @@ class _TreeViewerState extends State<TreeViewer> {
   void _toggleTruncate(TreeNode n) => _edit(() => _truncated.contains(n) ? _truncated.remove(n) : _truncated.add(n));
 
   Future<void> _colorClade(TreeNode n) async {
-    final c = await _pickColor(context, _cladeColors[n] ?? _groupColors[_cladeColors.length % _groupColors.length]);
+    final c = await _pickColor(context, _cladeColors[n] ?? SplacePalette.categoricalAt(_cladeColors.length));
     if (c != null) _edit(() => _cladeColors[n] = c);
   }
 
   Future<void> _highlightClade(TreeNode n) async {
-    final c = await _pickColor(context, _highlights[n] ?? _groupColors[(_highlights.length + 2) % _groupColors.length]);
+    final c = await _pickColor(context, _highlights[n] ?? SplacePalette.categoricalAt(_highlights.length + 2));
     if (c != null) _edit(() => _highlights[n] = c);
   }
 
@@ -728,6 +816,20 @@ class _TreeViewerState extends State<TreeViewer> {
     );
     if (r == null) return;
     _edit(() => r.text.trim().isEmpty ? _renamed.remove(n.name) : _renamed[n.name] = (text: r.text.trim(), italic: r.italic, bold: r.bold));
+  }
+
+  /// Sends the tips of [n] to [TreeViewer.onIdentify]; the names it gives
+  /// back rename the tips in the figure (one undoable edit).
+  Future<void> _identify(TreeNode n) async {
+    final f = widget.onIdentify;
+    if (f == null) return;
+    final renames = await f(context, [for (final tip in n.tips) tip.name]);
+    if (renames == null || renames.isEmpty || !mounted) return;
+    _edit(() {
+      for (final e in renames.entries) {
+        _renamed[e.key] = (text: e.value, italic: true, bold: false);
+      }
+    });
   }
 
   /// Removes tip or clade [n] from the figure (undoable).
@@ -827,6 +929,8 @@ class _TreeViewerState extends State<TreeViewer> {
       TipField.phylum => i.phylum,
       TipField.accession => i.accession,
       TipField.voucher => i.voucher,
+      TipField.country => i.country,
+      TipField.locality => i.locality,
       TipField.conservation => i.status.isEmpty ? '' : (i.statusName.isEmpty ? i.status : '${i.status} · ${i.statusName}'),
       TipField.commonName => i.commonName,
       TipField.endemic => i.endemic.isEmpty ? '' : '${context.l10n.colEndemic}: ${i.endemic}',
@@ -906,7 +1010,8 @@ class _TreeViewerState extends State<TreeViewer> {
       if (values.length != 1 || values.first.isEmpty) continue;
       final v = values.first;
       of[n] = v;
-      colors.putIfAbsent(v, () => _groupColors[colors.length % _groupColors.length]);
+      // One colour per taxon, however many there are (no repeats).
+      colors.putIfAbsent(v, () => SplacePalette.categoricalAt(colors.length));
     }
     return (of, colors);
   }
@@ -964,6 +1069,8 @@ class _TreeViewerState extends State<TreeViewer> {
         TipField.phylum => l10n.rankPhylum,
         TipField.accession => l10n.tipFieldAccession,
         TipField.voucher => l10n.tipFieldVoucher,
+        TipField.country => l10n.tipFieldCountry,
+        TipField.locality => l10n.tipFieldLocality,
         TipField.conservation => l10n.tipFieldConservation,
         TipField.commonName => l10n.colCommonNames,
         TipField.endemic => l10n.colEndemic,
@@ -1056,7 +1163,8 @@ class _TreeViewerState extends State<TreeViewer> {
 
   /// The heatmap columns chosen in the editor (rectangular layout).
   _Heat? _heatOf(TreeNode tree, _Style st) {
-    if (_heat.isEmpty || _circular) return null;
+    final delims = _shownDelims;
+    if ((_heat.isEmpty && delims.isEmpty) || _circular) return null;
     final l10n = context.l10n;
     final biomes = _heat.contains(HeatField.biomes) ? _biomesOf(tree) : const <String>[];
     final maxThreats = tree.tips.map((t) => _info(t.name).threats).fold(0, math.max);
@@ -1068,7 +1176,34 @@ class _TreeViewerState extends State<TreeViewer> {
       if (_heat.contains(HeatField.endemic)) l10n.colEndemic,
       ...biomes,
     ];
+    final salve = titles.length;
+    titles.addAll([for (final d in delims) d.title]);
     if (titles.isEmpty) return null;
+    // Delimitations: species number of each tip (by name, also with
+    // spaces for underscores), and the species coloured alternately in the
+    // order they appear down the tree.
+    String key(String n) => n.toLowerCase().replaceAll('_', ' ').trim();
+    final delimCells = <String, List<_HeatCell>>{};
+    for (final (j, d) in delims.indexed) {
+      final of = <String, int>{};
+      for (final (i, sp) in d.species.indexed) {
+        for (final tip in sp) {
+          of[key(tip)] = i;
+        }
+      }
+      final order = <int, int>{};
+      for (final t in _rows(tree)) {
+        for (final tip in t.tips) {
+          final sp = of[key(tip.name)];
+          if (sp != null) order.putIfAbsent(sp, () => order.length);
+        }
+      }
+      for (final t in tree.tips) {
+        final sp = of[key(t.name)];
+        final list = delimCells.putIfAbsent(t.name, () => List.filled(delims.length, const _HeatCell(null)));
+        if (sp != null) list[j] = _HeatCell(delimitationColors[(order[sp] ?? sp) % delimitationColors.length], '', Colors.white, '${d.id}#$sp');
+      }
+    }
     final cells = <String, List<_HeatCell>>{};
     for (final t in tree.tips) {
       final i = _info(t.name);
@@ -1096,11 +1231,12 @@ class _TreeViewerState extends State<TreeViewer> {
             _ => const _HeatCell(null),
           },
         for (final b in biomes) _HeatCell(own.contains(b) ? (biomeColors[b] ?? const Color(0xFF6B7280)) : null),
+        ...delimCells[t.name] ?? List.filled(delims.length, const _HeatCell(null)),
       ];
     }
     final cell = _heatCellPt > 0 ? _heatCellPt * _pt : _rowH * 0.78;
     final headerH = titles.map((x) => _Pen.width([_Run(x)], st.family, st.legendFont)).fold(0.0, math.max) + 6;
-    return _Heat(titles, cells, cell, headerH, _heatGapPt * _pt);
+    return _Heat(titles, cells, cell, headerH, _heatGapPt * _pt, {for (var j = salve; j < titles.length; j++) j});
   }
 
   /// Legend of the heatmap: the categories present and the biome colours.
@@ -1244,6 +1380,10 @@ class _TreeViewerState extends State<TreeViewer> {
         ChipButton(label: 'SVG', onPressed: () => _save('svg', _svg(tree))),
         ChipButton(label: 'PNG (${_dpi.round()} dpi)', onPressed: _savePng),
       ]),
+      if (widget.delimitations.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _delimButtons(context),
+      ],
       const SizedBox(height: 12),
       Container(
         decoration: BoxDecoration(color: t.surface2, borderRadius: BorderRadius.circular(12), border: Border.all(color: t.border)),
@@ -1290,6 +1430,33 @@ class _TreeViewerState extends State<TreeViewer> {
       Text(l10n.treeEditorHint, style: TextStyle(fontSize: 12, color: t.textMuted)),
       const SizedBox(height: 4),
       _statsRow(context, tree, figure),
+    ]);
+  }
+
+  /// One button per species delimitation (tool · tree): each adds or
+  /// removes its column of bars beside the labels.
+  Widget _delimButtons(BuildContext context, {bool heading = true}) {
+    final l10n = context.l10n;
+    final t = context.tokens;
+    return Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      if (heading)
+      SplaceTooltip(
+        message: l10n.treeDelimitationInfo,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Kicker(l10n.treeDelimitation, size: 10.5),
+          const SizedBox(width: 4),
+          Icon(FA.circleInfo, size: 11, color: t.textFaint),
+        ]),
+      ),
+      for (final d in widget.delimitations)
+        ChipButton(
+          label: d.label,
+          icon: _delims.contains(d.id) ? FA.check : null,
+          keepIcon: _delims.contains(d.id),
+          style: _delims.contains(d.id) ? ChipButtonStyle.accent : ChipButtonStyle.neutral,
+          tooltip: _circular ? l10n.treeDelimitationCircular : null,
+          onPressed: _circular ? null : () => _toggleDelim(d.id),
+        ),
     ]);
   }
 
@@ -1420,6 +1587,7 @@ class _TreeViewerState extends State<TreeViewer> {
       if (_highlights.containsKey(n)) (l10n.treeRemoveHighlight, () => _edit(() => _highlights.remove(n)), false),
       (l10n.treeCladeLabel, () => _labelClade(n), false),
       if (n.isTip) (l10n.treeRenameTip, () => _renameTip(n), false),
+      if (widget.onIdentify != null) (l10n.treeIdentify, () => _identify(n), false),
       if (n.parent != null && (n.length ?? 0) > 0) (truncated ? l10n.treeRestoreBranch : l10n.treeShortenBranch, () => _toggleTruncate(n), false),
       if (n.parent != null && tree.tipCount - n.tipCount >= 2) (l10n.treeRemoveFromFigure, () => _prune(n), true),
     ];
@@ -1993,6 +2161,7 @@ class _TreeViewerState extends State<TreeViewer> {
             decimals: decimals,
             suffix: suffix,
             width: _fieldW,
+            height: _fieldH,
             onChanged: (v) => setState(() => onChanged(v)),
           ),
         );
@@ -2149,7 +2318,8 @@ class _TreeViewerState extends State<TreeViewer> {
                   onPressed: _circular ? null : () => setState(() => _heat.contains(f) ? _heat.remove(f) : _heat.add(f)),
                 ),
             ]),
-          if (_hasSalve && _heat.isNotEmpty) ...[
+          if (widget.delimitations.isNotEmpty) group(l10n.treeDelimitation, _delimButtons(context, heading: false), info: l10n.treeDelimitationInfo, wide: true),
+          if ((_hasSalve && _heat.isNotEmpty) || _delims.isNotEmpty) ...[
             number(l10n.treeHeatCell, _heatCellPt, 0, 40, (v) => _heatCellPt = v, step: 0.5, decimals: 1, suffix: 'pt', info: l10n.treeHeatCellInfo),
             number(l10n.treeHeatGap, _heatGapPt, 0, 20, (v) => _heatGapPt = v, step: 0.5, decimals: 1, suffix: 'pt'),
             number(l10n.treeBranchWidth, _treeWidthCm, 0, 80, (v) => _treeWidthCm = v, step: 0.5, decimals: 1, suffix: 'cm', info: l10n.treeBranchWidthInfo),
@@ -2252,6 +2422,7 @@ class _TreeViewerState extends State<TreeViewer> {
         'species' => l10n.rankSpecies,
         'speciesVoucher' => '${l10n.rankSpecies} (${l10n.tipFieldVoucher})',
         'speciesAccession' => '${l10n.rankSpecies} (${l10n.tipFieldAccession})',
+        'speciesLocality' => '${l10n.rankSpecies} (${l10n.tipFieldLocality})',
         _ => '${l10n.rankFamily} · ${l10n.rankSpecies}',
       };
 
@@ -2309,6 +2480,7 @@ class _TreeViewerState extends State<TreeViewer> {
               max: 100,
               step: 1,
               width: 92,
+              height: _fieldH,
               onChanged: (v) => edit([...cls]..[i] = (from: v, color: c.color)),
             ),
             const SizedBox(width: 10),
@@ -2463,6 +2635,7 @@ class _TreeViewerState extends State<TreeViewer> {
         if (_highlights.containsKey(sel)) ChipButton(label: l10n.treeRemoveHighlight, onPressed: () => _edit(() => _highlights.remove(sel))),
         ChipButton(label: l10n.treeCladeLabel, onPressed: () => _labelClade(sel)),
         if (sel.isTip) ChipButton(label: l10n.treeRenameTip, onPressed: () => _renameTip(sel)),
+        if (widget.onIdentify != null) ChipButton(label: l10n.treeIdentify, icon: FA.magnifyingGlass, onPressed: () => _identify(sel)),
         if (sel.parent != null && (sel.length ?? 0) > 0)
           ChipButton(label: truncated ? l10n.treeRestoreBranch : l10n.treeShortenBranch, onPressed: () => _toggleTruncate(sel)),
         if (sel.parent != null && tree.tipCount - sel.tipCount >= 2)
@@ -2514,6 +2687,8 @@ class _TreeViewerState extends State<TreeViewer> {
         if (i.family.isNotEmpty) i.family,
         if (i.accession.isNotEmpty) i.accession,
         if (i.voucher.isNotEmpty) i.voucher,
+        if (i.locality.isNotEmpty) i.locality,
+        if (i.latLon.isNotEmpty) i.latLon,
       ].join(' · ');
       return '${l10n.treeHoverTip(_display(n.name), length)}${extra.isEmpty ? '' : '  ·  $extra'}';
     }
@@ -3732,11 +3907,41 @@ void _drawHeat(_Pen pen, _Layout l, _Style st) {
     final cx = l.heatX + j * step + h.cell / 2;
     pen.text([_Run(title)], Offset(cx, l.top - 4), family: st.family, size: st.legendFont, color: _Style.muted, angle: -math.pi / 2);
   }
+  // Joined columns (species delimitation): one bar per run of rows of the
+  // same species, a small gap between species.
+  for (final j in h.joined) {
+    final x = l.heatX + j * step + h.cell * 0.2;
+    final w = h.cell * 0.6;
+    String? group;
+    Color? fill;
+    double top = 0, bottom = 0;
+    void flush() {
+      final f = fill;
+      if (group != null && f != null) pen.rect(Rect.fromLTRB(x, top + 1, x + w, bottom - 1), f, radius: math.min(2, w / 2));
+    }
+
+    for (final (i, n) in l.rows.indexed) {
+      final cells = h.cells[n.name];
+      final c = n.isTip && cells != null && j < cells.length ? cells[j] : null;
+      final y0 = l.top + i * l.rowH, y1 = y0 + l.rowH;
+      if (c?.group != null && c!.group == group) {
+        bottom = y1;
+        continue;
+      }
+      flush();
+      group = c?.group;
+      fill = c?.fill;
+      top = y0;
+      bottom = y1;
+    }
+    flush();
+  }
   for (final n in l.rows) {
     final cells = h.cells[n.name];
     if (cells == null) continue;
     final y = l.point(n).dy - h.cell / 2;
     for (final (j, c) in cells.indexed) {
+      if (h.joined.contains(j)) continue;
       final r = Rect.fromLTWH(l.heatX + j * step, y, h.cell, h.cell);
       if (c.fill == null) {
         pen.rect(r, _Style.outgroup.withValues(alpha: 0.6), radius: 2);

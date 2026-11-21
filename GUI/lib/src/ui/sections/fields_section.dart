@@ -23,16 +23,15 @@ class FieldsSection extends StatelessWidget {
     final fa = c.inputs.isNotEmpty;
     return StepSection(
       badge: '3',
-      icon: FA.layerGroup,
-      title: gb ? l10n.step3 : l10n.step3Fasta,
+      title: gb ? l10n.stepMarkers : l10n.stepMarkersFasta,
       description: gb ? l10n.featureTypesIntro : l10n.step3Intro,
       active: active,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (gb)
           SubAnchor(
-            id: '3a',
+            id: step3Sub(c, 'features'),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SubHeading(id: '3a', title: l10n.subFeatureTypes),
+              SubHeading(id: step3Sub(c, 'features'), title: l10n.subFeatureTypes),
               const FeatureTypesPanel(),
             ]),
           ),

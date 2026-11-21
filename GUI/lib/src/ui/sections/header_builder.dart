@@ -68,7 +68,8 @@ class _HeaderBuilderState extends State<_HeaderBuilder> {
     // Headers repeated inside a marker: joined on purpose with one sample
     // per species, an error otherwise (the sequences could not be told apart).
     final dups = c.headerConflicts(_h);
-    final blocked = dups.isNotEmpty && !c.onePerTaxonMode;
+    // Real conflicts only: same-species joins are not listed.
+    final blocked = dups.isNotEmpty;
     final preview = c.records.take(12).map(_h.build).toList();
 
     Widget block(String label, Widget child, {String? hint}) => Padding(
@@ -217,9 +218,9 @@ class _HeaderBuilderState extends State<_HeaderBuilder> {
           tone: blocked ? PanelTone.danger : PanelTone.info,
           icon: blocked ? FA.circleExclamation : FA.circleInfo,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(blocked ? l10n.headerConflictBlock('${dups.length}') : l10n.onePerTaxonJoined('${dups.length}'),
+            Text(c.onePerTaxonMode ? l10n.headerConflictUndetermined('${dups.length}') : l10n.headerConflictBlock('${dups.length}'),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            if (blocked && !_h.fields.contains('accession')) ...[
+            if (blocked && !c.onePerTaxonMode && !_h.fields.contains('accession')) ...[
               const SizedBox(height: 8),
               ChipButton(label: l10n.headerAddAccession, icon: FA.plus, style: ChipButtonStyle.accent, onPressed: () => _set([..._h.fields, 'accession'])),
             ],

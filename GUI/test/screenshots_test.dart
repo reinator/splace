@@ -225,10 +225,10 @@ void main() {
       c.toggleFeatureType('CDS', true);
       c.toggleFeatureType('rRNA', true);
       await tester.pump();
-      await goTo('Feature Types', '05_feature_types');
+      await goTo('Features and Markers', '05_feature_types');
       c.selectDefaultMarkers();
       await tester.pump();
-      await goTo('Select Markers', '06_markers');
+      await goTo('Features and Markers', '06_markers');
       await tester.ensureVisible(find.text('Gene Presence Heatmap').last);
       await settle();
       // Both heatmaps open: they fill the width of the page.
@@ -448,7 +448,7 @@ void main() {
       await shot('03_loaded');
       await goTo('Loaded Records', '04_records');
       await goTo('Sample and Locus Fields', '05_fields');
-      await goTo('Select Markers', '06_markers');
+      await goTo('Samples and Markers', '06_markers');
 
       // A handful of plastid genes, then the real pipeline with the
       // bundled MAFFT / trimAl / IQ-TREE.

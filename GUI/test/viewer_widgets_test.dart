@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -231,6 +232,90 @@ void main() {
     await shot(tester, key, 'tree_support_curved');
   });
 
+  testWidgets('species delimitation bars: one button per tool and tree', (tester) async {
+    await fonts();
+    const newick = '((((A1:0.001,A2:0.002)100:0.08,(B1:0.001,B2:0.0015,B3:0.001)99:0.09)95:0.1,(C1:0.002,C2:0.001)100:0.12)80:0.05,D1:0.3,D2:0.28);';
+    const mptp = TreeDelimitation(id: 'iq|multi', label: 'mPTP · IQ-TREE', title: 'mPTP', species: [
+      ['A1', 'A2'],
+      ['B1', 'B2', 'B3'],
+      ['C1', 'C2'],
+    ]);
+    const ptp = TreeDelimitation(id: 'rx|single', label: 'PTP · RAxML-NG', title: 'PTP', species: [
+      ['A1', 'A2', 'B1', 'B2', 'B3'],
+      ['C1'],
+      ['C2'],
+    ]);
+    final key = await pump(tester, const TreeViewer(newick: newick, outgroup: ['D1', 'D2'], delimitations: [mptp, ptp]));
+    await tester.pumpAndSettle();
+    expect(find.textContaining(RegExp('species delimitation', caseSensitive: false)), findsWidgets);
+    for (final label in ['mPTP · IQ-TREE', 'PTP · RAxML-NG']) {
+      await tester.tap(find.widgetWithText(ChipButton, label).first);
+      await tester.pumpAndSettle();
+    }
+    expect(tester.takeException(), isNull);
+    await shot(tester, key, 'tree_delimitation');
+    // Off again.
+    await tester.tap(find.widgetWithText(ChipButton, 'PTP · RAxML-NG').first);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the figure of a tree is reported and comes back as it was left', (tester) async {
+    await fonts();
+    const newick = '((((A1:0.001,A2:0.002)100:0.08,(B1:0.001,B2:0.0015,B3:0.001)99:0.09)95:0.1,(C1:0.002,C2:0.001)100:0.12)80:0.05,D1:0.3,D2:0.28);';
+    const mptp = TreeDelimitation(id: 'iq|multi', label: 'mPTP · IQ-TREE', title: 'mPTP', species: [
+      ['A1', 'A2'],
+      ['B1', 'B2', 'B3'],
+      ['C1', 'C2'],
+    ]);
+    const ptp = TreeDelimitation(id: 'rx|single', label: 'PTP · RAxML-NG', title: 'PTP', species: [
+      ['A1', 'A2', 'B1', 'B2', 'B3'],
+      ['C1'],
+      ['C2'],
+    ]);
+    Map<String, dynamic>? reported;
+    await pump(tester, TreeViewer(key: const ValueKey(1), newick: newick, outgroup: const ['D1', 'D2'], delimitations: const [mptp, ptp], onFigureChanged: (f) => reported = f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChipButton, 'mPTP · IQ-TREE').first);
+    await tester.pump(const Duration(seconds: 1));
+    expect(reported, isNotNull);
+    expect(reported!['delimitations'], ['iq|multi']);
+    // An edited figure: another title, size and colour, a collapsed clade
+    // and the tree rotated by hand (its children in another order).
+    final saved = Map<String, dynamic>.of(reported!);
+    final tree = parseNewick(newick);
+    final rotated = tree.children.first.children.first;
+    rotated.children.setAll(0, rotated.children.reversed.toList());
+    saved
+      ..['tree'] = jsonDecode(jsonEncode(_treeJson(tree)))
+      ..['rooting'] = 'asIs'
+      ..['collapsed'] = [3]
+      ..['title'] = 'Figure 2'
+      ..['font'] = 11.5
+      ..['branchColor'] = 0xFF1D4ED8;
+    reported = null;
+    await pump(tester, TreeViewer(key: const ValueKey(2), newick: newick, outgroup: const ['D1', 'D2'], delimitations: const [mptp, ptp], figure: saved, onFigureChanged: (f) => reported = f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChipButton, 'PTP · RAxML-NG').first);
+    await tester.pump(const Duration(seconds: 1));
+    expect(reported, isNotNull);
+    expect(reported!['delimitations'], ['iq|multi', 'rx|single']);
+    for (final k in ['tree', 'rooting', 'collapsed', 'title', 'font', 'branchColor']) {
+      expect(reported![k], saved[k], reason: k);
+    }
+    // A saved tree with other tips (the analysis was run again): only the
+    // options come back.
+    final other = Map<String, dynamic>.of(saved)..['tree'] = _treeJson(parseNewick('(X:1,Y:1,Z:1);'));
+    reported = null;
+    await pump(tester, TreeViewer(key: const ValueKey(3), newick: newick, outgroup: const ['D1', 'D2'], delimitations: const [mptp, ptp], figure: other, onFigureChanged: (f) => reported = f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChipButton, 'PTP · RAxML-NG').first);
+    await tester.pump(const Duration(seconds: 1));
+    expect(reported!['title'], 'Figure 2');
+    expect(reported!['collapsed'], isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   test('support legend follows "show support from"', () {
     List<String> labels(int s, int m, int min) => [for (final (_, l) in supportClassLabels(s, m, min)) l];
     expect(labels(95, 80, 0), ['≥ 95', '80–94', '< 80']);
@@ -284,3 +369,11 @@ void main() {
     expect(half.recommendation.caution, {3});
   });
 }
+
+/// A tree as the viewer saves it (nested nodes).
+Map<String, dynamic> _treeJson(TreeNode n) => {
+      if (n.name.isNotEmpty) 'n': n.name,
+      if (n.length != null) 'l': n.length,
+      if (n.label != null) 's': n.label,
+      if (n.children.isNotEmpty) 'c': [for (final k in n.children) _treeJson(k)],
+    };

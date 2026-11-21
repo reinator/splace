@@ -21,7 +21,7 @@ const _mafftMethods = ['--auto', '--localpair', '--globalpair', '--genafpair', '
 const _trimalModes = ['-automated1', '-strict', '-strictplus', '-gappyout', '-nogaps', '-noallgaps', 'manual'];
 const _clipkitModes = ['gappy', 'kpic', 'kpic-gappy', 'smart-gap'];
 
-/// Step 5 — Sequence Alignment (`#nextStepSection`, panels 5a–5e and the
+/// Step 5 — Sequence Alignment (`#nextStepSection`, panels 5a–5d and the
 /// alignment results).
 class AlignmentSection extends StatelessWidget {
   const AlignmentSection({super.key, required this.active});
@@ -43,24 +43,22 @@ class AlignmentSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Row(children: [
-            StepBadge('5', active: active),
-            const SizedBox(width: 8),
-            Icon(FA.alignLeft, size: 16, color: t.accent),
+            StepBadge('4', active: active),
             const SizedBox(width: 8),
             Text(l10n.step5, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: t.text)),
             const SizedBox(width: 8),
             CountPill('${c.activeMarkers.length}'),
           ]),
         ),
-        // 5a–5d show together with their defaults: one click aligns.
-        if (gb) keyed('5a', const _HeaderPanel()),
-        keyed('5b', const _SeqTypePanel()),
-        keyed('5c', const _MafftPanel()),
-        keyed('5d', const _RunPanel()),
-        if (c.alignPanelVisible('5e')) keyed('5e', const _TrimPanel()),
-        if (results.isNotEmpty)
+        // 5a–5c show together with their defaults: one click aligns (the
+        // run button closes 5c); 5d (trimming) comes after the alignment.
+        if (gb) keyed('4a', const _HeaderPanel()),
+        // Names to fix in 5a: nothing after it is shown until they are.
+        if (c.alignPanelVisible('4b')) keyed('4b', const _SeqTypePanel()),
+        if (c.alignPanelVisible('4c')) keyed('4c', const _MafftPanel()),
+        if (c.alignPanelVisible('4d')) keyed('4d', const _TrimPanel()),
+        if (results.isNotEmpty && !c.headerBlocked)
           StepSection(
-            icon: FA.circleCheck,
             title: l10n.resultsTitle,
             count: results.length,
             actions: [
@@ -89,7 +87,7 @@ class _HeaderPanel extends StatelessWidget {
     final examples = c.records.take(3).map(c.header.build).toList();
     final dups = c.headerConflicts();
     return SubPanel(
-      badge: '5a',
+      badge: '4a',
       title: l10n.panelHeader,
       body: l10n.panelHeaderBody,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -108,15 +106,26 @@ class _HeaderPanel extends StatelessWidget {
         if (dups.isNotEmpty) ...[
           const SizedBox(height: 10),
           TonePanel(
-            tone: c.onePerTaxonMode ? PanelTone.info : PanelTone.danger,
-            icon: c.onePerTaxonMode ? FA.circleInfo : FA.circleExclamation,
+            tone: PanelTone.danger,
+            icon: FA.circleExclamation,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
-                c.onePerTaxonMode ? l10n.onePerTaxonJoined('${dups.length}') : l10n.headerConflictBlock('${dups.length}'),
+                c.onePerTaxonMode ? l10n.headerConflictUndetermined('${dups.length}') : l10n.headerConflictBlock('${dups.length}'),
                 style: TextStyle(fontSize: 13, color: t.text),
               ),
-              if (!c.onePerTaxonMode) ...[
-                if (!c.header.fields.contains('accession')) ...[
+              ...[
+                // One sample per species: the records not named to species
+                // can be left out in one click.
+                if (c.onePerTaxonMode && c.undeterminedConflicts.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ChipButton(
+                    label: l10n.dropUndetermined('${c.undeterminedConflicts.length}'),
+                    icon: FA.xmark,
+                    style: ChipButtonStyle.accent,
+                    onPressed: c.busy ? null : c.removeUndeterminedConflicts,
+                  ),
+                ],
+                if (!c.onePerTaxonMode && !c.header.fields.contains('accession')) ...[
                   const SizedBox(height: 8),
                   ChipButton(
                     label: l10n.headerAddAccession,
@@ -237,7 +246,7 @@ class _SeqTypePanel extends StatelessWidget {
     ]);
 
     return SubPanel(
-      badge: '5b',
+      badge: '4b',
       title: l10n.panelSeqType,
       body: l10n.seqTypeBody,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -407,11 +416,11 @@ class _MafftPanelState extends State<_MafftPanel> {
           onChanged: onChanged,
         );
     return SubPanel(
-      badge: '5c',
+      badge: '4c',
       title: l10n.panelMafft,
       body: l10n.panelMafftBody,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        AutoGrid(minItemWidth: 260, children: [
+        _ThreeColumns(children: [
           Field(
             label: l10n.mafftStrategy,
             child: DropdownButtonFormField<String>(
@@ -444,7 +453,7 @@ class _MafftPanelState extends State<_MafftPanel> {
           ),
         ]),
         const SizedBox(height: 12),
-        AutoGrid(minItemWidth: 260, children: [
+        _ThreeColumns(children: [
           SwitchBox(
             label: '--adjustdirection',
             detail: l10n.adjustDirectionHelp,
@@ -465,17 +474,44 @@ class _MafftPanelState extends State<_MafftPanel> {
           const SizedBox(height: 10),
           Text(l10n.mafftAminoNote, style: TextStyle(fontSize: 12, color: t.textMuted, fontStyle: FontStyle.italic)),
         ],
+        // Running closes the settings (no panel of its own).
+        const SizedBox(height: 16),
+        Divider(height: 1, color: t.border),
+        const SizedBox(height: 14),
+        Text(l10n.panelRunBody(c.workDir), style: TextStyle(fontSize: 13, color: t.textMuted)),
+        const SizedBox(height: 10),
+        const _RunPart(),
       ]),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// 5d Run Alignment
-// ---------------------------------------------------------------------------
+/// Fields side by side, three per row (the last row may be shorter).
+class _ThreeColumns extends StatelessWidget {
+  const _ThreeColumns({required this.children});
+  final List<Widget> children;
 
-class _RunPanel extends StatelessWidget {
-  const _RunPanel();
+  @override
+  Widget build(BuildContext context) {
+    const gap = 12.0;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (var i = 0; i < children.length; i += 3) ...[
+        if (i > 0) const SizedBox(height: gap),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var k = i; k < i + 3; k++) ...[
+            if (k > i) const SizedBox(width: gap),
+            Expanded(child: k < children.length ? children[k] : const SizedBox.shrink()),
+          ],
+        ]),
+      ],
+    ]);
+  }
+}
+
+/// The alignment button and what follows it (the trimming prompt), at the
+/// end of 5c.
+class _RunPart extends StatelessWidget {
+  const _RunPart();
 
   @override
   Widget build(BuildContext context) {
@@ -484,11 +520,7 @@ class _RunPanel extends StatelessWidget {
     final t = context.tokens;
     final mafft = c.tools[ExternalTool.mafft];
     final aligned = c.loci.values.any((l) => l.aligned != null);
-    return SubPanel(
-      badge: '5d',
-      title: l10n.panelRun,
-      body: l10n.panelRunBody(c.workDir),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (c.toolsChecked && mafft == null)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -542,7 +574,7 @@ class _RunPanel extends StatelessWidget {
               _trimPreview(c),
             ]),
           ),
-        ] else if (aligned && !c.alignPanelVisible('5e')) ...[
+        ] else if (aligned && !c.alignPanelVisible('4d')) ...[
           // Trimming skipped (or not chosen yet): it can still be done.
           const SizedBox(height: 12),
           Wrap(spacing: 10, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -552,12 +584,11 @@ class _RunPanel extends StatelessWidget {
           const SizedBox(height: 10),
           _trimPreview(c),
         ],
-      ]),
-    );
+      ]);
   }
 }
 
-/// The trimming animation with the method 5e starts with (ClipKIT in the
+/// The trimming animation with the method 5d starts with (ClipKIT in the
 /// codon-aware mode), shown before trimming is configured.
 Widget _trimPreview(ProjectController c) => c.seqMode == SeqMode.codon
     ? TrimExample(method: c.clipkitMode)
@@ -575,7 +606,7 @@ Widget _trimPreview(ProjectController c) => c.seqMode == SeqMode.codon
 bool _hasCoding(ProjectController c) => c.loci.isEmpty || c.loci.values.any((l) => l.included && l.coding);
 
 // ---------------------------------------------------------------------------
-// 5e Trimming
+// 5d Trimming
 // ---------------------------------------------------------------------------
 
 class _TrimPanel extends StatefulWidget {
@@ -697,7 +728,7 @@ class _TrimPanelState extends State<_TrimPanel> {
           ]),
         );
     return SubPanel(
-      badge: '5e',
+      badge: '4d',
       title: l10n.panelTrimParams(tool),
       body: codon ? l10n.trimToolCodon : (active == SeqMode.nucleotide ? l10n.trimToolNt : l10n.trimToolAa),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -725,6 +756,12 @@ class _TrimPanelState extends State<_TrimPanel> {
             TrimTool.trimalColumns => l10n.trimToolTrimalBody,
           }),
           const SizedBox(height: 12),
+          // How each aligned marker is really trimmed: whole codons only
+          // where the reading frame is known.
+          if (alignedLoci.isNotEmpty) ...[
+            _TrimPlan(loci: alignedLoci.where((l) => !l.isProtein).toList()),
+            const SizedBox(height: 12),
+          ],
         ],
         if (useClip) ...[
           AutoGrid(minItemWidth: 300, children: [clipMode()]),
@@ -1051,7 +1088,7 @@ class _LocusCardState extends State<_LocusCard> {
               if (_tab == 'trimmed' && mask != null)
                 SwitchBox(label: l10n.showRemovedColumns, value: _showRemoved, onChanged: (v) => setState(() => _showRemoved = v)),
               // The trimmer kept every column: nothing to grey.
-              if ((_tab == 'trimmed' || _tab == 'aligned') && mask != null && !mask.contains(true))
+              if (_tab == 'trimmed' && mask != null && !mask.contains(true))
                 TagChip(l10n.trimNothingRemoved(l.trimMethod ?? '', '${mask.length}'), icon: FA.circleInfo, color: t.textMuted),
             ]),
             const SizedBox(height: 10),
@@ -1081,8 +1118,9 @@ class _LocusCardState extends State<_LocusCard> {
       coding: positions,
       columnMap: compact ? l.trimmedColumns : null,
       mapFrame: l.frame,
-      // The removed columns are grey in the MAFFT alignment too.
-      removed: full || _tab == 'aligned' ? mask : null,
+      // Removed columns are grey only in the trimmed tab: the aligned tab
+      // shows the MAFFT output as it is.
+      removed: full ? mask : null,
       space: switch (_tab) {
         'raw' => ViewSpace.raw,
         'protein' => ViewSpace.protein,
@@ -1113,5 +1151,49 @@ class _Pipeline extends StatelessWidget {
         ),
       ],
     ]);
+  }
+}
+
+/// 5d: the trimming each aligned DNA marker gets (whole codons when its
+/// reading frame is known and the tool keeps it; column by column for
+/// non-coding markers, fragments without a confirmed frame, or trimAl by
+/// columns).
+class _TrimPlan extends StatelessWidget {
+  const _TrimPlan({required this.loci});
+  final List<LocusState> loci;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ProjectScope.of(context);
+    final l10n = context.l10n;
+    final t = context.tokens;
+    if (loci.isEmpty) return const SizedBox.shrink();
+    final codons = [for (final l in loci) if (c.codonTrimmed(l)) l.name];
+    final columns = [for (final l in loci) if (!c.codonTrimmed(l)) l];
+    String why(LocusState l) => !l.coding
+        ? (l.sources.contains('CDS') && l.partial > 0 ? l10n.trimWhyNoFrame : l10n.trimWhyNonCoding)
+        : l10n.trimWhyColumns;
+    // Every marker, grouped by why it is trimmed column by column.
+    final byWhy = <String, List<String>>{};
+    for (final l in columns) {
+      byWhy.putIfAbsent(why(l), () => []).add(l.name);
+    }
+    Widget group(String title, List<String> names, {Color? color}) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, runSpacing: 6, children: [for (final n in names) TagChip(n, color: color)]),
+          ]),
+        );
+    return TonePanel(
+      tone: codons.isEmpty ? PanelTone.warn : PanelTone.info,
+      icon: FA.circleInfo,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l10n.trimPlanTitle, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+        if (codons.isNotEmpty) group(l10n.trimPlanCodonsTitle, codons),
+        for (final e in byWhy.entries) group(l10n.trimPlanColumnsTitle(e.key), e.value, color: SplaceTokens.warn),
+      ]),
+    );
   }
 }

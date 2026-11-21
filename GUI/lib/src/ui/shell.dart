@@ -11,6 +11,7 @@ import '../services/resource_monitor.dart';
 import '../state/project_controller.dart';
 import 'chrome/api_key_dialog.dart';
 import 'chrome/progress_modal.dart';
+import 'chrome/project_actions.dart';
 import 'chrome/splash.dart';
 import 'chrome/tools_dialog.dart';
 import 'common.dart';
@@ -27,6 +28,7 @@ import 'sections/records_section.dart';
 import 'sections/saturation_section.dart';
 import 'theme.dart';
 import 'widgets/citations.dart';
+import 'widgets/dialogs.dart';
 import 'widgets/kit.dart';
 import 'widgets/splace_tooltip.dart';
 
@@ -68,7 +70,9 @@ class _SplaceShellState extends State<SplaceShell> {
   int _active = 1;
   String? _activeSub;
   final _scroll = ScrollController();
-  final _keys = {for (var i = 1; i <= 9; i++) i: GlobalKey()};
+  /// The eight steps (3 holds the feature types and the markers).
+  static const stepCount = 8;
+  final _keys = {for (var i = 1; i <= stepCount; i++) i: GlobalKey()};
 
   /// The lettered parts of the steps ("2a", "7b"…), filled as they build.
   final _subKeys = <String, GlobalKey>{};
@@ -96,19 +100,31 @@ class _SplaceShellState extends State<SplaceShell> {
     return box.localToGlobal(Offset.zero).dy;
   }
 
-  /// The active step is the last section whose top passed the header.
+  /// While the page scrolls to a step chosen in the navigator, the scroll
+  /// does not change the selection (a part near the end of the page never
+  /// reaches the top, and the one above it would be selected instead).
+  bool _jumping = false;
+
+  /// The active step is the last section whose top passed the header; at
+  /// the end of the page, the last one that shows.
   void _trackActiveStep() {
+    if (_jumping) return;
+    final atEnd = _scroll.hasClients && _scroll.position.pixels >= _scroll.position.maxScrollExtent - 2;
+    final view = context.size?.height ?? 0;
+    // At the end of the page the parts below the top still show: the lowest
+    // one in view is the one being read.
+    final limit = atEnd ? view - 80 : 180.0;
     var active = 1;
     for (final e in _keys.entries) {
       final top = _top(e.value);
-      if (top != null && top <= 180) active = e.key;
+      if (top != null && top <= limit) active = e.key;
     }
     String? sub;
     var subTop = double.negativeInfinity;
     for (final e in _subKeys.entries) {
       if (!e.key.startsWith('$active')) continue;
       final top = _top(e.value);
-      if (top != null && top <= 220 && top > subTop) {
+      if (top != null && top <= (atEnd ? limit : 220) && top > subTop) {
         sub = e.key;
         subTop = top;
       }
@@ -123,14 +139,19 @@ class _SplaceShellState extends State<SplaceShell> {
 
   static bool _sameSet(Set<int> a, Set<int> b) => a.length == b.length && a.containsAll(b);
 
-  void _goTo(int step, [String? sub]) {
+  Future<void> _goTo(int step, [String? sub]) async {
     final ctx = (sub == null ? _keys[step] : _subKeys[sub])?.currentContext;
     if (ctx == null) return;
-    Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
     setState(() {
       _active = step;
       _activeSub = sub;
+      _jumping = true;
     });
+    try {
+      await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+    } finally {
+      _jumping = false;
+    }
   }
 
   List<_Step> _steps(ProjectController c) {
@@ -157,6 +178,8 @@ class _SplaceShellState extends State<SplaceShell> {
     final trees = c.treeRuns.where((r) => r.status == StepStatus.done).length;
     final used = c.loadOptionsUsed;
     bool ranWith(String engine) => c.treeRuns.any((r) => r.status == StepStatus.done && r.engine == engine);
+    // Repeated FASTA names: every step that uses them waits for 5a.
+    final namesBlocked = gb && c.headerBlocked;
     return [
       _Step(1, l10n.step1, loaded, false,
           meta: loaded ? [if (gb) l10n.metaRecords('${c.records.length}'), if (fa) l10n.metaFastaFiles('${c.inputs.length}')].join(' · ') : null,
@@ -174,33 +197,31 @@ class _SplaceShellState extends State<SplaceShell> {
         ],
         if (fa) _Sub(fastaHeadersSub(c), l10n.fastaHeadersHeading, c.organized != null),
       ]),
-      _Step(3, gb ? l10n.step3 : l10n.step3Fasta, c.featureTypes.isNotEmpty || (!gb && c.organized != null), !typesVisible,
-          meta: gb && c.featureTypes.isNotEmpty ? c.featureTypes.map((t) => featureTypeLabels[t] ?? t).join(' · ') : null,
+      // Features (or FASTA fields) and markers: one step.
+      _Step(3, gb ? l10n.stepMarkers : l10n.stepMarkersFasta, selected > 0, !typesVisible,
+          meta: markersVisible
+              ? l10n.metaSelected('$selected', '${c.markers.length}')
+              : (gb && c.featureTypes.isNotEmpty ? c.featureTypes.map((t) => featureTypeLabels[t] ?? t).join(' · ') : null),
           subs: [
-            if (gb && c.taxonomyResolved) _Sub('3a', l10n.subFeatureTypes, c.featureTypes.isNotEmpty),
-            if (fa) _Sub(fastaFieldsSub(c), l10n.step3Fasta, c.organized != null),
+            if (gb && c.taxonomyResolved) _Sub(step3Sub(c, 'features'), l10n.subFeatureTypes, c.featureTypes.isNotEmpty),
+            if (fa) _Sub(step3Sub(c, 'fasta'), l10n.step3Fasta, c.organized != null),
+            if (markersVisible) _Sub(step3Sub(c, 'markers'), l10n.subChooseMarkers, selected > 0),
+            if (selected > 0) _Sub(step3Sub(c, 'presence'), l10n.heatmapTitle, selected > 0),
+            if (selected > 0) _Sub(step3Sub(c, 'length'), l10n.lengthHeatmapTitle, selected > 0),
           ]),
-      _Step(4, l10n.step4, selected > 0, !markersVisible,
-          meta: markersVisible ? l10n.metaSelected('$selected', '${c.markers.length}') : null,
-          subs: [
-            _Sub('4a', l10n.subChooseMarkers, selected > 0),
-            if (c.markers.isNotEmpty) _Sub('4b', l10n.heatmapTitle, selected > 0),
-            if (selected > 0) _Sub('4c', l10n.lengthHeatmapTitle, selected > 0),
-          ]),
-      _Step(5, l10n.step5, allAligned, selected == 0,
+      _Step(4, l10n.step5, allAligned, selected == 0,
           meta: c.loci.isEmpty ? null : l10n.metaAligned('$aligned', '${c.loci.length}') + (trimmed > 0 ? ' · ${l10n.metaTrimmed('$trimmed')}' : ''),
           subs: [
-            if (gb) _Sub('5a', l10n.panelHeader, (c.headerConfirmed || anyAligned) && !c.headerBlocked),
-            _Sub('5b', l10n.panelSeqType, anyAligned),
-            _Sub('5c', l10n.panelMafft, anyAligned),
-            _Sub('5d', l10n.panelRun, anyAligned),
-            if (c.alignPanelVisible('5e')) _Sub('5e', l10n.panelTrimal, trimmed > 0 || c.trimSkipped),
+            if (gb) _Sub('4a', l10n.panelHeader, (c.headerConfirmed || anyAligned) && !c.headerBlocked),
+            if (c.alignPanelVisible('4b')) _Sub('4b', l10n.panelSeqType, anyAligned),
+            if (c.alignPanelVisible('4c')) _Sub('4c', l10n.panelMafft, anyAligned),
+            if (c.alignPanelVisible('4d')) _Sub('4d', l10n.panelTrimal, trimmed > 0 || c.trimSkipped),
           ]),
-      _Step(6, l10n.step6, saturationRan, !anyAligned,
+      _Step(5, l10n.step6, saturationRan, !anyAligned || namesBlocked,
           subs: [
-            _Sub('6a', l10n.subRunSaturation, saturationRan),
-            if (saturationRan) _Sub('6b', l10n.saturationHeatmapTitle, true),
-            if (sat != null) _Sub('6c', l10n.recTitle, c.concat.perLocusExclude.isNotEmpty || _sameSet(c.concat.excludePositions, sat.recommendation.exclude)),
+            _Sub('5a', l10n.subRunSaturation, saturationRan),
+            if (saturationRan) _Sub('5b', l10n.saturationHeatmapTitle, true),
+            if (sat != null) _Sub('5c', l10n.recTitle, c.concat.perLocusExclude.isNotEmpty || _sameSet(c.concat.excludePositions, sat.recommendation.exclude)),
           ],
           meta: sat == null
               ? null
@@ -210,24 +231,25 @@ class _SplaceShellState extends State<SplaceShell> {
                   RecommendationKind.useAminoAcids => l10n.metaSatAmino,
                   RecommendationKind.undetermined => l10n.verdictInsufficient,
                 }),
-      _Step(7, l10n.step7, m != null, m == null && (!anyAligned || (saturationApplies && !saturationRan)),
+      _Step(6, l10n.step7, m != null, namesBlocked || (m == null && (!anyAligned || (saturationApplies && !saturationRan))),
           meta: m == null ? null : l10n.metaMatrix('${m.taxa.length}', '${m.length}'),
           subs: [
-            _Sub('7a', l10n.concatBlockSource, m != null),
-            _Sub('7b', l10n.concatBlockPartitions, m != null),
-            _Sub('7c', l10n.concatBlockOutgroup, c.concat.outgroups.isNotEmpty),
-            _Sub('7d', l10n.subBuildMatrix, m != null),
+            _Sub('6a', l10n.concatBlockSource, m != null),
+            _Sub('6b', l10n.concatBlockPartitions, m != null),
+            _Sub('6c', l10n.concatBlockOutgroup, c.concat.outgroups.isNotEmpty),
+            _Sub('6d', l10n.subBuildMatrix, m != null),
           ]),
-      _Step(8, l10n.step8, trees > 0, m == null, meta: c.treeRuns.isEmpty ? null : l10n.metaTrees('$trees'), subs: [
-        _Sub('8a', 'IQ-TREE', ranWith('IQ-TREE')),
-        _Sub('8b', 'RAxML-NG', ranWith('RAxML-NG')),
-        _Sub('8c', l10n.bothTitle, ranWith('IQ-TREE') && ranWith('RAxML-NG')),
-        _Sub('8d', l10n.runs, trees > 0),
+      _Step(7, l10n.step8, trees > 0, m == null || namesBlocked, meta: c.treeRuns.isEmpty ? null : l10n.metaTrees('$trees'), subs: [
+        _Sub('7a', 'IQ-TREE', ranWith('IQ-TREE')),
+        _Sub('7b', 'RAxML-NG', ranWith('RAxML-NG')),
+        _Sub('7c', l10n.bothTitle, ranWith('IQ-TREE') && ranWith('RAxML-NG')),
+        _Sub('7d', l10n.runs, trees > 0),
+        if (c.delimitableRuns.isNotEmpty || c.delimitableAlignments.isNotEmpty) _Sub('7e', l10n.delimTitle, c.delimitationsDone.isNotEmpty),
       ]),
-      _Step(9, l10n.step9, trees > 0, trees == 0, meta: trees == 0 ? null : l10n.metaViewable('${c.viewableTrees.length}'), subs: [
-        _Sub('9a', l10n.subTree, trees > 0),
-        if (c.treeRuns.isNotEmpty) _Sub('9b', l10n.zipTitle, c.zipSaved),
-        _Sub('9c', l10n.howToCite, trees > 0),
+      _Step(8, l10n.step9, trees > 0, trees == 0 || namesBlocked, meta: trees == 0 ? null : l10n.metaViewable('${c.viewableTrees.length}'), subs: [
+        _Sub('8a', l10n.subTree, trees > 0),
+        if (c.treeRuns.isNotEmpty) _Sub('8b', l10n.zipTitle, c.zipSaved),
+        _Sub('8c', l10n.howToCite, trees > 0),
       ]),
     ];
   }
@@ -255,6 +277,20 @@ class _SplaceShellState extends State<SplaceShell> {
     final steps = _steps(c);
     final progress = steps.where((s) => s.done).length / steps.length;
 
+    // Ctrl+S saves the project (Ctrl+Shift+S: as another file), Ctrl+O
+    // opens one (Cmd on macOS).
+    final mac = Platform.isMacOS;
+    return CallbackShortcuts(
+      bindings: {
+        SingleActivator(LogicalKeyboardKey.keyS, control: !mac, meta: mac): () => saveProjectAction(context),
+        SingleActivator(LogicalKeyboardKey.keyS, control: !mac, meta: mac, shift: true): () => saveProjectAction(context, saveAs: true),
+        SingleActivator(LogicalKeyboardKey.keyO, control: !mac, meta: mac): () => openProjectAction(context),
+      },
+      child: Focus(autofocus: true, child: _scaffold(c, t, steps, progress)),
+    );
+  }
+
+  Widget _scaffold(ProjectController c, SplaceTokens t, List<_Step> steps, double progress) {
     return Scaffold(
       body: LayoutBuilder(builder: (context, constraints) {
         // The window is at least 1280×720. The log docks beside the page on
@@ -330,17 +366,23 @@ class _SplaceShellState extends State<SplaceShell> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             section(1, LoadSection(active: _active == 1)),
             section(2, RecordsSection(active: _active == 2)),
-            section(3, FieldsSection(active: _active == 3)),
-            section(4, MarkersSection(active: _active == 4)),
-            section(5, AlignmentSection(active: _active == 5)),
-            section(6, SaturationSection(active: _active == 6)),
-            section(7, ConcatSection(active: _active == 7)),
-            section(8, InferenceSection(active: _active == 8, onViewTree: () => _goTo(9))),
-            section(9, TreeSection(active: _active == 9)),
+            // Step 3: the feature types (or FASTA fields), then the markers.
+            section(
+              3,
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                FieldsSection(active: _active == 3),
+                if (c.markers.isNotEmpty) MarkersSection(active: _active == 3),
+              ]),
+            ),
+            section(4, AlignmentSection(active: _active == 4)),
+            section(5, SaturationSection(active: _active == 5)),
+            section(6, ConcatSection(active: _active == 6)),
+            section(7, InferenceSection(active: _active == 7, onViewTree: () => _goTo(8))),
+            section(8, TreeSection(active: _active == 8)),
             // Saving everything and how to cite come after the trees (step 8
             // runs, step 9 views).
-            if (visible[8]! && c.treeRuns.isNotEmpty) const SubAnchor(id: '9b', child: ResultsZipCard()),
-            if (visible[8]!) const SubAnchor(id: '9c', child: CitationsCard()),
+            if (visible[7]! && c.treeRuns.isNotEmpty) const SubAnchor(id: '8b', child: ResultsZipCard()),
+            if (visible[7]!) const SubAnchor(id: '8c', child: CitationsCard()),
           ]),
         ),
       ),
@@ -387,11 +429,13 @@ class _FooterState extends State<_Footer> {
       decoration: BoxDecoration(color: t.surface, border: Border(top: BorderSide(color: t.border))),
       child: Row(children: [
         Expanded(
-          child: Text(
-            'SPLACE v$appVersion · GPL-3.0 · Luan Rabelo & Renato Moreira-Oliveira',
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: 'SPLACE v$appVersion · GPL-3.0 · ', style: TextStyle(fontSize: 12, color: t.textFaint)),
+              ...authorSpans(TextStyle(fontSize: 12, color: t.textFaint)),
+            ]),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: t.textFaint),
           ),
         ),
         const SizedBox(width: 16),
@@ -555,6 +599,29 @@ class _Header extends StatelessWidget {
         const SizedBox(width: 8),
         IconBtn(icon: FA.circleQuestion, tooltip: l10n.tooltipHelp, onPressed: () => c.setSplashVisible(true)),
         const SizedBox(width: 8),
+        IconBtn(icon: FA.folderOpen, tooltip: l10n.openProjectTooltip, onPressed: c.busy ? null : () => openProjectAction(context)),
+        const SizedBox(width: 8),
+        IconBtn(icon: FA.floppyDisk, tooltip: l10n.saveProjectTooltip, onPressed: c.busy ? null : () => saveProjectAction(context)),
+        const SizedBox(width: 8),
+        IconBtn(
+          icon: FA.plus,
+          tooltip: l10n.newProject,
+          onPressed: c.busy
+              ? null
+              : () async {
+                  final ok = await confirmDialog(
+                    context,
+                    title: l10n.newProjectTitle,
+                    body: l10n.newProjectBody,
+                    body2: l10n.newProjectKept(c.workDir),
+                    confirm: l10n.newProjectConfirm,
+                    danger: false,
+                    icon: FA.plus,
+                  );
+                  if (ok) c.requestNewProject();
+                },
+        ),
+        const SizedBox(width: 8),
         IconBtn(icon: FA.github, tooltip: 'GitHub', onPressed: () => launchUrl(Uri.parse(githubUrl))),
       ]),
     );
@@ -618,7 +685,7 @@ class _Minimap extends StatefulWidget {
 }
 
 class _MinimapState extends State<_Minimap> {
-  final _rows = {for (var i = 1; i <= 9; i++) i: GlobalKey()};
+  final _rows = {for (var i = 1; i <= 8; i++) i: GlobalKey()};
 
   @override
   void didUpdateWidget(_Minimap old) {

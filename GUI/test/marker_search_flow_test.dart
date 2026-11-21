@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:splace/src/app.dart';
 import 'package:splace/src/core/genbank_markers.dart';
 import 'package:splace/src/core/marker_search.dart';
+import 'package:splace/src/core/supermatrix.dart';
 import 'package:splace/src/state/project_controller.dart';
 import 'package:splace/src/ui/widgets/matrix_table.dart';
 
@@ -79,7 +80,7 @@ void main() {
     Future<void> goToSub(String id, String name) async {
       await tester.ensureVisible(find.text(id).first);
       await tester.tap(find.text(id).first);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await shot(name);
     }
 
@@ -87,7 +88,7 @@ void main() {
       final sw = Stopwatch()..start();
       await tester.ensureVisible(find.text(step).first);
       await tester.tap(find.text(step).first);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       timings[name] = sw.elapsedMilliseconds;
       // ignore: avoid_print
       print('$name: ${timings[name]} ms');
@@ -112,7 +113,7 @@ void main() {
     if (all) c.setOnePerTaxon(false);
     await tester.pump();
     await goTo('Loaded Records', 's2_records');
-    await goTo('Select Markers', 's4_markers');
+    await goTo('Features and Markers', 's4_markers');
     if (all) {
       // family_species repeats inside COI: the dialog cannot confirm it and
       // the alignment stays locked until the accession is added.
@@ -133,6 +134,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(c.headerBlocked, isFalse);
     }
+    // Records named only to genus (Caranx sp.) cannot be joined as one
+    // species: the alignment waits until they are left out.
+    if (c.headerBlocked) {
+      await goTo('Sequence Alignment', 's5a_undetermined');
+      expect(c.undeterminedConflicts, isNotEmpty);
+      final drop = find.textContaining('Leave out the');
+      await tester.ensureVisible(drop.first);
+      await tester.tap(drop.first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(c.headerBlocked, isFalse);
+    }
     c.confirmHeader();
     sw.reset();
     await tester.runAsync(() async {
@@ -147,11 +159,11 @@ void main() {
     c.closeModal();
     await tester.pump();
     await goTo('Sequence Alignment', 's5_alignment');
-    await goToSub('5b', 's5b_seqtype');
-    await goToSub('5d', 's5d_trim_prompt');
+    await goToSub('4b', 's5b_seqtype');
+    await goToSub('4c', 's5d_trim_prompt');
     c.openTrim();
     await tester.pump();
-    await goToSub('5e', 's5e_trim');
+    await goToSub('4d', 's5e_trim');
     sw.reset();
     await tester.runAsync(() async {
       await c.trimAll();
@@ -168,7 +180,7 @@ void main() {
     print('trim + saturation: ${sw.elapsedMilliseconds} ms');
     await goTo('Saturation Test', 's6_saturation');
     expect(c.pooledSaturation?.reports.map((r) => r.name), ['COI'], reason: 'one gene, tested on its own');
-    await goToSub('6c', 's6c_suggestion');
+    await goToSub('5c', 's6c_suggestion');
     c.applySaturationRecommendation(perLocus: false);
     await tester.pump();
     sw.reset();
@@ -179,10 +191,17 @@ void main() {
     await tester.pump();
     // ignore: avoid_print
     print('matrix: ${sw.elapsedMilliseconds} ms, ${c.matrix!.taxa.length} taxa');
+    // One gene: "by locus" would be one partition, so only by codon
+    // position (frame known) or none are offered.
+    final coi = c.loci['COI']!;
+    // ignore: avoid_print
+    print('COI coding=${coi.coding} frame=${coi.frame} trimmed by codons=${c.codonTrimmed(coi)} schemes=${c.partitionSchemes} used=${c.effectiveScheme}');
+    expect(c.partitionSchemes, c.codonPositionsUsable(coi) ? [PartitionScheme.byCodonPosition, PartitionScheme.none] : [PartitionScheme.none]);
+    expect(c.partitionSchemes, contains(c.effectiveScheme));
     await goTo('Concatenate and NEXUS', 's7_concat');
-    await goToSub('7b', 's7b_partitions');
+    await goToSub('6b', 's7b_partitions');
     await tester.ensureVisible(find.text('TAXA × MARKERS'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await shot('s7b_matrix_table');
     // The table scrolls inside itself: the page does not grow with the taxa.
     expect(tester.getSize(find.byType(MatrixOverviewTable)).height, lessThan(560));
@@ -202,4 +221,12 @@ void main() {
     // ignore: avoid_print
     print('frame times (ms): $timings');
   }, skip: !enabled, timeout: const Timeout(Duration(minutes: 40)));
+}
+
+/// Frames for 2 s: some screens keep a spinner running, so waiting for
+/// the animations to end would never finish.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }

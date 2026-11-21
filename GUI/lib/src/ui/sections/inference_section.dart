@@ -12,6 +12,7 @@ import '../common.dart';
 import '../fa.dart';
 import '../theme.dart';
 import '../widgets/kit.dart';
+import 'delimitation_card.dart';
 
 const _iqModels = ['TEST', 'MFP', 'MFP+MERGE', 'GTR+G', 'GTR+G+I', 'HKY+G', 'custom'];
 const _bootstraps = ['-B 1000', '-B 5000', '-b 100', ''];
@@ -47,6 +48,46 @@ class _InferenceSectionState extends State<InferenceSection> {
   final _rxBootstraps = TextEditingController(text: 'autoMRE{1000}');
   Set<RaxmlSupport> _metrics = {RaxmlSupport.fbp, RaxmlSupport.tbe};
   final _seed = TextEditingController(text: '12345');
+
+  @override
+  void initState() {
+    super.initState();
+    // A project opened from a file: the form shows the settings of its
+    // last runs.
+    final runs = ProjectScope.read(context).treeRuns;
+    final iq = runs.where((r) => r.iqtree != null && !r.iqtree!.raxmlModelsOnly).firstOrNull;
+    if (iq != null) {
+      final o = iq.iqtree!;
+      if (_iqModels.contains(o.model)) {
+        _iqModel = o.model;
+      } else {
+        _iqModel = 'custom';
+        _custom.text = o.model;
+      }
+      final b = o.classicBootstrap > 0 ? '-b ${o.classicBootstrap}' : (o.ufboot > 0 ? '-B ${o.ufboot}' : '');
+      if (_bootstraps.contains(b)) _bootstrap = b;
+      _alrt = o.alrt;
+      _bnni = o.bnni;
+      _nstop = (o.nstop ?? 100).toDouble();
+      _pers = o.perturbation ?? 0.5;
+      _runs = o.runs.toDouble();
+      _iqSeed.text = o.seed?.toString() ?? '';
+      _extra.text = o.extra;
+      _perGene = iq.geneTrees.isNotEmpty;
+    }
+    final rx = runs.where((r) => r.raxml != null).firstOrNull;
+    if (rx != null) {
+      final o = rx.raxml!;
+      _rxBootstraps.text = o.bootstraps;
+      _metrics = {for (final m in RaxmlSupport.values) if (o.supportMetrics.split(',').contains(m.flag)) m};
+      if (_metrics.isEmpty) _metrics = {RaxmlSupport.fbp, RaxmlSupport.tbe};
+      _rxFast = o.fast;
+      _criterion = o.criterion;
+      _seed.text = '${o.seed}';
+      _rxModels = rx.models;
+      if (rx.fixedModel != null) _rxFixed.text = rx.fixedModel!;
+    }
+  }
 
   @override
   void dispose() {
@@ -137,8 +178,7 @@ class _InferenceSectionState extends State<InferenceSection> {
         };
 
     return StepSection(
-      badge: '8',
-      icon: FA.sitemap,
+      badge: '7',
       title: l10n.step8,
       description: l10n.step8Intro,
       active: widget.active,
@@ -174,7 +214,7 @@ class _InferenceSectionState extends State<InferenceSection> {
                 button,
               ]);
           final iqCard = OptionCard(
-            badge: '8a',
+            badge: '7a',
             title: 'IQ-TREE3 ${c.tools[ExternalTool.iqtree]?.version ?? ''}',
             info: l10n.iqtreeInfo,
             footer: bottom(preview, PrimaryButton(
@@ -278,7 +318,7 @@ class _InferenceSectionState extends State<InferenceSection> {
             ]),
           );
           final rxCard = OptionCard(
-            badge: '8b',
+            badge: '7b',
             title: 'RAxML-NG ${c.tools[ExternalTool.raxmlng]?.version ?? ''}',
             info: l10n.raxmlInfo,
             footer: bottom(rxPreview, PrimaryButton(
@@ -378,17 +418,17 @@ class _InferenceSectionState extends State<InferenceSection> {
           );
           if (!wide) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SubAnchor(id: '8a', child: iqCard),
+              SubAnchor(id: '7a', child: iqCard),
               const SizedBox(height: 16),
-              SubAnchor(id: '8b', child: rxCard),
+              SubAnchor(id: '7b', child: rxCard),
             ]);
           }
           // Side by side: both letters lead to the row.
-          return SubAnchor(id: '8a', child: EqualHeightRow(children: [iqCard, rxCard]));
+          return SubAnchor(id: '7a', child: EqualHeightRow(children: [iqCard, rxCard]));
         }),
         const SizedBox(height: 16),
         SubAnchor(
-          id: '8c',
+          id: '7c',
           child: _BothCard(
           threads: c.threads,
           busy: c.busy || c.tools[ExternalTool.iqtree] == null || c.tools[ExternalTool.raxmlng] == null,
@@ -402,14 +442,20 @@ class _InferenceSectionState extends State<InferenceSection> {
         ),
         const SizedBox(height: 22),
         SubAnchor(
-          id: '8d',
+          id: '7d',
           child: SubHeading(
-            id: '8d',
+            id: '7d',
             title: l10n.runs,
             trailing: ChipButton(label: l10n.openFolder, icon: FA.folderOpen, onPressed: () => c.openFolder(c.workDir)),
           ),
         ),
         if (c.treeRuns.isEmpty) Text(l10n.noRuns, style: TextStyle(color: t.textFaint)) else for (final r in c.treeRuns) _RunCard(run: r, onViewTree: widget.onViewTree),
+        // Species delimitation on the ML trees, once there are trees.
+        if (c.delimitableRuns.isNotEmpty || c.delimitableAlignments.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          SubAnchor(id: '7e', child: SubHeading(id: '7e', title: l10n.delimTitle)),
+          DelimitationCard(onViewTree: widget.onViewTree),
+        ],
       ]),
     );
   }
@@ -436,7 +482,7 @@ class _BothCard extends StatelessWidget {
           Text(text, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: t.text)),
         ]);
     return OptionCard(
-      badge: '8c',
+      badge: '7c',
       title: l10n.bothTitle,
       info: l10n.bothInfo,
       child: LayoutBuilder(builder: (context, box) {

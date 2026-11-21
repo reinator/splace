@@ -1,0 +1,517 @@
+{
+ "size": [
+  1280,
+  720
+ ],
+ "pages": [
+  [
+   {
+    "shot": "tut_top_bar",
+    "rect": [
+     12,
+     130,
+     250,
+     170
+    ],
+    "en": "Step navigator",
+    "pt": "Navegador de etapas"
+   },
+   {
+    "shot": "tut_top_bar",
+    "rect": [
+     960,
+     12,
+     36,
+     38
+    ],
+    "en": "NCBI API key",
+    "pt": "Chave de API do NCBI"
+   },
+   {
+    "shot": "tut_top_bar",
+    "rect": [
+     1002,
+     12,
+     128,
+     38
+    ],
+    "en": "Tools, display, log",
+    "pt": "Ferramentas, exibição, registro"
+   },
+   {
+    "shot": "tut_top_bar",
+    "rect": [
+     1178,
+     12,
+     38,
+     38
+    ],
+    "en": "New project",
+    "pt": "Novo projeto"
+   },
+   {
+    "shot": "tut_new_project",
+    "rect": [
+     360,
+     205,
+     560,
+     310
+    ],
+    "en": "Confirm the new project",
+    "pt": "Confirme o novo projeto"
+   }
+  ],
+  [
+   {
+    "shot": "tut_examples",
+    "rect": [
+     930,
+     140,
+     300,
+     345
+    ],
+    "en": "Example buttons",
+    "pt": "Botões de exemplo"
+   },
+   {
+    "shot": "01a_load_genomes",
+    "rect": [
+     322,
+     452,
+     900,
+     116
+    ],
+    "en": "Taxon, genomes or markers, organelle",
+    "pt": "Táxon, genomas ou marcadores, organela"
+   },
+   {
+    "shot": "tut_species_search",
+    "rect": [
+     322,
+     170,
+     900,
+     440
+    ],
+    "en": "Species and its synonyms",
+    "pt": "Espécie e seus sinônimos"
+   },
+   {
+    "shot": "01c_review_genomes",
+    "rect": [
+     1114,
+     636,
+     118,
+     44
+    ],
+    "en": "Review and import",
+    "pt": "Revise e importe"
+   },
+   {
+    "shot": "01a_load_genomes",
+    "rect": [
+     38,
+     196,
+     214,
+     92
+    ],
+    "en": "1b–1d: accessions, GenBank, FASTA",
+    "pt": "1b–1d: acessos, GenBank, FASTA"
+   },
+   {
+    "shot": "01e_ncbi_api_key",
+    "rect": [
+     48,
+     426,
+     1066,
+     46
+    ],
+    "en": "Paste your NCBI API key",
+    "pt": "Cole sua chave de API do NCBI"
+   }
+  ],
+  [
+   {
+    "shot": "tut_species_id_card",
+    "rect": [
+     908,
+     172,
+     310,
+     44
+    ],
+    "en": "Identify species",
+    "pt": "Identificar espécies"
+   },
+   {
+    "shot": "tut_species_id_setup",
+    "rect": [
+     48,
+     128,
+     1184,
+     490
+    ],
+    "en": "Genes and search parameters",
+    "pt": "Genes e parâmetros da busca"
+   },
+   {
+    "shot": "02a_records_taxonomy",
+    "rect": [
+     326,
+     486,
+     892,
+     138
+    ],
+    "en": "Taxonomy source",
+    "pt": "Fonte da taxonomia"
+   },
+   {
+    "shot": "tut_export_genbank",
+    "rect": [
+     722,
+     502,
+     246,
+     44
+    ],
+    "en": "Export corrected GenBank",
+    "pt": "Exportar GenBank corrigido"
+   },
+   {
+    "shot": "tut_barcoding",
+    "rect": [
+     314,
+     170,
+     916,
+     500
+    ],
+    "en": "DNA barcodes and BOLD sheet",
+    "pt": "DNA barcodes e planilha do BOLD"
+   },
+   {
+    "shot": "tut_alignments",
+    "rect": [
+     48,
+     450,
+     1184,
+     145
+    ],
+    "en": "Your sequence and each hit",
+    "pt": "Sua sequência e cada resultado"
+   },
+   {
+    "shot": "02b_records_table",
+    "rect": [
+     305,
+     258,
+     934,
+     232
+    ],
+    "en": "Records table",
+    "pt": "Tabela de registros"
+   }
+  ],
+  [
+   {
+    "shot": "03_feature_types",
+    "rect": [
+     305,
+     262,
+     507,
+     52
+    ],
+    "en": "PCGs, rRNAs, tRNAs",
+    "pt": "PCGs, rRNAs, tRNAs"
+   },
+   {
+    "shot": "03_feature_types",
+    "rect": [
+     305,
+     195,
+     935,
+     54
+    ],
+    "en": "Gene names by SynGenes",
+    "pt": "Nomes dos genes pelo SynGenes"
+   },
+   {
+    "shot": "03_feature_types",
+    "rect": null,
+    "en": "",
+    "pt": ""
+   },
+   {
+    "shot": "04a_select_markers",
+    "rect": [
+     778,
+     84,
+     462,
+     34
+    ],
+    "en": "Shortcuts",
+    "pt": "Atalhos"
+   },
+   {
+    "shot": "04a_select_markers",
+    "rect": [
+     305,
+     369,
+     934,
+     222
+    ],
+    "en": "Turn markers on or off",
+    "pt": "Ligue ou desligue marcadores"
+   },
+   {
+    "shot": "04b_presence_heatmap",
+    "rect": [
+     305,
+     134,
+     934,
+     306
+    ],
+    "en": "Presence heatmap",
+    "pt": "Heatmap de presença"
+   }
+  ],
+  [
+   {
+    "shot": "05a_header_and_type",
+    "rect": [
+     304,
+     224,
+     242,
+     40
+    ],
+    "en": "Open the Header Builder",
+    "pt": "Abra o Construtor de cabeçalho"
+   },
+   {
+    "shot": "05a_header_and_type",
+    "rect": [
+     312,
+     520,
+     930,
+     164
+    ],
+    "en": "Sequence type",
+    "pt": "Tipo de sequência"
+   },
+   {
+    "shot": "05c_mafft_settings",
+    "rect": [
+     305,
+     549,
+     334,
+     44
+    ],
+    "en": "Run MAFFT",
+    "pt": "Rode o MAFFT"
+   },
+   {
+    "shot": "05e_trimming",
+    "rect": [
+     305,
+     156,
+     461,
+     48
+    ],
+    "en": "Trimming mode",
+    "pt": "Modo de trimagem"
+   },
+   {
+    "shot": "05f_alignment_results",
+    "rect": [
+     320,
+     343,
+     268,
+     32
+    ],
+    "en": "Raw, aligned, trimmed, protein",
+    "pt": "Bruto, alinhado, trimado, proteína"
+   }
+  ],
+  [
+   {
+    "shot": "06a_saturation_settings",
+    "rect": [
+     322,
+     505,
+     900,
+     150
+    ],
+    "en": "Thresholds, then run",
+    "pt": "Limiares, depois rode"
+   },
+   {
+    "shot": "06b_saturation_plots",
+    "rect": [
+     322,
+     440,
+     900,
+     244
+    ],
+    "en": "Read the plots",
+    "pt": "Leia os gráficos"
+   },
+   {
+    "shot": "06b_saturation_plots",
+    "rect": [
+     38,
+     535,
+     212,
+     22
+    ],
+    "en": "6c: apply the recommendation",
+    "pt": "6c: aplique a recomendação"
+   }
+  ],
+  [
+   {
+    "shot": "07_concatenate",
+    "rect": [
+     322,
+     286,
+     900,
+     68
+    ],
+    "en": "Trimmed or aligned",
+    "pt": "Trimado ou alinhado"
+   },
+   {
+    "shot": "07_concatenate",
+    "rect": [
+     322,
+     526,
+     900,
+     126
+    ],
+    "en": "Partitions",
+    "pt": "Partições"
+   },
+   {
+    "shot": "07_concatenate",
+    "rect": [
+     38,
+     509,
+     212,
+     22
+    ],
+    "en": "7c: outgroup",
+    "pt": "7c: grupo externo"
+   },
+   {
+    "shot": "07_concatenate",
+    "rect": [
+     38,
+     533,
+     212,
+     22
+    ],
+    "en": "7d: build the matrix",
+    "pt": "7d: construa a matriz"
+   }
+  ],
+  [
+   {
+    "shot": "08a_iqtree",
+    "rect": [
+     322,
+     288,
+     900,
+     148
+    ],
+    "en": "IQ-TREE: model and support",
+    "pt": "IQ-TREE: modelo e suporte"
+   },
+   {
+    "shot": "08b_raxml",
+    "rect": [
+     322,
+     62,
+     900,
+     208
+    ],
+    "en": "RAxML-NG: models",
+    "pt": "RAxML-NG: modelos"
+   },
+   {
+    "shot": "08d_runs",
+    "rect": [
+     322,
+     62,
+     240,
+     34
+    ],
+    "en": "Run both",
+    "pt": "Rode os dois"
+   },
+   {
+    "shot": "08d_runs",
+    "rect": [
+     1072,
+     195,
+     92,
+     32
+    ],
+    "en": "View tree",
+    "pt": "Ver árvore"
+   },
+   {
+    "shot": "08d_runs",
+    "rect": null,
+    "en": "",
+    "pt": ""
+   }
+  ],
+  [
+   {
+    "shot": "09a_tree_preview",
+    "rect": [
+     305,
+     58,
+     240,
+     40
+    ],
+    "en": "Open the tree editor",
+    "pt": "Abra o editor da árvore"
+   },
+   {
+    "shot": "09a_tree_preview",
+    "rect": null,
+    "en": "",
+    "pt": ""
+   },
+   {
+    "shot": "09a_tree_preview",
+    "rect": [
+     553,
+     60,
+     442,
+     32
+    ],
+    "en": "Compare and export",
+    "pt": "Compare e exporte"
+   },
+   {
+    "shot": "09a_tree_preview",
+    "rect": [
+     420,
+     646,
+     240,
+     38
+    ],
+    "en": "Save everything (ZIP)",
+    "pt": "Salvar tudo (ZIP)"
+   },
+   {
+    "shot": "09f_how_to_cite",
+    "rect": [
+     300,
+     88,
+     945,
+     330
+    ],
+    "en": "References",
+    "pt": "Referências"
+   }
+  ]
+ ]
+}

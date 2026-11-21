@@ -30,6 +30,60 @@ class TaxonInfo {
 
   TaxonomyRanks toRanks() =>
       TaxonomyRanks(kingdom: kingdom, phylum: phylum, klass: klass, order: order, family: family, authorship: authorship, source: source);
+
+  Map<String, dynamic> toJson() => {
+        ...toRanks().toJson(),
+        if (status != null) 'status': status,
+        if (salve != null) 'salve': salve!.toJson(),
+      };
+
+  factory TaxonInfo.fromJson(Map<String, dynamic> j) {
+    final r = TaxonomyRanks.fromJson(j);
+    return TaxonInfo(
+      kingdom: r.kingdom,
+      phylum: r.phylum,
+      klass: r.klass,
+      order: r.order,
+      family: r.family,
+      authorship: r.authorship,
+      source: r.source,
+      status: j['status'] as String?,
+      salve: j['salve'] is Map ? SalveSheet.fromJson((j['salve'] as Map).cast<String, dynamic>()) : null,
+    );
+  }
+}
+
+/// A species name typed by the user: genus and epithet (and optionally a
+/// subspecies), "Rhinella marina".
+bool isSpeciesName(String text) => RegExp(r'^[A-Z][a-z]+ [a-z][a-z-]+( [a-z][a-z-]+)?$').hasMatch(text.trim());
+
+/// The Entrez organism filter of [taxon] and its [synonyms]:
+/// `"Rhinella marina"[Organism]`, or `("Rhinella marina"[Organism] OR
+/// "Bufo marinus"[Organism] …)`.
+String organismQuery(String taxon, [List<String> synonyms = const []]) {
+  final names = <String>[taxon.trim()];
+  for (final s in synonyms) {
+    if (!names.any((n) => n.toLowerCase() == s.trim().toLowerCase())) names.add(s.trim());
+  }
+  final parts = [for (final n in names) '"$n"[Organism]'];
+  return parts.length == 1 ? parts.single : '(${parts.join(' OR ')})';
+}
+
+/// Names from a GBIF species/match answer and the synonyms list of the
+/// accepted name: the accepted name first, then the synonyms at species
+/// rank or below, without repeats.
+List<String> gbifSynonymNames(Map<String, dynamic> match, List<Map<String, dynamic>> synonyms) {
+  final out = <String>[];
+  void add(String? n) {
+    final v = (n ?? '').trim();
+    if (v.isNotEmpty && !out.any((x) => x.toLowerCase() == v.toLowerCase())) out.add(v);
+  }
+
+  add(match['species'] as String? ?? match['canonicalName'] as String?);
+  for (final s in synonyms) {
+    if (const {'SPECIES', 'SUBSPECIES', 'VARIETY', 'FORM'}.contains(s['rank'])) add(s['canonicalName'] as String?);
+  }
+  return out;
 }
 
 /// "Rhinella marina (Linnaeus, 1758)" → "rhinella marina".
@@ -258,4 +312,14 @@ TaxonInfo salveTaxonInfo(String species, Map<String, dynamic> row, {Map<String, 
     salve: sheet,
     source: 'SALVE',
   );
+}
+
+/// A name identified to species (Rhinella marina, a subspecies too): not
+/// "Rhinella sp.", "cf."/"aff." names or a genus. Records of such a name
+/// are one taxon; the others may be different species.
+bool isDeterminateSpecies(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.length < 2) return false;
+  if (!RegExp(r'^[A-Z][a-z]+$').hasMatch(parts[0]) || !RegExp(r'^[a-z][a-z-]+$').hasMatch(parts[1])) return false;
+  return !const {'sp', 'spp', 'cf', 'aff', 'nr', 'indet', 'gen', 'nov'}.contains(parts[1]);
 }

@@ -82,6 +82,7 @@ Comment=SPLit, Align and ConcatenatE: phylogenomic data preparation
 Exec=splace %F
 Icon=splace
 Categories=Science;Biology;
+MimeType=application/x-splace-project;
 Terminal=false
 StartupWMClass=splace
 X-AppImage-Version=$version

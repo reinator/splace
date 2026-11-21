@@ -60,10 +60,20 @@ class ExampleFrame extends StatelessWidget {
 
 const _cellH = 15.0;
 
+/// Height of a row of the animated alignments for cells [w] wide: they
+/// fill the card at any window size, a little taller as they widen.
+double _rowH(double w) => (w * 0.62).clamp(_cellH, 30.0);
+
+/// Width of the cells when [cols] columns (and the names) share [room].
+double _fillW(double room, int cols, {double extra = 0, double min = 8}) {
+  final first = (room - extra - _Names.width) / cols - 1;
+  return math.max(min, (room - extra - _Names.widthFor(_rowH(first))) / cols - 1);
+}
+
 /// One letter of a toy alignment, coloured like the alignment viewer
 /// (nucleotides on [ntColors], amino acids on [aaColors]) unless [color]
 /// is given.
-Widget _cell(BuildContext context, String ch, {Color? color, double w = 12, bool aa = false, bool faded = false}) {
+Widget _cell(BuildContext context, String ch, {Color? color, double w = 12, double h = _cellH, bool aa = false, bool faded = false}) {
   final t = context.tokens;
   final gap = ch == '-';
   final c = gap ? t.surface3 : (color ?? (aa ? aaColors[ch] : ntColors[ch]) ?? const Color(0xFFCBD5E1));
@@ -72,11 +82,11 @@ Widget _cell(BuildContext context, String ch, {Color? color, double w = 12, bool
     opacity: faded ? 0.28 : 1,
     child: Container(
       width: w,
-      height: _cellH,
+      height: h,
       margin: const EdgeInsets.only(right: 1),
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2)),
-      child: Text(ch, style: TextStyle(fontFamily: monoFont, fontSize: 9.5, height: 1, fontWeight: FontWeight.w700, color: ink)),
+      decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2 * h / _cellH)),
+      child: Text(ch, style: TextStyle(fontFamily: monoFont, fontSize: 9.5 * h / _cellH, height: 1, fontWeight: FontWeight.w700, color: ink)),
     ),
   );
 }
@@ -84,31 +94,37 @@ Widget _cell(BuildContext context, String ch, {Color? color, double w = 12, bool
 /// Species names of a toy alignment: one column of the same width, so
 /// every sequence starts at the same place.
 class _Names extends StatelessWidget {
-  const _Names(this.count, {this.top = 0});
+  const _Names(this.count, {this.top = 0, this.rowH = _cellH});
   final int count;
 
   /// Space above the first name (a ruler or markers row).
   final double top;
 
+  /// Height of a row (the cells grow with the card).
+  final double rowH;
+
   static const width = 64.0;
+
+  /// Width of the names for rows [rowH] high.
+  static double widthFor(double rowH) => width * rowH / _cellH;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     return SizedBox(
-      width: width,
+      width: widthFor(rowH),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(height: top),
         for (var i = 0; i < count; i++)
           Container(
-            height: _cellH,
+            height: rowH,
             margin: const EdgeInsets.only(bottom: 2),
             alignment: Alignment.centerLeft,
             child: Text(
               context.l10n.exampleSpecies(String.fromCharCode(65 + i)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, height: 1, fontStyle: FontStyle.italic, color: t.textMuted),
+              style: TextStyle(fontSize: 10.5 * rowH / _cellH, height: 1, fontStyle: FontStyle.italic, color: t.textMuted),
             ),
           ),
       ]),
@@ -303,9 +319,11 @@ class _TrimExampleState extends State<TrimExample> with SingleTickerProviderStat
         ),
       ),
       child: LayoutBuilder(builder: (context, constraints) {
-        // The columns share the width left by the names.
+        // The columns share the width left by the names: the alignment
+        // fills the card at any window size (no fixed maximum).
         final room = constraints.maxWidth.isFinite ? constraints.maxWidth : 520.0;
-        final w = ((room - _Names.width) / cols - 1).clamp(10.0, 34.0);
+        final w = _fillW(room, cols, min: 10);
+        final h = _rowH(w);
         return AnimatedBuilder(
           animation: _anim,
           builder: (context, _) {
@@ -341,7 +359,7 @@ class _TrimExampleState extends State<TrimExample> with SingleTickerProviderStat
                         )
                       : null,
                 ),
-                for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 2), child: _cell(context, r[c], w: w)),
+                for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 2), child: _cell(context, r[c], w: w, h: h)),
                 SizedBox(
                   width: w + 1,
                   height: _barH,
@@ -369,9 +387,9 @@ class _TrimExampleState extends State<TrimExample> with SingleTickerProviderStat
               const SizedBox(height: 8),
               Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  _Names(rows.length, top: _markH + 2),
+                  _Names(rows.length, top: _markH + 2, rowH: h),
                   SizedBox(
-                    width: _Names.width,
+                    width: _Names.widthFor(h),
                     height: _barH,
                     child: Align(
                       alignment: Alignment.bottomLeft,
@@ -520,7 +538,9 @@ class _TrimFrameExampleState extends State<TrimFrameExample> with SingleTickerPr
         // Side by side when both fit, one above the other otherwise.
         final wide = room >= 820;
         final lane = wide ? (room - 12) / 2 : room;
-        final w = ((lane - 20 - _Names.width - (cols ~/ 3 - 1) * _codonGap) / cols - 1).clamp(8.0, 26.0);
+        // The lanes fill the card at any window size (no fixed maximum).
+        final w = _fillW(lane, cols, extra: 20 + (cols ~/ 3 - 1) * _codonGap);
+        final h = _rowH(w);
         return AnimatedBuilder(
           animation: _anim,
           builder: (context, _) {
@@ -592,7 +612,7 @@ class _TrimFrameExampleState extends State<TrimFrameExample> with SingleTickerPr
                                 )
                               : null,
                     ),
-                    for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 2), child: _cell(context, r[c], w: w)),
+                    for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 2), child: _cell(context, r[c], w: w, h: h)),
                     SizedBox(
                       width: w + 1,
                       height: _barH,
@@ -667,9 +687,9 @@ class _TrimFrameExampleState extends State<TrimFrameExample> with SingleTickerPr
                     alignment: Alignment.centerLeft,
                     child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        _Names(rows.length, top: _rulerH + _markH - 1),
+                        _Names(rows.length, top: _rulerH + _markH - 1, rowH: h),
                         SizedBox(
-                          width: _Names.width,
+                          width: _Names.widthFor(h),
                           height: _barH,
                           child: Align(
                             alignment: Alignment.bottomLeft,

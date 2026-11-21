@@ -252,12 +252,30 @@ class _GenomeReviewDialogState extends State<_GenomeReviewDialog> {
                     if (markers != null && column == 3) {
                       return Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(
-                          [c.markers.join(', '), if (c.length != null) '${c.length} bp'].join(' · '),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: t.accentText),
-                        ),
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            [c.markers.join(', '), if (c.length != null) '${c.length} bp'].join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: t.accentText),
+                          ),
+                          // Where it was found (NCBI, BOLD or both), with the
+                          // BOLD country and BIN.
+                          SplaceTooltip(
+                            message: [
+                              if (c.boldId != null) 'BOLD ${c.boldId}',
+                              if (c.bin != null) 'BIN ${c.bin}',
+                              if (c.country != null) c.country!,
+                              if (c.genbank != null) 'GenBank ${c.genbank}',
+                            ].join(' · '),
+                            child: Text(
+                              [c.sources.join(' + '), ?c.country].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11.5, color: c.sources.contains('BOLD') ? SplaceRed.c700 : t.textMuted, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ]),
                       );
                     }
                     final col = markers != null && column == 4 ? 3 : column;
@@ -275,7 +293,21 @@ class _GenomeReviewDialogState extends State<_GenomeReviewDialog> {
                       2 => SplaceTooltip(
                           message: c.title,
                           child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            HighlightText(organism, query, style: body.copyWith(fontStyle: FontStyle.italic, fontWeight: FontWeight.w700)),
+                            Row(children: [
+                              Flexible(child: HighlightText(organism, query, style: body.copyWith(fontStyle: FontStyle.italic, fontWeight: FontWeight.w700))),
+                              // An old name kept in the title (NCBI updates only the organism).
+                              if (c.filedAs != null)
+                                Flexible(
+                                  child: Text.rich(
+                                    TextSpan(style: body.copyWith(fontSize: 11.5, color: t.textMuted), children: [
+                                      TextSpan(text: '  ${context.l10n.reviewFiledAs} '),
+                                      TextSpan(text: c.filedAs, style: const TextStyle(fontStyle: FontStyle.italic)),
+                                    ]),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                            ]),
                             HighlightText(
                               rest,
                               query,

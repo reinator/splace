@@ -28,7 +28,7 @@ fi
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 pkg="$stage/splace_${version}_amd64"
-mkdir -p "$pkg/DEBIAN" "$pkg/opt/splace" "$pkg/usr/bin" "$pkg/usr/share/applications" "$pkg/usr/share/icons/hicolor/512x512/apps"
+mkdir -p "$pkg/DEBIAN" "$pkg/opt/splace" "$pkg/usr/bin" "$pkg/usr/share/applications" "$pkg/usr/share/icons/hicolor/512x512/apps" "$pkg/usr/share/mime/packages"
 cp -a "$bundle/." "$pkg/opt/splace/"
 if [ -d "$pkg/opt/splace/tools" ]; then
   # Launcher scripts checked out on Windows can have CRLF line ends.
@@ -48,9 +48,22 @@ Comment=SPLit, Align and ConcatenatE: phylogenomic data preparation
 Exec=/opt/splace/splace %F
 Icon=splace
 Categories=Science;Biology;
+MimeType=application/x-splace-project;
 Terminal=false
 StartupWMClass=splace
 DESKTOP
+# Project files (.splc) open in SPLACE (dpkg triggers update the MIME and
+# desktop databases).
+cat > "$pkg/usr/share/mime/packages/splace.xml" <<MIME
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-splace-project">
+    <comment>SPLACE project</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.splc" weight="60"/>
+  </mime-type>
+</mime-info>
+MIME
 cat > "$pkg/DEBIAN/control" <<CONTROL
 Package: splace
 Version: $version
